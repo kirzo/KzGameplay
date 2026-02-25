@@ -12,7 +12,9 @@ public class KzGameplay : ModuleRules
 			new string[]
 			{
 				"Core",
-				"GameplayTags"
+				"GameplayTags",
+				"KzLib",
+				"ScriptableFramework"
 			}
 			);
 
@@ -22,9 +24,7 @@ public class KzGameplay : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				"SlateCore",
-				"KzLib",
-				"ScriptableFramework"
+				"SlateCore"
 			}
 			);
 	}
