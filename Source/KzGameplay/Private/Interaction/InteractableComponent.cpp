@@ -10,16 +10,6 @@ UInteractableComponent::UInteractableComponent()
 	InteractionTime = 0.0f;
 }
 
-void UInteractableComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (UInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UInteractionSubsystem>())
-	{
-		Subsystem->RegisterInteractable(this);
-	}
-}
-
 void UInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UInteractionSubsystem>())
@@ -28,6 +18,32 @@ void UInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 
 	Super::EndPlay(EndPlayReason);
+}
+
+void UInteractableComponent::Activate(bool bReset)
+{
+	Super::Activate(bReset);
+
+	if (GetWorld() && GetWorld()->IsGameWorld())
+	{
+		if (UInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UInteractionSubsystem>())
+		{
+			Subsystem->RegisterInteractable(this);
+		}
+	}
+}
+
+void UInteractableComponent::Deactivate()
+{
+	if (GetWorld() && GetWorld()->IsGameWorld())
+	{
+		if (UInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UInteractionSubsystem>())
+		{
+			Subsystem->UnregisterInteractable(this);
+		}
+	}
+
+	Super::Deactivate();
 }
 
 FTransform UInteractableComponent::GetInteractionTransform() const

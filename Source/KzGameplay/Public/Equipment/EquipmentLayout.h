@@ -78,6 +78,22 @@ public:
 	}
 
 	/**
+	 * Returns the socket name mapped to the given slot ID, resolving inheritance and overrides.
+	 * Returns NAME_None if the slot is not found.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Equipment")
+	FName GetSocketForSlot(const FGameplayTag& InSlotID) const
+	{
+		FEquipmentSlotDefinition FoundDef;
+		if (FindSlotDefinition(InSlotID, FoundDef))
+		{
+			return FoundDef.DefaultSocketName;
+		}
+
+		return NAME_None;
+	}
+
+	/**
 	 * Helper to get a flattened list of all slot definitions (Parent + Child), resolving any overrides.
 	 * Very useful for initializing UI elements or the Equipment Component.
 	 */

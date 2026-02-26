@@ -41,6 +41,13 @@ public:
 	FKzComponentSocketReference InteractionSpot;
 
 	/**
+	 * If true, this interactable can move around the world (e.g., a dropped item, a moving cart, an NPC).
+	 * Keep this false for static objects (doors, chests, plants) to save CPU time.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	bool bIsDynamicInteraction = false;
+
+	/**
 	 * If true, the Interactor will trigger the interaction event automatically
 	 * as soon as this object becomes the Best Candidate, without waiting for input.
 	 */
@@ -88,6 +95,8 @@ public:
 	virtual bool ExecuteInteraction(AActor* Interactor);
 
 protected:
-	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	virtual void Activate(bool bReset = false) override;
+	virtual void Deactivate() override;
 };

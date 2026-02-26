@@ -21,25 +21,63 @@ struct FInteractionGridSemantics
 	static FQuat GetElementRotation(const UInteractableComponent* E);
 };
 
+/** Tracks the state of a dynamic interactable to detect movements and update the grid efficiently. */
+struct FDynamicInteractableTrack
+{
+	UInteractableComponent* Component = nullptr;
+	FBox LastBounds = FBox(EForceInit::ForceInit);
+
+	FDynamicInteractableTrack() {}
+	FDynamicInteractableTrack(UInteractableComponent* InComp)
+		: Component(InComp)
+	{
+		LastBounds = FInteractionGridSemantics::GetBoundingBox(InComp);
+	}
+
+	bool operator==(const FDynamicInteractableTrack& Other) const
+	{
+		return Component == Other.Component;
+	}
+
+	bool operator!=(const FDynamicInteractableTrack& Other) const
+	{
+		return Component != Other.Component;
+	}
+};
+
 /**
  * World Subsystem that manages all interactable objects in the current world.
- * Uses a Spatial Hash Grid to provide fast proximity queries for Interactor Components.
+ * Uses a dual Spatial Hash Grid approach (Static + Dynamic) for maximum performance.
  */
 UCLASS()
-class KZGAMEPLAY_API UInteractionSubsystem : public UWorldSubsystem
+class KZGAMEPLAY_API UInteractionSubsystem : public UTickableWorldSubsystem
 {
 	GENERATED_BODY()
 
 private:
-	/** Spatial Hash Grid for broad-phase interaction queries. */
-	Kz::TSpatialHashGrid<UInteractableComponent*, FInteractionGridSemantics> SpatialGrid;
-
 	/** Cell size used for the grid. Can be tuned based on typical interaction ranges. */
 	float GridCellSize = 200.0f;
+
+	/** Grid for objects that never move (Doors, Chests, Plants). Zero CPU cost per frame. */
+	Kz::TSpatialHashGrid<UInteractableComponent*, FInteractionGridSemantics> StaticGrid;
+
+	/** Grid for objects that move (NPCs, Physics Items). */
+	Kz::TSpatialHashGrid<UInteractableComponent*, FInteractionGridSemantics> DynamicGrid;
+
+	/** Fast O(1) lookup to prevent duplicate registrations and manage state safely. */
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<UInteractableComponent>> RegisteredComponents;
+
+	/** Dense array tracking dynamic elements to update them automatically when they move. */
+	TArray<FDynamicInteractableTrack> DynamicInteractables;
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
+	// UTickableWorldSubsystem interface
+	virtual TStatId GetStatId() const override;
+	virtual void Tick(float DeltaTime) override;
 
 	/**
 	 * Registers an interactable component into the spatial grid.
