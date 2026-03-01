@@ -4,14 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "TargetScoringProfile.h"
-#include "TargetScoringLibrary.generated.h"
+#include "KzTargetScoringProfile.h"
+#include "KzTargetScoringLibrary.generated.h"
 
 /**
  * Utility library to evaluate targets using scoring profiles.
  */
 UCLASS()
-class KZGAMEPLAY_API UTargetScoringLibrary : public UBlueprintFunctionLibrary
+class KZGAMEPLAY_API UKzTargetScoringLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
@@ -24,5 +24,5 @@ public:
 	 * @return The final accumulated score (higher is better).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzGameplay|Scoring")
-	static float EvaluateTarget(const AActor* Origin, const AActor* Target, const FTargetScoringProfile& Profile);
+	static float EvaluateTarget(const AActor* Origin, const AActor* Target, const FKzTargetScoringProfile& Profile);
 };

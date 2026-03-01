@@ -6,7 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "ScriptableTasks/ScriptableAction.h"
-#include "ItemDefinition.generated.h"
+#include "KzItemDefinition.generated.h"
 
 class AActor;
 class UTexture2D;
@@ -30,12 +30,12 @@ enum class EKzItemStorageMode : uint8
  * Defines the core, immutable data and rules for an item in the game.
  */
 UCLASS(BlueprintType, Const)
-class KZGAMEPLAY_API UItemDefinition : public UPrimaryDataAsset
+class KZGAMEPLAY_API UKzItemDefinition : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
 
 public:
-	UItemDefinition();
+	UKzItemDefinition();
 
 	// ==========================================
 	// VISUALS & UI

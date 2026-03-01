@@ -1,14 +1,14 @@
 // Copyright 2026 kirzo
 
-#include "Scoring/TargetScoringLibrary.h"
+#include "Scoring/KzTargetScoringLibrary.h"
 
-float UTargetScoringLibrary::EvaluateTarget(const AActor* Origin, const AActor* Target, const FTargetScoringProfile& Profile)
+float UKzTargetScoringLibrary::EvaluateTarget(const AActor* Origin, const AActor* Target, const FKzTargetScoringProfile& Profile)
 {
 	if (!Origin || !Target) return 0.0f;
 
 	float FinalScore = 0.0f;
 
-	for (const FTargetScorerEntry& Entry : Profile.Entries)
+	for (const FKzTargetScorerEntry& Entry : Profile.Entries)
 	{
 		if (Entry.Scorer)
 		{

@@ -3,15 +3,15 @@
 #pragma once
 
 #include "KzLibMinimal.h"
-#include "Scoring/TargetScorer.h"
-#include "TargetScorer_Angle.generated.h"
+#include "Scoring/KzTargetScorer.h"
+#include "KzTargetScorer_Angle.generated.h"
 
 /**
  * Scores a target based on the angle difference between the Origin's forward vector
  * and the direction to the target. Uses KzMath for optimized pure C++ calculations.
  */
 UCLASS(DisplayName = "Angle Scorer")
-class KZGAMEPLAY_API UTargetScorer_Angle : public UTargetScorer
+class KZGAMEPLAY_API UKzTargetScorer_Angle : public UKzTargetScorer
 {
 	GENERATED_BODY()
 

@@ -5,21 +5,23 @@
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
 #include "Components/KzComponentSocketReference.h"
-#include "InteractableComponent.generated.h"
+#include "KzInteractableComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, AActor*, Interactor);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, AActor*, Interactor);
+class UKzInteractorComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, UKzInteractorComponent*, Interactor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzInteractorComponent*, Interactor);
 
 /**
  * Represents an entity in the world that can be interacted with.
  */
 UCLASS(Blueprintable, ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UInteractableComponent : public UKzShapeComponent
+class KZGAMEPLAY_API UKzInteractableComponent : public UKzShapeComponent
 {
 	GENERATED_BODY()
 
 public:
-	UInteractableComponent();
+	UKzInteractableComponent();
 
 	// ==========================================
 	// CONFIGURATION
@@ -92,7 +94,7 @@ public:
 	 * Called to execute the interaction.
 	 * @return True if the interaction was successfully handled.
 	 */
-	virtual bool ExecuteInteraction(AActor* Interactor);
+	virtual bool ExecuteInteraction(UKzInteractorComponent* Interactor);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

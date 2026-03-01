@@ -4,22 +4,24 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Items/ItemInstance.h"
-#include "InventoryComponent.generated.h"
+#include "Items/KzItemInstance.h"
+#include "KzInventoryComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryChangedDelegate);
+
+class UKzItemDefinition;
 
 /**
  * A highly modular, networked inventory component that stores Item Instances.
  * Responsible for managing capacity, stacking, and executing Scriptable Actions upon item acquisition.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UInventoryComponent : public UActorComponent
+class KZGAMEPLAY_API UKzInventoryComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	UInventoryComponent();
+	UKzInventoryComponent();
 
 	/** Delegate fired whenever the inventory contents change (useful for updating UI). */
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
@@ -35,11 +37,11 @@ public:
 	 * @return True if at least some quantity of the item was added.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
-	bool TryAddItem(const UItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor = nullptr);
+	bool TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor = nullptr);
 
 	/** Attempts to remove a specific quantity of an item from the inventory. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
-	bool RemoveItem(const UItemDefinition* ItemDef, int32 Quantity);
+	bool RemoveItem(const UKzItemDefinition* ItemDef, int32 Quantity);
 
 	/** Checks if there is enough room for a new item stack. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -47,19 +49,19 @@ public:
 
 	/** Returns the current list of items. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	const TArray<FItemInstance>& GetItems() const { return Items; }
+	const TArray<FKzItemInstance>& GetItems() const { return Items; }
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/** The replicated list of items currently held in this inventory. */
 	UPROPERTY(ReplicatedUsing = OnRep_Items)
-	TArray<FItemInstance> Items;
+	TArray<FKzItemInstance> Items;
 
 	/** Called on clients whenever the Server updates the Items array. */
 	UFUNCTION()
 	virtual void OnRep_Items();
 
 	/** Internal helper to find an existing stack that isn't full. */
-	int32 FindStackableSlot(const UItemDefinition* ItemDef) const;
+	int32 FindStackableSlot(const UKzItemDefinition* ItemDef) const;
 };

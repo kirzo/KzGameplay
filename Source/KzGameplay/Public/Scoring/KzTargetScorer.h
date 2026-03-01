@@ -4,14 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "UObject/NoExportTypes.h"
-#include "TargetScorer.generated.h"
+#include "KzTargetScorer.generated.h"
 
 /**
  * Base class for all modular scorers.
  * Evaluates a specific relationship between an Origin and a Target and returns a raw score.
  */
 UCLASS(Abstract, Blueprintable, EditInlineNew, DefaultToInstanced)
-class KZGAMEPLAY_API UTargetScorer : public UObject
+class KZGAMEPLAY_API UKzTargetScorer : public UObject
 {
 	GENERATED_BODY()
 

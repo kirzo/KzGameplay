@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ItemInstance.generated.h"
+#include "KzItemInstance.generated.h"
 
-class UItemDefinition;
+class UKzItemDefinition;
 class AActor;
 
 /**
@@ -13,14 +13,14 @@ class AActor;
  * Bridges the static data (Definition) with the runtime state (Quantity, Physical Actor).
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FItemInstance
+struct KZGAMEPLAY_API FKzItemInstance
 {
 	GENERATED_BODY()
 
 public:
 	/** The immutable definition and rules of this item. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Instance")
-	TObjectPtr<const UItemDefinition> ItemDef = nullptr;
+	TObjectPtr<const UKzItemDefinition> ItemDef = nullptr;
 
 	/** The current stack quantity of this item. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Instance", meta = (ClampMin = "1"))
@@ -30,9 +30,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Item Instance")
 	TObjectPtr<AActor> PhysicalActor = nullptr;
 
-	FItemInstance() = default;
+	FKzItemInstance() = default;
 
-	FItemInstance(const UItemDefinition* InDef, int32 InQuantity, AActor* InPhysicalActor = nullptr)
+	FKzItemInstance(const UKzItemDefinition* InDef, int32 InQuantity, AActor* InPhysicalActor = nullptr)
 		: ItemDef(InDef)
 		, Quantity(InQuantity)
 		, PhysicalActor(InPhysicalActor)
@@ -46,7 +46,7 @@ public:
 	}
 
 	/** Equality operator to easily find specific instances in an array. */
-	bool operator==(const FItemInstance& Other) const
+	bool operator==(const FKzItemInstance& Other) const
 	{
 		return ItemDef == Other.ItemDef && PhysicalActor == Other.PhysicalActor;
 	}

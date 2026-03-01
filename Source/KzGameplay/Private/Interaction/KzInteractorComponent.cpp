@@ -1,16 +1,20 @@
 // Copyright 2026 kirzo
 
-#include "Interaction/InteractorComponent.h"
-#include "Interaction/InteractionSubsystem.h"
-#include "Scoring/TargetScoringLibrary.h"
+#include "Interaction/KzInteractorComponent.h"
+#include "Interaction/KzInteractionSubsystem.h"
+#include "Scoring/KzTargetScoringLibrary.h"
 
-UInteractorComponent::UInteractorComponent()
+UKzInteractorComponent::UKzInteractorComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false; // We use timers
 	ScanRate = 0.1f;
+
+	FilterRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
+	FilterRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+	FilterRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 }
 
-void UInteractorComponent::BeginPlay()
+void UKzInteractorComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -18,30 +22,30 @@ void UInteractorComponent::BeginPlay()
 	// We don't want simulated proxies (other players on your screen) running scans.
 	if (GetOwner()->GetLocalRole() != ROLE_SimulatedProxy)
 	{
-		GetWorld()->GetTimerManager().SetTimer(ScanTimerHandle, this, &UInteractorComponent::PerformScan, ScanRate, true);
+		GetWorld()->GetTimerManager().SetTimer(ScanTimerHandle, this, &UKzInteractorComponent::PerformScan, ScanRate, true);
 	}
 }
 
-void UInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
 	Super::EndPlay(EndPlayReason);
 }
 
-void UInteractorComponent::PerformScan()
+void UKzInteractorComponent::PerformScan()
 {
-	UInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UInteractionSubsystem>();
+	UKzInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzInteractionSubsystem>();
 	if (!Subsystem) return;
 
 	// 1. Query the Grid (Broad + Narrow phase done internally!)
 	FTransform WorldTransform = GetComponentTransform();
-	TArray<UInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
 
-	UInteractableComponent* BestCandidate = nullptr;
+	UKzInteractableComponent* BestCandidate = nullptr;
 	float BestScore = -1.0f;
 
 	// 2. Evaluate Candidates
-	for (UInteractableComponent* Candidate : Candidates)
+	for (UKzInteractableComponent* Candidate : Candidates)
 	{
 		// 2A. Filter
 		FilterRequirement.ResetContext();
@@ -54,7 +58,7 @@ void UInteractorComponent::PerformScan()
 		}
 
 		// 2B. Soft Scoring
-		float Score = UTargetScoringLibrary::EvaluateTarget(GetOwner(), Candidate->GetOwner(), ScoringProfile);
+		float Score = UKzTargetScoringLibrary::EvaluateTarget(GetOwner(), Candidate->GetOwner(), ScoringProfile);
 
 		// Keep the highest scorer
 		if (Score > BestScore)
@@ -65,20 +69,20 @@ void UInteractorComponent::PerformScan()
 	}
 
 	// 3. Handle State Changes
-	UInteractableComponent* OldInteractable = CurrentInteractable.Get();
+	UKzInteractableComponent* OldInteractable = CurrentInteractable.Get();
 
 	if (OldInteractable != BestCandidate)
 	{
 		// Unfocus the old one
 		if (OldInteractable)
 		{
-			OldInteractable->OnEndFocus.Broadcast(GetOwner());
+			OldInteractable->OnEndFocus.Broadcast(this);
 		}
 
 		// Focus the new one
 		if (BestCandidate)
 		{
-			BestCandidate->OnBeginFocus.Broadcast(GetOwner());
+			BestCandidate->OnBeginFocus.Broadcast(this);
 		}
 
 		CurrentInteractable = BestCandidate;
@@ -97,36 +101,40 @@ void UInteractorComponent::PerformScan()
 	}
 }
 
-void UInteractorComponent::Interact()
+bool UKzInteractorComponent::Interact()
 {
-	UInteractableComponent* Target = CurrentInteractable.Get();
+	UKzInteractableComponent* Target = CurrentInteractable.Get();
 
 	if (Target)
 	{
 		// If we are the server, execute immediately. If client, ask the server.
 		if (GetOwner()->HasAuthority())
 		{
-			Target->ExecuteInteraction(GetOwner());
+			Target->ExecuteInteraction(this);
 		}
 		else
 		{
 			Server_TryInteract(Target);
 		}
+
+		return true;
 	}
+
+	return false;
 }
 
-bool UInteractorComponent::Server_TryInteract_Validate(UInteractableComponent* Target)
+bool UKzInteractorComponent::Server_TryInteract_Validate(UKzInteractableComponent* Target)
 {
 	return IsValid(Target);
 }
 
-void UInteractorComponent::Server_TryInteract_Implementation(UInteractableComponent* Target)
+void UKzInteractorComponent::Server_TryInteract_Implementation(UKzInteractableComponent* Target)
 {
 	if (Target)
 	{
 		// In a highly secure game, you would re-run a distance/LoS check here to ensure 
 		// the client didn't hack the RPC to interact with a chest 5 miles away.
 		// For now, we trust the client's target and execute:
-		Target->ExecuteInteraction(GetOwner());
+		Target->ExecuteInteraction(this);
 	}
 }

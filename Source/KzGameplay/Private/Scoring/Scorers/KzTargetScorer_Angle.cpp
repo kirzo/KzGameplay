@@ -1,9 +1,9 @@
 // Copyright 2026 kirzo
 
-#include "Scoring/Scorers/TargetScorer_Angle.h"
+#include "Scoring/Scorers/KzTargetScorer_Angle.h"
 #include "GameFramework/Actor.h"
 
-float UTargetScorer_Angle::CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const
+float UKzTargetScorer_Angle::CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const
 {
 	if (!Origin || !Target) return 0.0f;
 

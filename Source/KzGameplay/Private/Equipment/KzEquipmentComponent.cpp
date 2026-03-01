@@ -1,30 +1,30 @@
 // Copyright 2026 kirzo
 
-#include "Equipment/EquipmentComponent.h"
-#include "Items/ItemDefinition.h"
-#include "Items/ItemComponent.h"
-#include "Inventory/InventoryComponent.h"
+#include "Equipment/KzEquipmentComponent.h"
+#include "Items/KzItemDefinition.h"
+#include "Items/KzItemComponent.h"
+#include "Inventory/KzInventoryComponent.h"
 #include "Misc/KzTransformSource.h"
 
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 
-UEquipmentComponent::UEquipmentComponent()
+UKzEquipmentComponent::UKzEquipmentComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
 }
 
-void UEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void UKzEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// Unlike the Inventory, equipment is usually visible to everyone (COND_None).
-	DOREPLIFETIME(UEquipmentComponent, EquippedSlots);
+	DOREPLIFETIME(UKzEquipmentComponent, EquippedSlots);
 }
 
-void UEquipmentComponent::BeginPlay()
+void UKzEquipmentComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -34,22 +34,22 @@ void UEquipmentComponent::BeginPlay()
 	}
 }
 
-void UEquipmentComponent::InitializeEquipment(const UEquipmentLayout* Layout)
+void UKzEquipmentComponent::InitializeEquipment(const UKzEquipmentLayout* Layout)
 {
 	if (!Layout) return;
 
 	EquippedSlots.Empty();
 
-	TArray<FEquipmentSlotDefinition> AllSlots;
+	TArray<FKzEquipmentSlotDefinition> AllSlots;
 	Layout->GetAllSlotDefinitions(AllSlots);
 
-	for (const FEquipmentSlotDefinition& SlotDef : AllSlots)
+	for (const FKzEquipmentSlotDefinition& SlotDef : AllSlots)
 	{
 		EquippedSlots.Add(FEquippedSlot(SlotDef.SlotID));
 	}
 }
 
-void UEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEquippedSlots)
+void UKzEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEquippedSlots)
 {
 	// Iterate through the new state of the equipped slots
 	for (const FEquippedSlot& NewSlot : EquippedSlots)
@@ -86,14 +86,14 @@ void UEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEq
 	}
 }
 
-bool UEquipmentComponent::EquipItem(const FItemInstance& ItemToEquip, FItemInstance& OutUnequippedItem)
+bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem)
 {
 	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid() || !ItemToEquip.ItemDef->IsEquippable())
 	{
 		return false;
 	}
 
-	FGameplayTag TargetSlot = ItemToEquip.ItemDef->TargetSlot;
+	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(ItemToEquip.ItemDef->TargetSlot);
 
 	for (FEquippedSlot& Slot : EquippedSlots)
 	{
@@ -128,7 +128,7 @@ bool UEquipmentComponent::EquipItem(const FItemInstance& ItemToEquip, FItemInsta
 
 					if (ItemToEquip.ItemDef->bUseCustomAttachment)
 					{
-						if (UItemComponent* ItemComp = NewPhysicalActor->FindComponentByClass<UItemComponent>())
+						if (UKzItemComponent* ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>())
 						{
 							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(MeshComp, AttachmentSocket, ItemToEquip.ItemDef->AttachmentOffset));
 						}
@@ -154,36 +154,38 @@ bool UEquipmentComponent::EquipItem(const FItemInstance& ItemToEquip, FItemInsta
 	return false;
 }
 
-bool UEquipmentComponent::EquipItemFromWorld(UItemComponent* ItemComp, FItemInstance& OutUnequippedItem)
+bool UKzEquipmentComponent::EquipItemFromWorld(UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem)
 {
 	if (!GetOwner()->HasAuthority() || !ItemComp || !ItemComp->ItemDef)
 	{
 		return false;
 	}
 
-	return EquipItem(ItemComp->ToItemInstance(), OutUnequippedItem);
+	return EquipItem(ItemComp->ToKzItemInstance(), OutUnequippedItem);
 }
 
-bool UEquipmentComponent::UnequipItem(FGameplayTag SlotID, FItemInstance& OutUnequippedItem)
+bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem)
 {
 	if (!GetOwner()->HasAuthority())
 	{
 		return false;
 	}
 
+	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
+
 	for (FEquippedSlot& Slot : EquippedSlots)
 	{
-		if (Slot.SlotID == SlotID && Slot.Instance.IsValid())
+		if (Slot.SlotID == TargetSlot && Slot.Instance.IsValid())
 		{
 			OutUnequippedItem = Slot.Instance;
-			Slot.Instance = FItemInstance(); // Clear the slot
+			Slot.Instance = FKzItemInstance(); // Clear the slot
 
 			bool bSentToInventory = false;
 
 			// 1. Check if the item is allowed to go to the backpack
 			if (OutUnequippedItem.ItemDef->StorageMode != EKzItemStorageMode::EquipmentOnly)
 			{
-				if (UInventoryComponent* InvComp = GetOwner()->FindComponentByClass<UInventoryComponent>())
+				if (UKzInventoryComponent* InvComp = GetOwner()->FindComponentByClass<UKzInventoryComponent>())
 				{
 					// TryAddItem will destroy the physical actor if it successfully stores it
 					bSentToInventory = InvComp->TryAddItem(OutUnequippedItem.ItemDef, OutUnequippedItem.Quantity, OutUnequippedItem.PhysicalActor);
@@ -197,7 +199,7 @@ bool UEquipmentComponent::UnequipItem(FGameplayTag SlotID, FItemInstance& OutUne
 				{
 					if (OutUnequippedItem.ItemDef->bUseCustomAttachment)
 					{
-						if (UItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UItemComponent>())
+						if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
 						{
 							ItemComp->OnCustomDetach.Broadcast(GetOwner());
 						}
@@ -212,10 +214,10 @@ bool UEquipmentComponent::UnequipItem(FGameplayTag SlotID, FItemInstance& OutUne
 						OwnerPrim->IgnoreActorWhenMoving(OldPhysicalActor, false);
 					}
 
-					// Enable physics only if the ItemComponent dictates it
+					// Enable physics only if the KzItemComponent dictates it
 					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(OldPhysicalActor->GetRootComponent()))
 					{
-						if (UItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UItemComponent>())
+						if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
 						{
 							if (ItemComp->bSimulatePhysics)
 							{
@@ -232,7 +234,7 @@ bool UEquipmentComponent::UnequipItem(FGameplayTag SlotID, FItemInstance& OutUne
 
 			// TODO: Execute Scriptable Framework OnUnequippedAction for OutUnequippedItem
 
-			OnEquipmentChanged.Broadcast(SlotID, FItemInstance());
+			OnEquipmentChanged.Broadcast(SlotID, FKzItemInstance());
 			return true;
 		}
 	}
@@ -240,15 +242,17 @@ bool UEquipmentComponent::UnequipItem(FGameplayTag SlotID, FItemInstance& OutUne
 	return false;
 }
 
-FItemInstance UEquipmentComponent::GetItemInSlot(FGameplayTag SlotID) const
+FKzItemInstance UKzEquipmentComponent::GetItemInSlot(FGameplayTag SlotID) const
 {
+	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
+
 	for (const FEquippedSlot& Slot : EquippedSlots)
 	{
-		if (Slot.SlotID == SlotID)
+		if (Slot.SlotID == TargetSlot)
 		{
 			return Slot.Instance;
 		}
 	}
 
-	return FItemInstance();
+	return FKzItemInstance();
 }

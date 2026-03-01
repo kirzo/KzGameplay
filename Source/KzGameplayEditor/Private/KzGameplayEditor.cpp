@@ -4,16 +4,17 @@
 
 #include "KzGameplayEditor.h"
 
-#include "Items/ItemDefinition.h"
-#include "Equipment/EquipmentLayout.h"
+#include "Items/KzItemDefinition.h"
+#include "Equipment/KzEquipmentLayout.h"
+#include "Input/KzInputProfile.h"
 
 #define LOCTEXT_NAMESPACE "FKzGameplayEditorModule"
 
 void FKzGameplayEditorModule::OnStartupModule()
 {
-	const TArray<FText> SubMenus = { INVTEXT("Gameplay") };
-	RegisterAssetTypeAction<UItemDefinition>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), SubMenus);
-	RegisterAssetTypeAction<UEquipmentLayout>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), SubMenus);
+	RegisterAssetTypeAction<UKzItemDefinition>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), { INVTEXT("Gameplay") });
+	RegisterAssetTypeAction<UKzEquipmentLayout>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), { INVTEXT("Gameplay") });
+	RegisterAssetTypeAction<UKzInputProfile>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") });
 }
 
 #undef LOCTEXT_NAMESPACE

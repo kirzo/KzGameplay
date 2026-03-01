@@ -4,21 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "Curves/CurveFloat.h"
-#include "TargetScorer.h"
-#include "TargetScoringProfile.generated.h"
+#include "KzTargetScorer.h"
+#include "KzTargetScoringProfile.generated.h"
 
 /**
  * Defines a single scoring rule, applying a weight and an optional curve to a Scorer.
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FTargetScorerEntry
+struct KZGAMEPLAY_API FKzTargetScorerEntry
 {
 	GENERATED_BODY()
 
 public:
 	/** The logic used to evaluate the target. */
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Scoring")
-	TObjectPtr<UTargetScorer> Scorer;
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Scoring", meta = (ShowOnlyInnerProperties))
+	TObjectPtr<UKzTargetScorer> Scorer;
 
 	/** Multiplier applied to the final score of this evaluator. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scoring")
@@ -37,12 +37,12 @@ public:
  * Can be added as a property to any Component (like an Interactor or an Auto-Aim system).
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FTargetScoringProfile
+struct KZGAMEPLAY_API FKzTargetScoringProfile
 {
 	GENERATED_BODY()
 
 public:
 	/** The list of scorers that will contribute to the final score. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scoring")
-	TArray<FTargetScorerEntry> Entries;
+	TArray<FKzTargetScorerEntry> Entries;
 };

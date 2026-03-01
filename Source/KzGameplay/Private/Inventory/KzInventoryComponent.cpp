@@ -1,37 +1,37 @@
 // Copyright 2026 kirzo
 
-#include "Inventory/InventoryComponent.h"
-#include "Items/ItemDefinition.h"
+#include "Inventory/KzInventoryComponent.h"
+#include "Items/KzItemDefinition.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 
-UInventoryComponent::UInventoryComponent()
+UKzInventoryComponent::UKzInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
 	Capacity = 20; // Default slots
 }
 
-void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void UKzInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// COND_OwnerOnly to save bandwidth,
-	DOREPLIFETIME_CONDITION(UInventoryComponent, Items, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(UKzInventoryComponent, Items, COND_OwnerOnly);
 }
 
-void UInventoryComponent::OnRep_Items()
+void UKzInventoryComponent::OnRep_Items()
 {
 	// Notify the UI or other systems on the client that the inventory has updated
 	OnInventoryChanged.Broadcast();
 }
 
-bool UInventoryComponent::HasSpace() const
+bool UKzInventoryComponent::HasSpace() const
 {
 	return Items.Num() < Capacity;
 }
 
-int32 UInventoryComponent::FindStackableSlot(const UItemDefinition* ItemDef) const
+int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef) const
 {
 	if (!ItemDef) return INDEX_NONE;
 
@@ -45,7 +45,7 @@ int32 UInventoryComponent::FindStackableSlot(const UItemDefinition* ItemDef) con
 	return INDEX_NONE;
 }
 
-bool UInventoryComponent::TryAddItem(const UItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor)
+bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor)
 {
 	if (!ItemDef || Quantity <= 0 || !GetOwner()->HasAuthority())
 	{
@@ -76,7 +76,7 @@ bool UInventoryComponent::TryAddItem(const UItemDefinition* ItemDef, int32 Quant
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, ItemDef->MaxStackSize);
 
 		// Note: We deliberately pass nullptr for the PhysicalActor because it's going into the backpack
-		Items.Add(FItemInstance(ItemDef, AmountToAdd, nullptr));
+		Items.Add(FKzItemInstance(ItemDef, AmountToAdd, nullptr));
 
 		RemainingQuantity -= AmountToAdd;
 	}
@@ -102,7 +102,7 @@ bool UInventoryComponent::TryAddItem(const UItemDefinition* ItemDef, int32 Quant
 	return false;
 }
 
-bool UInventoryComponent::RemoveItem(const UItemDefinition* ItemDef, int32 Quantity)
+bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Quantity)
 {
 	if (!ItemDef || Quantity <= 0 || !GetOwner()->HasAuthority())
 	{

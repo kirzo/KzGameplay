@@ -4,23 +4,23 @@
 
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
-#include "Interaction/InteractableComponent.h"
-#include "Scoring/TargetScoringProfile.h"
+#include "Interaction/KzInteractableComponent.h"
+#include "Scoring/KzTargetScoringProfile.h"
 #include "ScriptableConditions/ScriptableRequirement.h"
-#include "InteractorComponent.generated.h"
+#include "KzInteractorComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentInteractableChangedDelegate, UInteractableComponent*, NewInteractable, UInteractableComponent*, OldInteractable);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentInteractableChangedDelegate, UKzInteractableComponent*, NewInteractable, UKzInteractableComponent*, OldInteractable);
 
 /**
  * Component attached to the Player (or AI) responsible for finding and evaluating Interactables.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UInteractorComponent : public UKzShapeComponent
+class KZGAMEPLAY_API UKzInteractorComponent : public UKzShapeComponent
 {
 	GENERATED_BODY()
 
 public:
-	UInteractorComponent();
+	UKzInteractorComponent();
 
 	// ==========================================
 	// CONFIGURATION
@@ -42,7 +42,7 @@ public:
 	 * (e.g., Highest score based on Angle/DotProduct and Distance).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Evaluation")
-	FTargetScoringProfile ScoringProfile;
+	FKzTargetScoringProfile ScoringProfile;
 
 	// ==========================================
 	// DELEGATES
@@ -58,12 +58,12 @@ public:
 
 	/** Returns the current best interactable candidate. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
-	UInteractableComponent* GetCurrentInteractable() const { return CurrentInteractable.Get(); }
+	UKzInteractableComponent* GetCurrentInteractable() const { return CurrentInteractable.Get(); }
 
 	/** * Call this from your PlayerController/Character when the 'Interact' input is pressed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void Interact();
+	bool Interact();
 
 protected:
 	virtual void BeginPlay() override;
@@ -73,7 +73,7 @@ protected:
 	void PerformScan();
 
 	/** The currently focused best candidate. */
-	TWeakObjectPtr<UInteractableComponent> CurrentInteractable;
+	TWeakObjectPtr<UKzInteractableComponent> CurrentInteractable;
 
 	/** Timer handle for the scanning loop. */
 	FTimerHandle ScanTimerHandle;
@@ -87,5 +87,5 @@ protected:
 	 * The server should ideally validate the interaction before executing it.
 	 */
 	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_TryInteract(UInteractableComponent* Target);
+	void Server_TryInteract(UKzInteractableComponent* Target);
 };

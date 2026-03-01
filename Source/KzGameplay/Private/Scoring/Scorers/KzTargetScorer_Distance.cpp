@@ -1,9 +1,9 @@
 // Copyright 2026 kirzo
 
-#include "Scoring/Scorers/TargetScorer_Distance.h"
+#include "Scoring/Scorers/KzTargetScorer_Distance.h"
 #include "GameFramework/Actor.h"
 
-float UTargetScorer_Distance::CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const
+float UKzTargetScorer_Distance::CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const
 {
 	if (!Origin || !Target) return 0.0f;
 

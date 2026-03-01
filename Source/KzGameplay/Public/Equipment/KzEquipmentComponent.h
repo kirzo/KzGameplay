@@ -5,11 +5,11 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
-#include "Items/ItemInstance.h"
-#include "Equipment/EquipmentLayout.h"
-#include "EquipmentComponent.generated.h"
+#include "Items/KzItemInstance.h"
+#include "Equipment/KzEquipmentLayout.h"
+#include "KzEquipmentComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FItemInstance&, NewItem);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, NewItem);
 
 /**
  * Represents a specific slot in the equipment system and the item currently in it.
@@ -26,7 +26,7 @@ public:
 
 	/** The item currently equipped in this slot. If Quantity is 0, the slot is empty. */
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment Slot")
-	FItemInstance Instance;
+	FKzItemInstance Instance;
 
 	FEquippedSlot() {}
 	FEquippedSlot(FGameplayTag InSlotID) : SlotID(InSlotID) {}
@@ -37,12 +37,12 @@ public:
  * Handles the logic of swapping items, replicating the equipped state, and triggering attachment events.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UEquipmentComponent : public UActorComponent
+class KZGAMEPLAY_API UKzEquipmentComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	UEquipmentComponent();
+	UKzEquipmentComponent();
 
 	/** Delegate fired whenever an item is equipped or unequipped. */
 	UPROPERTY(BlueprintAssignable, Category = "Equipment")
@@ -50,37 +50,37 @@ public:
 
 	/** The default layout defining which slots this character has available. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment Configuration")
-	TObjectPtr<const UEquipmentLayout> DefaultLayout;
+	TObjectPtr<const UKzEquipmentLayout> DefaultLayout;
 
 	/** * Initializes the empty slots based on the provided layout.
 	 * Usually called automatically on BeginPlay using DefaultLayout.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
-	void InitializeEquipment(const UEquipmentLayout* Layout);
+	void InitializeEquipment(const UKzEquipmentLayout* Layout);
 
 	/** * Attempts to equip an item into its designated target slot.
 	 * If the slot was already occupied, the old item is returned via OutUnequippedItem.
 	 * @return True if the item was successfully equipped.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
-	bool EquipItem(const FItemInstance& ItemToEquip, FItemInstance& OutUnequippedItem);
+	bool EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem);
 
 	/**
-	 * Equips an item directly from an ItemComponent in the world.
+	 * Equips an item directly from an KzItemComponent in the world.
 	 * Triggers pre-pickup events before attaching.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
-	bool EquipItemFromWorld(class UItemComponent* ItemComp, FItemInstance& OutUnequippedItem);
+	bool EquipItemFromWorld(class UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem);
 
 	/** * Removes whatever item is currently in the specified slot.
 	 * @return True if there was an item to unequip.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
-	bool UnequipItem(FGameplayTag SlotID, FItemInstance& OutUnequippedItem);
+	bool UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem);
 
 	/** Returns the item instance currently occupying the given slot, if any. */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
-	FItemInstance GetItemInSlot(FGameplayTag SlotID) const;
+	FKzItemInstance GetItemInSlot(FGameplayTag SlotID) const;
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

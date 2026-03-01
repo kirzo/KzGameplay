@@ -3,15 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Scoring/TargetScorer.h"
-#include "TargetScorer_Distance.generated.h"
+#include "Scoring/KzTargetScorer.h"
+#include "KzTargetScorer_Distance.generated.h"
 
 /**
  * Scores a target based on its distance to the origin.
  * Closer targets receive a higher score (approaching 1.0).
  */
 UCLASS(DisplayName = "Distance Scorer")
-class KZGAMEPLAY_API UTargetScorer_Distance : public UTargetScorer
+class KZGAMEPLAY_API UKzTargetScorer_Distance : public UKzTargetScorer
 {
 	GENERATED_BODY()
 

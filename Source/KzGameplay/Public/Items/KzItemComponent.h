@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Items/ItemInstance.h"
+#include "Items/KzItemInstance.h"
+#include "Interaction/KzInteractableInterface.h"
 #include "Misc/KzTransformSource.h"
-#include "ItemComponent.generated.h"
+#include "KzItemComponent.generated.h"
 
-class UItemDefinition;
+class UKzItemDefinition;
+class UKzInteractorComponent;
+class UKzInteractableComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemPickedUpDelegate, AActor*, NewOwner);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemCustomAttachDelegate, AActor*, Equipper, FKzTransformSource, AttachSource);
@@ -19,14 +22,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCustomDetachDelegate, AActor*
  * It holds the definition and quantity, and routes the pickup logic to the interactor's inventory or equipment.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UItemComponent : public UActorComponent
+class KZGAMEPLAY_API UKzItemComponent : public UActorComponent, public IKzInteractableInterface
 {
 	GENERATED_BODY()
 
 public:
 	/** The data asset defining what this item is. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
-	TObjectPtr<const UItemDefinition> ItemDef;
+	TObjectPtr<const UKzItemDefinition> ItemDef;
 
 	/** The amount of this item contained in this physical actor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
@@ -45,33 +48,29 @@ public:
 
 	/**
 	 * Fired by the EquipmentComponent to handle custom attachment logic
-	 * if the ItemDefinition has bUseCustomAttachment set to true.
+	 * if the KzItemDefinition has bUseCustomAttachment set to true.
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Equipment")
 	FOnItemCustomAttachDelegate OnCustomAttach;
 
 	/**
 	 * Fired by the EquipmentComponent to handle custom detachment logic
-	 * if the ItemDefinition has bUseCustomAttachment set to true.
+	 * if the KzItemDefinition has bUseCustomAttachment set to true.
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Equipment")
 	FOnItemCustomDetachDelegate OnCustomDetach;
 
 public:
-	UItemComponent();
+	UKzItemComponent();
 
-	FItemInstance ToItemInstance() const
+	FKzItemInstance ToKzItemInstance() const
 	{
-		return FItemInstance(ItemDef, Quantity, GetOwner());
+		return FKzItemInstance(ItemDef, Quantity, GetOwner());
 	}
-
-	/**
-	 * Call this function when a character interacts with this item's owner.
-	 * @param Interactor The actor trying to pick up this item.
-	 */
-	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item")
-	void HandleInteraction(AActor* Interactor);
 
 protected:
 	virtual void BeginPlay() override;
+
+	/** Native implementation of the interaction interface */
+	virtual bool HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 };

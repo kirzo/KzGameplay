@@ -12,7 +12,10 @@ public class KzGameplay : ModuleRules
 			new string[]
 			{
 				"Core",
+				"EnhancedInput",
 				"GameplayTags",
+				"GameplayAbilities",
+				"GameplayTasks",
 				"KzLib",
 				"ScriptableFramework"
 			}
