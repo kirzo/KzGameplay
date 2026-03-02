@@ -7,9 +7,10 @@
 #include "GameplayTagContainer.h"
 #include "Items/KzItemInstance.h"
 #include "Equipment/KzEquipmentLayout.h"
+#include "ScriptableTasks/ScriptableAction.h"
 #include "KzEquipmentComponent.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, NewItem);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, Item);
 
 /**
  * Represents a specific slot in the equipment system and the item currently in it.
@@ -44,12 +45,24 @@ class KZGAMEPLAY_API UKzEquipmentComponent : public UActorComponent
 public:
 	UKzEquipmentComponent();
 
-	/** Delegate fired whenever an item is equipped or unequipped. */
+	/** Delegate fired when an item is placed into a slot. */
 	UPROPERTY(BlueprintAssignable, Category = "Equipment")
-	FOnEquipmentChangedDelegate OnEquipmentChanged;
+	FOnEquipmentChangedDelegate OnItemEquipped;
+
+	/** Delegate fired when an item is removed from a slot. */
+	UPROPERTY(BlueprintAssignable, Category = "Equipment")
+	FOnEquipmentChangedDelegate OnItemUnequipped;
+
+	/** Action executed whenever ANY item is successfully equipped. Useful for generic SFX/VFX. */
+	UPROPERTY(EditAnywhere, Category = "Equipment|Events")
+	FScriptableAction OnItemEquippedAction;
+
+	/** Action executed whenever ANY item is successfully unequipped. Useful for generic SFX/VFX. */
+	UPROPERTY(EditAnywhere, Category = "Equipment|Events")
+	FScriptableAction OnItemUnequippedAction;
 
 	/** The default layout defining which slots this character has available. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment Configuration")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment")
 	TObjectPtr<const UKzEquipmentLayout> DefaultLayout;
 
 	/** * Initializes the empty slots based on the provided layout.

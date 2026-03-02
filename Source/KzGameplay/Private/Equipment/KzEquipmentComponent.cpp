@@ -14,6 +14,16 @@ UKzEquipmentComponent::UKzEquipmentComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+
+	OnItemEquippedAction.AddContextProperty<AActor*>(TEXT("Instigator"));
+	OnItemEquippedAction.AddContextProperty<UKzEquipmentComponent*>(TEXT("Equipment"));
+	OnItemEquippedAction.AddContextProperty<AActor*>(TEXT("ItemActor"));
+	OnItemEquippedAction.AddContextProperty<FGameplayTag>(TEXT("SlotID"));
+
+	OnItemUnequippedAction.AddContextProperty<AActor*>(TEXT("Instigator"));
+	OnItemUnequippedAction.AddContextProperty<UKzEquipmentComponent*>(TEXT("Equipment"));
+	OnItemUnequippedAction.AddContextProperty<AActor*>(TEXT("ItemActor"));
+	OnItemUnequippedAction.AddContextProperty<FGameplayTag>(TEXT("SlotID"));
 }
 
 void UKzEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -51,37 +61,27 @@ void UKzEquipmentComponent::InitializeEquipment(const UKzEquipmentLayout* Layout
 
 void UKzEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEquippedSlots)
 {
-	// Iterate through the new state of the equipped slots
 	for (const FEquippedSlot& NewSlot : EquippedSlots)
 	{
-		// Find the corresponding slot in the old state
 		const FEquippedSlot* OldSlotPtr = OldEquippedSlots.FindByPredicate([&NewSlot](const FEquippedSlot& OldSlot)
 			{
 				return OldSlot.SlotID == NewSlot.SlotID;
 			});
 
-		bool bSlotChanged = false;
-
-		if (!OldSlotPtr)
+		// If it's a completely new slot (rare) or the item inside has changed
+		if (!OldSlotPtr || OldSlotPtr->Instance.PhysicalActor != NewSlot.Instance.PhysicalActor || OldSlotPtr->Instance.ItemDef != NewSlot.Instance.ItemDef)
 		{
-			// Rare case: a new slot was added at runtime
-			bSlotChanged = true;
-		}
-		else
-		{
-			// Check if the physical actor or the item definition has changed
-			if (OldSlotPtr->Instance.PhysicalActor != NewSlot.Instance.PhysicalActor ||
-				OldSlotPtr->Instance.ItemDef != NewSlot.Instance.ItemDef)
+			// 1. If there was an old item, it means we dropped or replaced it
+			if (OldSlotPtr && OldSlotPtr->Instance.IsValid())
 			{
-				bSlotChanged = true;
+				OnItemUnequipped.Broadcast(NewSlot.SlotID, OldSlotPtr->Instance);
 			}
-		}
 
-		// If a change is detected in this specific slot, broadcast the precise event
-		if (bSlotChanged)
-		{
-			// Notify UI and AnimBP (e.g., to seamlessly swap to a "Holding Weapon" pose)
-			OnEquipmentChanged.Broadcast(NewSlot.SlotID, NewSlot.Instance);
+			// 2. If there is a new item in the slot, we just equipped it
+			if (NewSlot.Instance.IsValid())
+			{
+				OnItemEquipped.Broadcast(NewSlot.SlotID, NewSlot.Instance);
+			}
 		}
 	}
 }
@@ -157,8 +157,14 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
 			Slot.Instance.ActiveEquippedAction.Run(this);
 
+			OnItemEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
+			OnItemEquippedAction.SetContextProperty(TEXT("Equipment"), this);
+			OnItemEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
+			OnItemEquippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
+			OnItemEquippedAction.Run(this);
+
 			// 5. Notify server listeners
-			OnEquipmentChanged.Broadcast(TargetSlot, ItemToEquip);
+			OnItemEquipped.Broadcast(TargetSlot, ItemToEquip);
 
 			return true;
 		}
@@ -292,7 +298,13 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 				}
 			}
 
-			OnEquipmentChanged.Broadcast(SlotID, FKzItemInstance());
+			OnItemUnequippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
+			OnItemUnequippedAction.SetContextProperty(TEXT("Equipment"), this);
+			OnItemUnequippedAction.SetContextProperty(TEXT("ItemActor"), OutUnequippedItem.PhysicalActor);
+			OnItemUnequippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
+			OnItemUnequippedAction.Run(this);
+
+			OnItemUnequipped.Broadcast(SlotID, OutUnequippedItem);
 			return true;
 		}
 	}
