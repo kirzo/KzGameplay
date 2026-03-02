@@ -107,8 +107,12 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			// Assign the new item to the slot
 			Slot.Instance = ItemToEquip;
 
+			UKzItemComponent* ItemComp = nullptr;
+
 			if (AActor* NewPhysicalActor = ItemToEquip.PhysicalActor)
 			{
+				ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>();
+
 				if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 				{
 					OwnerPrim->IgnoreActorWhenMoving(NewPhysicalActor, true);
@@ -128,7 +132,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 
 					if (ItemToEquip.ItemDef->bUseCustomAttachment)
 					{
-						if (UKzItemComponent* ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>())
+						if (ItemComp)
 						{
 							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(MeshComp, AttachmentSocket, ItemToEquip.ItemDef->AttachmentOffset));
 						}
@@ -140,13 +144,18 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 					}
 				}
 
-				if (UKzItemComponent* ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>())
+				if (ItemComp)
 				{
 					ItemComp->SetEquippedState(GetOwner(), TargetSlot);
 				}
 			}
 
-			// TODO: Execute Scriptable Framework OnEquippedAction
+			Slot.Instance.ActiveEquippedAction = Slot.Instance.ItemDef->OnEquippedAction.Clone(this);
+			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
+			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
+			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Item"), ItemComp);
+			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
+			FScriptableAction::RunAction(this, Slot.Instance.ActiveEquippedAction);
 
 			// 5. Notify server listeners
 			OnEquipmentChanged.Broadcast(TargetSlot, ItemToEquip);
@@ -183,6 +192,11 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 		if (Slot.SlotID == TargetSlot && Slot.Instance.IsValid())
 		{
 			OutUnequippedItem = Slot.Instance;
+
+			OutUnequippedItem.ActiveEquippedAction.Reset();
+			OutUnequippedItem.ActiveEquippedAction.Unregister();
+			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
+
 			Slot.Instance = FKzItemInstance(); // Clear the slot
 
 			bool bSentToInventory = false;
@@ -197,12 +211,16 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 				}
 			}
 
+			UKzItemComponent* ItemComp = nullptr;
+
 			// 2. If it couldn't go to the inventory (EquipmentOnly, or inventory full) -> Drop it to the ground
 			if (!bSentToInventory)
 			{
 				if (AActor* OldPhysicalActor = OutUnequippedItem.PhysicalActor)
 				{
-					if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
+					ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>();
+
+					if (ItemComp)
 					{
 						ItemComp->ClearEquippedState();
 
@@ -254,7 +272,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(OldPhysicalActor->GetRootComponent()))
 					{
 						bool bSimulatePhysics = false;
-						if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
+						if (ItemComp)
 						{
 							if (ItemComp->bSimulatePhysics)
 							{
@@ -274,8 +292,6 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 					}
 				}
 			}
-
-			// TODO: Execute Scriptable Framework OnUnequippedAction for OutUnequippedItem
 
 			OnEquipmentChanged.Broadcast(SlotID, FKzItemInstance());
 			return true;

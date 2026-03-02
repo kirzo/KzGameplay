@@ -97,20 +97,12 @@ public:
 	// ==========================================
 
 	/** Action to execute when this item is added to the inventory (e.g., granting a passive buff). */
-	UPROPERTY(EditAnywhere, Category = "Events|Inventory")
+	UPROPERTY(EditAnywhere, Category = "Events", meta = (EditCondition = "StorageMode != EKzItemStorageMode::EquipmentOnly", EditConditionHides))
 	FScriptableAction OnAcquiredAction;
 
-	/** Action to execute when this item is permanently removed from the inventory/dropped. */
-	UPROPERTY(EditAnywhere, Category = "Events|Inventory")
-	FScriptableAction OnRemovedAction;
-
 	/** Action to execute when the item is equipped (e.g., granting an active ability). */
-	UPROPERTY(EditAnywhere, Category = "Events|Equipment", meta = (EditCondition = "bIsEquippable", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = "Events", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
 	FScriptableAction OnEquippedAction;
-
-	/** Action to execute when the item is unequipped and sent back to the backpack. */
-	UPROPERTY(EditAnywhere, Category = "Events|Equipment", meta = (EditCondition = "bIsEquippable", EditConditionHides))
-	FScriptableAction OnUnequippedAction;
 
 	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
 	FORCEINLINE bool IsEquippable() const { return StorageMode != EKzItemStorageMode::InventoryOnly; }

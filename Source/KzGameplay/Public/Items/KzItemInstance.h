@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ScriptableTasks/ScriptableAction.h"
 #include "KzItemInstance.generated.h"
 
 class UKzItemDefinition;
@@ -29,6 +30,14 @@ public:
 	/** Pointer to the physical actor in the world. */
 	UPROPERTY(BlueprintReadWrite, Category = "Item Instance")
 	TObjectPtr<AActor> PhysicalActor = nullptr;
+
+	/** Runtime instance of the Acquired action. Holds state while in the inventory. */
+	UPROPERTY()
+	FScriptableAction ActiveAcquiredAction;
+
+	/** Runtime instance of the Equip action. Holds state while in the equipment. */
+	UPROPERTY()
+	FScriptableAction ActiveEquippedAction;
 
 	FKzItemInstance() = default;
 

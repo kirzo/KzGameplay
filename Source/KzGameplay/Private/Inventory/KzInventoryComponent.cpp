@@ -76,7 +76,13 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, ItemDef->MaxStackSize);
 
 		// Note: We deliberately pass nullptr for the PhysicalActor because it's going into the backpack
-		Items.Add(FKzItemInstance(ItemDef, AmountToAdd, nullptr));
+		FKzItemInstance& NewInstance = Items.Add_GetRef(FKzItemInstance(ItemDef, AmountToAdd, nullptr));
+
+		NewInstance.ActiveAcquiredAction = ItemDef->OnAcquiredAction.Clone(this);
+		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Instigator"), GetOwner());
+		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Inventory"), this);
+
+		FScriptableAction::RunAction(this, NewInstance.ActiveAcquiredAction);
 
 		RemainingQuantity -= AmountToAdd;
 	}
@@ -90,10 +96,7 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 			PhysicalActor->Destroy();
 		}
 
-		// 4. Trigger Scriptable Framework Actions (e.g., granting a passive buff)
-		//FScriptableAction::RunAction(this, ItemDef->OnAcquiredAction);
-
-		// 5. Notify server-side listeners
+		// 4. Notify server-side listeners
 		OnInventoryChanged.Broadcast();
 
 		return true;
@@ -122,6 +125,9 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 
 			if (Items[i].Quantity <= 0)
 			{
+				Items[i].ActiveAcquiredAction.Reset();
+				Items[i].ActiveAcquiredAction.Unregister();
+
 				Items.RemoveAt(i);
 			}
 
@@ -134,9 +140,6 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 
 	if (RemainingToRemove < Quantity) // We removed at least something
 	{
-		// Trigger Scriptable Framework Actions (e.g., removing a passive buff)
-		// ItemDef->OnRemovedAction.ExecuteAction(GetOwner());
-
 		OnInventoryChanged.Broadcast();
 		return true;
 	}
