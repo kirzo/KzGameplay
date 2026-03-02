@@ -82,7 +82,7 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Inventory"), this);
 
-		FScriptableAction::RunAction(this, NewInstance.ActiveAcquiredAction);
+		NewInstance.ActiveAcquiredAction.Run(this);
 
 		RemainingQuantity -= AmountToAdd;
 	}
@@ -126,8 +126,6 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 			if (Items[i].Quantity <= 0)
 			{
 				Items[i].ActiveAcquiredAction.Reset();
-				Items[i].ActiveAcquiredAction.Unregister();
-
 				Items.RemoveAt(i);
 			}
 

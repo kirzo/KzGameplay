@@ -155,7 +155,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Item"), ItemComp);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
-			FScriptableAction::RunAction(this, Slot.Instance.ActiveEquippedAction);
+			Slot.Instance.ActiveEquippedAction.Run(this);
 
 			// 5. Notify server listeners
 			OnEquipmentChanged.Broadcast(TargetSlot, ItemToEquip);
@@ -194,7 +194,6 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			OutUnequippedItem = Slot.Instance;
 
 			OutUnequippedItem.ActiveEquippedAction.Reset();
-			OutUnequippedItem.ActiveEquippedAction.Unregister();
 			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
 
 			Slot.Instance = FKzItemInstance(); // Clear the slot
