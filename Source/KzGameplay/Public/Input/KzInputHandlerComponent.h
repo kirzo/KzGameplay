@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
+#include "Containers/KzPriorityStack.h"
 #include "KzInputHandlerComponent.generated.h"
 
 class UKzInputProfile;
@@ -29,12 +30,32 @@ private:
 	/** Stores the handles of current bindings so we can cleanly remove them on profile swaps. */
 	TArray<uint32> BindHandles;
 
+	/** Stacks to handle conflicting input block requests (e.g., UI open vs Interaction playing). */
+	Kz::TPriorityStack<bool, false, FName, false> IgnoreMoveInputStack;
+	Kz::TPriorityStack<bool, false, FName, false> IgnoreLookInputStack;
+
 public:
 	UKzInputHandlerComponent();
 
 	/** Manually re-initializes input with a new profile (e.g., when swapping control schemes). */
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void InitializeInput(UKzInputProfile* OverrideProfile);
+
+	/** Pushes a new move input ignore state to the stack. */
+	UFUNCTION(BlueprintCallable, Category = "Input|Control")
+	void PushMoveInputIgnore(FName SourceID, bool bIgnoreMoveInput, int32 Priority);
+
+	/** Removes a previously applied move input ignore state. */
+	UFUNCTION(BlueprintCallable, Category = "Input|Control")
+	void RemoveMoveInputIgnore(FName SourceID);
+
+	/** Pushes a new look input ignore state to the stack. */
+	UFUNCTION(BlueprintCallable, Category = "Input|Control")
+	void PushLookInputIgnore(FName SourceID, bool bIgnoreLookInput, int32 Priority);
+
+	/** Removes a previously applied look input ignore state. */
+	UFUNCTION(BlueprintCallable, Category = "Input|Control")
+	void RemoveLookInputIgnore(FName SourceID);
 
 protected:
 	virtual void BeginPlay() override;
@@ -52,4 +73,8 @@ private:
 
 	/** Internal callback for when an input action is released. */
 	void Input_ActionReleased(FGameplayTag InputTag);
+
+	/** Internal functions to apply the top of the stack to the Controller. */
+	void UpdateMoveInputIgnore();
+	void UpdateLookInputIgnore();
 };

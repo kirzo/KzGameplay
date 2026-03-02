@@ -3,11 +3,11 @@
 #include "Input/KzInputHandlerComponent.h"
 #include "Input/KzInputProfile.h"
 #include "EnhancedInputComponent.h"
+#include "Abilities/KzGameplayAbility.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
+#include "Abilities/KzAbilitySystemComponent.h"
 #include "GameFramework/Pawn.h"
-
-UE_DISABLE_OPTIMIZATION
 
 UKzInputHandlerComponent::UKzInputHandlerComponent()
 {
@@ -83,31 +83,81 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 	}
 }
 
-
 void UKzInputHandlerComponent::Input_ActionPressed(FGameplayTag InputTag)
 {
 	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner()))
 	{
-		FGameplayEventData Payload;
-		Payload.Instigator = GetOwner();
-		Payload.Target = GetOwner();
-		Payload.EventTag = InputTag;
-
-		ASC->HandleGameplayEvent(InputTag, &Payload);
-
-		// Note for 'Wait Input Press' nodes:
-		// If you are using a custom ASC (like Lyra), this is where you would call your custom
-		// ASC->AbilityInputTagPressed(InputTag) function to update the internal AbilitySpecs.
+		if (UKzAbilitySystemComponent* KzASC = Cast<UKzAbilitySystemComponent>(ASC))
+		{
+			KzASC->AbilityInputTagPressed(InputTag);
+		}
+		else
+		{
+			FGameplayEventData Payload;
+			Payload.Instigator = GetOwner();
+			Payload.Target = GetOwner();
+			Payload.EventTag = InputTag;
+			ASC->HandleGameplayEvent(InputTag, &Payload);
+		}
 	}
 }
 
 void UKzInputHandlerComponent::Input_ActionReleased(FGameplayTag InputTag)
 {
-	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner()))
+	if (UKzAbilitySystemComponent* KzASC = Cast<UKzAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner())))
 	{
-		// Note for 'Wait Input Release' nodes:
-		// Call your custom ASC->AbilityInputTagReleased(InputTag) here if applicable.
+		KzASC->AbilityInputTagReleased(InputTag);
 	}
 }
 
-UE_ENABLE_OPTIMIZATION
+void UKzInputHandlerComponent::PushMoveInputIgnore(FName SourceID, bool bIgnoreMoveInput, int32 Priority)
+{
+	IgnoreMoveInputStack.Push(bIgnoreMoveInput, SourceID, Priority);
+	UpdateMoveInputIgnore();
+}
+
+void UKzInputHandlerComponent::RemoveMoveInputIgnore(FName SourceID)
+{
+	if (IgnoreMoveInputStack.Remove(SourceID) > 0)
+	{
+		UpdateMoveInputIgnore();
+	}
+}
+
+void UKzInputHandlerComponent::PushLookInputIgnore(FName SourceID, bool bIgnoreLookInput, int32 Priority)
+{
+	IgnoreLookInputStack.Push(bIgnoreLookInput, SourceID, Priority);
+	UpdateLookInputIgnore();
+}
+
+void UKzInputHandlerComponent::RemoveLookInputIgnore(FName SourceID)
+{
+	if (IgnoreLookInputStack.Remove(SourceID) > 0)
+	{
+		UpdateLookInputIgnore();
+	}
+}
+
+void UKzInputHandlerComponent::UpdateMoveInputIgnore()
+{
+	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
+	{
+		if (AController* Controller = PawnOwner->GetController())
+		{
+			const bool bIgnore = IgnoreMoveInputStack.IsEmpty() ? false : IgnoreMoveInputStack.Top();
+			Controller->SetIgnoreMoveInput(bIgnore);
+		}
+	}
+}
+
+void UKzInputHandlerComponent::UpdateLookInputIgnore()
+{
+	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
+	{
+		if (AController* Controller = PawnOwner->GetController())
+		{
+			const bool bIgnore = IgnoreLookInputStack.IsEmpty() ? false : IgnoreLookInputStack.Top();
+			Controller->SetIgnoreLookInput(bIgnore);
+		}
+	}
+}
