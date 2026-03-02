@@ -18,11 +18,35 @@ void UKzInteractorComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	StartScanning();
+}
+
+void UKzInteractorComponent::StartScanning()
+{
 	// Only scan on the local client (or the server if this is an AI).
-	// We don't want simulated proxies (other players on your screen) running scans.
 	if (GetOwner()->GetLocalRole() != ROLE_SimulatedProxy)
 	{
-		GetWorld()->GetTimerManager().SetTimer(ScanTimerHandle, this, &UKzInteractorComponent::PerformScan, ScanRate, true);
+		if (!GetWorld()->GetTimerManager().IsTimerActive(ScanTimerHandle))
+		{
+			GetWorld()->GetTimerManager().SetTimer(ScanTimerHandle, this, &UKzInteractorComponent::PerformScan, ScanRate, true);
+		}
+	}
+}
+
+void UKzInteractorComponent::StopScanning()
+{
+	if (GetOwner()->GetLocalRole() != ROLE_SimulatedProxy)
+	{
+		// We use ClearTimer instead of PauseTimer so that when we resume, it evaluates immediately on the first tick
+		GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
+
+		// Clear current focus visually so the UI prompt disappears while we are busy
+		if (UKzInteractableComponent* OldInteractable = CurrentFocus.Get())
+		{
+			OldInteractable->OnEndFocus.Broadcast(this);
+			CurrentFocus.Reset();
+			OnCurrentInteractableChanged.Broadcast(nullptr, OldInteractable);
+		}
 	}
 }
 
@@ -57,6 +81,15 @@ void UKzInteractorComponent::PerformScan()
 			continue;
 		}
 
+		Candidate->InteractionRequirement.ResetContext();
+		Candidate->InteractionRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
+		Candidate->InteractionRequirement.SetContextProperty(TEXT("Interactor"), this);
+		Candidate->InteractionRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
+		if (!FScriptableRequirement::EvaluateRequirement(this, Candidate->InteractionRequirement))
+		{
+			continue;
+		}
+
 		// 2B. Soft Scoring
 		float Score = UKzTargetScoringLibrary::EvaluateTarget(GetOwner(), Candidate->GetOwner(), ScoringProfile);
 
@@ -69,7 +102,7 @@ void UKzInteractorComponent::PerformScan()
 	}
 
 	// 3. Handle State Changes
-	UKzInteractableComponent* OldInteractable = CurrentInteractable.Get();
+	UKzInteractableComponent* OldInteractable = CurrentFocus.Get();
 
 	if (OldInteractable != BestCandidate)
 	{
@@ -79,13 +112,13 @@ void UKzInteractorComponent::PerformScan()
 			OldInteractable->OnEndFocus.Broadcast(this);
 		}
 
-		// Focus the new one
+		// CurrentFocus the new one
 		if (BestCandidate)
 		{
 			BestCandidate->OnBeginFocus.Broadcast(this);
 		}
 
-		CurrentInteractable = BestCandidate;
+		CurrentFocus = BestCandidate;
 		OnCurrentInteractableChanged.Broadcast(BestCandidate, OldInteractable);
 
 		// Automatic Trigger
@@ -101,40 +134,67 @@ void UKzInteractorComponent::PerformScan()
 	}
 }
 
-bool UKzInteractorComponent::Interact()
+EKzInteractionResult UKzInteractorComponent::Interact()
 {
-	UKzInteractableComponent* Target = CurrentInteractable.Get();
-
-	if (Target)
-	{
-		// If we are the server, execute immediately. If client, ask the server.
-		if (GetOwner()->HasAuthority())
-		{
-			Target->ExecuteInteraction(this);
-		}
-		else
-		{
-			Server_TryInteract(Target);
-		}
-
-		return true;
-	}
-
-	return false;
+	return InteractWith(CurrentFocus.Get());
 }
 
-bool UKzInteractorComponent::Server_TryInteract_Validate(UKzInteractableComponent* Target)
+EKzInteractionResult UKzInteractorComponent::InteractWith(UKzInteractableComponent* Target)
 {
-	return IsValid(Target);
+	if (!Target)
+	{
+		return EKzInteractionResult::Ignored;
+	}
+
+	EKzInteractionResult Result = Target->ExecuteInteraction(this);
+
+	if (Result == EKzInteractionResult::Continuous)
+	{
+		ActiveInteractable = Target;
+
+		// Fully stop scanning and clear UI focus since we are now locked in
+		StopScanning();
+	}
+
+	return Result;
+}
+
+void UKzInteractorComponent::PauseScanning()
+{
+	// Stops the timer but leaves 'Focus' intact so the UI prompt remains on screen
+	GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
+}
+
+void UKzInteractorComponent::ResumeScanning()
+{
+	StartScanning();
+}
+
+void UKzInteractorComponent::StopCurrentInteraction()
+{
+	if (ActiveInteractable)
+	{
+		ActiveInteractable->StopInteraction(this);
+		ActiveInteractable = nullptr;
+
+		// The interaction is over, resume scanning the environment
+		StartScanning();
+	}
 }
 
 void UKzInteractorComponent::Server_TryInteract_Implementation(UKzInteractableComponent* Target)
 {
-	if (Target)
+	InteractWith(Target);
+}
+
+void UKzInteractorComponent::Server_StopCurrentInteraction_Implementation()
+{
+	if (ActiveInteractable)
 	{
-		// In a highly secure game, you would re-run a distance/LoS check here to ensure 
-		// the client didn't hack the RPC to interact with a chest 5 miles away.
-		// For now, we trust the client's target and execute:
-		Target->ExecuteInteraction(this);
+		ActiveInteractable->StopInteraction(this);
+		ActiveInteractable = nullptr;
+
+		// Resume scanning on the server (important if it's an AI)
+		StartScanning();
 	}
 }

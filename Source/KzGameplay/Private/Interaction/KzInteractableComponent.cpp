@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Interaction/KzInteractableComponent.h"
+#include "Interaction/KzInteractorComponent.h"
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractableInterface.h"
 
@@ -10,6 +11,10 @@ UKzInteractableComponent::UKzInteractableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	InteractionTime = 0.0f;
+
+	InteractionRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
+	InteractionRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+	InteractionRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 }
 
 void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -48,47 +53,90 @@ void UKzInteractableComponent::Deactivate()
 	Super::Deactivate();
 }
 
-FTransform UKzInteractableComponent::GetInteractionTransform() const
+bool UKzInteractableComponent::GetInteractionTransform(FTransform& OutTransform) const
 {
-	FTransform OutTransform;
-	if (InteractionSpot.GetSocketTransform(this, OutTransform))
+	// 1. Check if the designer explicitly disabled the need for a spot
+	if (!bRequiresInteractionSpot)
 	{
-		return OutTransform;
+		return false;
 	}
 
-	// Fallback: return the center of this shape component
-	return GetComponentTransform();
+	// 2. Try to resolve the socket reference
+	if (InteractionSpot.GetSocketTransform(this, OutTransform))
+	{
+		return true;
+	}
+
+	// 3. Fallback: If it requires a spot but the socket is invalid/missing, 
+	// we default to the component's transform and warn the user.
+	OutTransform = GetComponentTransform();
+
+	UE_LOG(LogTemp, Warning, TEXT("Interactable [%s] requires an Interaction Spot, but the socket reference is invalid. Falling back to component transform."), *GetNameSafe(GetOwner()));
+
+	return true;
 }
 
-bool UKzInteractableComponent::ExecuteInteraction(UKzInteractorComponent* Interactor)
+EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorComponent* Interactor)
 {
-	if (!Interactor) return false;
+	if (!Interactor) return EKzInteractionResult::Ignored;
 
-	bool bWasHandled = false;
-
-	// Broadcast the event for generic listeners (UI, Audio, Quest Trackers, etc.)
-	OnInteract.Broadcast(Interactor);
-
+	EKzInteractionResult FinalResult = EKzInteractionResult::Ignored;
 	AActor* OwnerActor = GetOwner();
+
 	if (OwnerActor)
 	{
-		// Check if the Actor itself implements the interface (Great for simple Level Design Blueprints)
+		// 1. Check if the Actor itself implements the interface
 		if (OwnerActor->Implements<UKzInteractableInterface>())
 		{
-			bWasHandled |= IKzInteractableInterface::Execute_HandleInteraction(OwnerActor, Interactor, this);
+			EKzInteractionResult Result = IKzInteractableInterface::Execute_HandleInteraction(OwnerActor, Interactor, this);
+
+			// Escalate priority: Continuous > Completed > Ignored
+			if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
+			else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
 		}
 
-		// Find all sibling components that implement the interface and trigger them
+		// 2. Find all sibling components that implement the interface
 		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
 		for (UActorComponent* Component : SiblingComponents)
 		{
 			if (Component != this)
 			{
-				bWasHandled |= IKzInteractableInterface::Execute_HandleInteraction(Component, Interactor, this);
+				EKzInteractionResult Result = IKzInteractableInterface::Execute_HandleInteraction(Component, Interactor, this);
+
+				if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
+				else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
 			}
 		}
 	}
 
-	// We return true if at least one system (Actor or Component) handled the interaction logic
-	return bWasHandled;
+	// 3. Only broadcast the generic event if the interaction actually did something
+	if (FinalResult != EKzInteractionResult::Ignored)
+	{
+		OnInteract.Broadcast(Interactor);
+	}
+
+	return FinalResult;
+}
+
+void UKzInteractableComponent::StopInteraction(UKzInteractorComponent* Interactor)
+{
+	if (!Interactor) return;
+
+	AActor* OwnerActor = GetOwner();
+	if (OwnerActor)
+	{
+		if (OwnerActor->Implements<UKzInteractableInterface>())
+		{
+			IKzInteractableInterface::Execute_StopInteraction(OwnerActor, Interactor, this);
+		}
+
+		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
+		for (UActorComponent* Component : SiblingComponents)
+		{
+			if (Component != this)
+			{
+				IKzInteractableInterface::Execute_StopInteraction(Component, Interactor, this);
+			}
+		}
+	}
 }

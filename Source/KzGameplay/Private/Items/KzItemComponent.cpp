@@ -29,14 +29,14 @@ void UKzItemComponent::BeginPlay()
 	}
 }
 
-bool UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
 	if (!GetOwner()->HasAuthority() || !ItemDef || Quantity <= 0 || !Interactor)
 	{
-		return false;
+		return EKzInteractionResult::Ignored;
 	}
 
-	bool bHandled = false;
+	EKzInteractionResult Result = EKzInteractionResult::Ignored;
 
 	AActor* InteractorActor = Interactor->GetOwner();
 
@@ -46,24 +46,30 @@ bool UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* 
 		if (UKzEquipmentComponent* EquipmentComp = InteractorActor->FindComponentByClass<UKzEquipmentComponent>())
 		{
 			FKzItemInstance UnequippedItem;
-			bHandled = EquipmentComp->EquipItemFromWorld(this, UnequippedItem);
+			bool bEquipped = EquipmentComp->EquipItemFromWorld(this, UnequippedItem);
 
-			if (bHandled)
+			if (bEquipped)
 			{
 				OnPickedUp.Broadcast(InteractorActor);
 			}
+
+			Result = EKzInteractionResult::Completed;
 		}
 	}
 
 	// 2. If it wasn't equipped (not auto-equip, or equipment full/failed), send to Backpack
-	if (!bHandled)
+	if (Result == EKzInteractionResult::Ignored)
 	{
 		if (UKzInventoryComponent* InvComp = InteractorActor->FindComponentByClass<UKzInventoryComponent>())
 		{
 			// TryAddItem will automatically destroy GetOwner() if it fits in the backpack
-			bHandled = InvComp->TryAddItem(ItemDef, Quantity, GetOwner());
+			bool bItemAdded = InvComp->TryAddItem(ItemDef, Quantity, GetOwner());
+			if (bItemAdded)
+			{
+				Result = EKzInteractionResult::Completed;
+			}
 		}
 	}
 
-	return bHandled;
+	return Result;
 }

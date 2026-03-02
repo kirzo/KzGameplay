@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
+#include "Interaction/KzInteractionTypes.h"
 #include "Interaction/KzInteractableComponent.h"
 #include "Scoring/KzTargetScoringProfile.h"
 #include "ScriptableConditions/ScriptableRequirement.h"
@@ -58,22 +59,51 @@ public:
 
 	/** Returns the current best interactable candidate. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
-	UKzInteractableComponent* GetCurrentInteractable() const { return CurrentInteractable.Get(); }
+	UKzInteractableComponent* GetCurrentFocus() const { return CurrentFocus.Get(); }
 
-	/** * Call this from your PlayerController/Character when the 'Interact' input is pressed.
-	 */
+	/** * Call this from your PlayerController/Character when the 'Interact' input is pressed. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	bool Interact();
+	EKzInteractionResult Interact();
+
+	/** Executes an interaction explicitly on a specific target, ignoring current focus. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	EKzInteractionResult InteractWith(UKzInteractableComponent* Target);
+
+	/** Pauses the scanner without clearing the current focus (useful while walking towards a target). */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void PauseScanning();
+
+	/** Resumes the scanner. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void ResumeScanning();
+
+	/** Manually aborts the current continuous interaction, if any. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void StopCurrentInteraction();
+
+	/** Returns true if we are currently locked into a continuous interaction. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsInteractingContinuously() const { return ActiveInteractable != nullptr; }
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	/** Starts or resumes the environment scanning timer. */
+	void StartScanning();
+
+	/** Pauses the environment scanning timer. Useful when locked in a continuous interaction. */
+	void StopScanning();
+
 	/** The timer function that periodically scans the world. */
 	void PerformScan();
 
 	/** The currently focused best candidate. */
-	TWeakObjectPtr<UKzInteractableComponent> CurrentInteractable;
+	TWeakObjectPtr<UKzInteractableComponent> CurrentFocus;
+
+	/** The interactable we are currently engaged with in a continuous manner. */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<UKzInteractableComponent> ActiveInteractable;
 
 	/** Timer handle for the scanning loop. */
 	FTimerHandle ScanTimerHandle;
@@ -86,6 +116,10 @@ protected:
 	 * RPC sent to the server to request interaction with a specific target.
 	 * The server should ideally validate the interaction before executing it.
 	 */
-	UFUNCTION(Server, Reliable, WithValidation)
+	UFUNCTION(Server, Reliable)
 	void Server_TryInteract(UKzInteractableComponent* Target);
+
+	/** RPC sent to the server to manually abort the current continuous interaction. */
+	UFUNCTION(Server, Reliable)
+	void Server_StopCurrentInteraction();
 };

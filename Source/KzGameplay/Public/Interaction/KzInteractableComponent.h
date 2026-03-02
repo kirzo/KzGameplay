@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
 #include "Components/KzComponentSocketReference.h"
+#include "Interaction/KzInteractionTypes.h"
+#include "ScriptableConditions/ScriptableRequirement.h" 
 #include "KzInteractableComponent.generated.h"
 
 class UKzInteractorComponent;
@@ -36,10 +38,14 @@ public:
 	float InteractionTime;
 
 	/**
-	 * Optional specific point in space where the interaction should physically occur.
+	 * If true, this interactable requires the interactor to be at a specific spot.
 	 * Useful for AI pathfinding or Motion Warping (e.g., walking to the exact handle of a door).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	bool bRequiresInteractionSpot = false;
+
+	/** The specific point in space where the interaction should physically occur. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bRequiresInteractionSpot", EditConditionHides))
 	FKzComponentSocketReference InteractionSpot;
 
 	/**
@@ -48,6 +54,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	bool bIsDynamicInteraction = false;
+
+	/**
+	 * Logic requirement.
+	 * e.g., "Does the player have the Key?", "Is the power On?"
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableRequirement InteractionRequirement;
 
 	/**
 	 * If true, the Interactor will trigger the interaction event automatically
@@ -84,17 +97,23 @@ public:
 	// ==========================================
 
 	/**
-	 * Returns the exact world transform of the interaction spot.
-	 * If no spot is defined or valid, it falls back to the component's center transform.
+	 * Returns the exact world transform of the interaction spot, if one is required and valid.
+	 * @param OutTransform The transform of the interaction spot.
+	 * @return True if a specific interaction spot is required and was successfully resolved.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Interaction")
-	FTransform GetInteractionTransform() const;
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	bool GetInteractionTransform(FTransform& OutTransform) const;
 
 	/**
 	 * Called to execute the interaction.
-	 * @return True if the interaction was successfully handled.
+	 * @return The aggregated result of the interaction from all listeners.
 	 */
-	virtual bool ExecuteInteraction(UKzInteractorComponent* Interactor);
+	virtual EKzInteractionResult ExecuteInteraction(UKzInteractorComponent* Interactor);
+
+	/**
+	 * Called to stop a continuous interaction.
+	 */
+	virtual void StopInteraction(UKzInteractorComponent* Interactor);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
