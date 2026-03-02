@@ -209,6 +209,34 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 						OldPhysicalActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 					}
 
+					// ==========================================
+					// Safe drop
+					AActor* OwnerActor = GetOwner();
+
+					// 1. Get Character's capsule radius
+					const float OwnerRadius = OwnerActor->GetSimpleCollisionRadius();
+
+					// 2. Get Item's bounding box (true = only collidable components)
+					FVector ItemOrigin, ItemExtent;
+					OldPhysicalActor->GetActorBounds(true, ItemOrigin, ItemExtent);
+
+					// 3. Calculate safe push distance (Owner radius + Max Item Size + 5cm margin)
+					const float SafeDistance = OwnerRadius + ItemExtent.GetMax() + 5.0f;
+
+					// 4. Calculate the drop location in front of the character
+					FVector OwnerLoc = OwnerActor->GetActorLocation();
+					FVector ForwardDir = OwnerActor->GetActorForwardVector();
+
+					// We keep the current Z (height) so it falls naturally from the hand socket, 
+					// but we push it away in the XY plane.
+					FVector DropLocation = OldPhysicalActor->GetActorLocation();
+					DropLocation.X = OwnerLoc.X + (ForwardDir.X * SafeDistance);
+					DropLocation.Y = OwnerLoc.Y + (ForwardDir.Y * SafeDistance);
+
+					// Teleport the item to the safe spot BEFORE re-enabling collisions
+					OldPhysicalActor->SetActorLocation(DropLocation, false, nullptr, ETeleportType::TeleportPhysics);
+					// ==========================================
+
 					if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 					{
 						OwnerPrim->IgnoreActorWhenMoving(OldPhysicalActor, false);
@@ -217,16 +245,23 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 					// Enable physics only if the KzItemComponent dictates it
 					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(OldPhysicalActor->GetRootComponent()))
 					{
+						bool bSimulatePhysics = false;
 						if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
 						{
 							if (ItemComp->bSimulatePhysics)
 							{
-								RootPrim->SetSimulatePhysics(true);
+								bSimulatePhysics = true;
 							}
 						}
 						else
 						{
+							bSimulatePhysics = true;
+						}
+
+						if (bSimulatePhysics)
+						{
 							RootPrim->SetSimulatePhysics(true);
+							RootPrim->SetPhysicsLinearVelocity(GetOwner()->GetVelocity());
 						}
 					}
 				}
