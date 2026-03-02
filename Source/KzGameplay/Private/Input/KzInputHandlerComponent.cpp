@@ -161,3 +161,41 @@ void UKzInputHandlerComponent::UpdateLookInputIgnore()
 		}
 	}
 }
+
+void UKzInputHandlerComponent::PushMoveModifier(UKzInputModifier* Modifier)
+{
+	if (Modifier)
+	{
+		MoveModifierStack.Push(Modifier);
+	}
+}
+
+void UKzInputHandlerComponent::RemoveMoveModifier(UKzInputModifier* Modifier)
+{
+	MoveModifierStack.Remove(Modifier);
+}
+
+FVector UKzInputHandlerComponent::ProcessMoveInput(const FVector& RawInput) const
+{
+	if (!IgnoreMoveInputStack.IsEmpty() && IgnoreMoveInputStack.Top()) return FVector::ZeroVector;
+	return MoveModifierStack.Process(RawInput);
+}
+
+void UKzInputHandlerComponent::PushLookModifier(UKzInputModifier* Modifier)
+{
+	if (Modifier)
+	{
+		LookModifierStack.Push(Modifier);
+	}
+}
+
+void UKzInputHandlerComponent::RemoveLookModifier(UKzInputModifier* Modifier)
+{
+	LookModifierStack.Remove(Modifier);
+}
+
+FVector UKzInputHandlerComponent::ProcessLookInput(const FVector& RawInput) const
+{
+	if (!IgnoreLookInputStack.IsEmpty() && IgnoreLookInputStack.Top()) return FVector::ZeroVector;
+	return LookModifierStack.Process(RawInput);
+}

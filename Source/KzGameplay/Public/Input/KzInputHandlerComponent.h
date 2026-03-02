@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
 #include "Containers/KzPriorityStack.h"
+#include "Input/KzInputModifierStack.h"
 #include "KzInputHandlerComponent.generated.h"
 
 class UKzInputProfile;
@@ -34,6 +35,13 @@ private:
 	Kz::TPriorityStack<bool, false, FName, false> IgnoreMoveInputStack;
 	Kz::TPriorityStack<bool, false, FName, false> IgnoreLookInputStack;
 
+	/** Stacks of active input modifiers (e.g., for recoil, slowdowns, forced movement). */
+	UPROPERTY(Transient)
+	FKzInputModifierStack MoveModifierStack;
+
+	UPROPERTY(Transient)
+	FKzInputModifierStack LookModifierStack;
+
 public:
 	UKzInputHandlerComponent();
 
@@ -56,6 +64,30 @@ public:
 	/** Removes a previously applied look input ignore state. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Control")
 	void RemoveLookInputIgnore(FName SourceID);
+
+	/** Adds a new modifier instance to the movement stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
+	void PushMoveModifier(UKzInputModifier* Modifier);
+
+	/** Removes a specific modifier instance from the movement stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
+	void RemoveMoveModifier(UKzInputModifier* Modifier);
+
+	/** Processes a raw movement vector through the stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Processing")
+	FVector ProcessMoveInput(const FVector& RawInput) const;
+
+	/** Adds a new modifier instance to the look stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
+	void PushLookModifier(UKzInputModifier* Modifier);
+
+	/** Removes a specific modifier instance from the look stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
+	void RemoveLookModifier(UKzInputModifier* Modifier);
+
+	/** Processes a raw look vector through the stack */
+	UFUNCTION(BlueprintCallable, Category = "Input|Processing")
+	FVector ProcessLookInput(const FVector& RawInput) const;
 
 protected:
 	virtual void BeginPlay() override;
