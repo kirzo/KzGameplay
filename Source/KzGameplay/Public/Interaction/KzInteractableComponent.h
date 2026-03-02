@@ -7,6 +7,7 @@
 #include "Components/KzComponentSocketReference.h"
 #include "Interaction/KzInteractionTypes.h"
 #include "ScriptableConditions/ScriptableRequirement.h" 
+#include "ScriptableTasks/ScriptableAction.h" 
 #include "KzInteractableComponent.generated.h"
 
 class UKzInteractorComponent;
@@ -56,11 +57,22 @@ public:
 	bool bIsDynamicInteraction = false;
 
 	/**
+	 * The default result returned if no components or the owner actor implements UKzInteractableInterface.
+	 * Set to 'Completed' to allow this component to trigger its InteractionAction autonomously.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	EKzInteractionResult DefaultInteractionResult = EKzInteractionResult::Ignored;
+
+	/**
 	 * Logic requirement.
 	 * e.g., "Does the player have the Key?", "Is the power On?"
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FScriptableRequirement InteractionRequirement;
+
+	/** Fired when the interaction has been successfully triggered. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction InteractionAction;
 
 	/**
 	 * If true, the Interactor will trigger the interaction event automatically

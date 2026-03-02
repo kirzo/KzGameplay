@@ -15,6 +15,10 @@ UKzInteractableComponent::UKzInteractableComponent()
 	InteractionRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
 	InteractionRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	InteractionRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+
+	InteractionAction.AddContextProperty<AActor*>(TEXT("Instigator"));
+	InteractionAction.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+	InteractionAction.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 }
 
 void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -80,7 +84,7 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 {
 	if (!Interactor) return EKzInteractionResult::Ignored;
 
-	EKzInteractionResult FinalResult = EKzInteractionResult::Ignored;
+	EKzInteractionResult FinalResult = DefaultInteractionResult;
 	AActor* OwnerActor = GetOwner();
 
 	if (OwnerActor)
@@ -113,6 +117,11 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 	if (FinalResult != EKzInteractionResult::Ignored)
 	{
 		OnInteract.Broadcast(Interactor);
+
+		InteractionAction.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+		InteractionAction.SetContextProperty(TEXT("Interactor"), Interactor);
+		InteractionAction.SetContextProperty(TEXT("Interactable"), this);
+		InteractionAction.Run(this);
 	}
 
 	return FinalResult;
