@@ -139,6 +139,11 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 						NewPhysicalActor->SetActorRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
 					}
 				}
+
+				if (UKzItemComponent* ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>())
+				{
+					ItemComp->SetEquippedState(GetOwner(), TargetSlot);
+				}
 			}
 
 			// TODO: Execute Scriptable Framework OnEquippedAction
@@ -197,14 +202,17 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			{
 				if (AActor* OldPhysicalActor = OutUnequippedItem.PhysicalActor)
 				{
-					if (OutUnequippedItem.ItemDef->bUseCustomAttachment)
+					if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
 					{
-						if (UKzItemComponent* ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>())
+						ItemComp->ClearEquippedState();
+
+						if (OutUnequippedItem.ItemDef->bUseCustomAttachment)
 						{
 							ItemComp->OnCustomDetach.Broadcast(GetOwner());
 						}
 					}
-					else
+
+					if (!OutUnequippedItem.ItemDef->bUseCustomAttachment)
 					{
 						OldPhysicalActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 					}

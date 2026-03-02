@@ -7,6 +7,7 @@
 #include "Items/KzItemInstance.h"
 #include "Interaction/KzInteractableInterface.h"
 #include "Misc/KzTransformSource.h"
+#include "GameplayTagContainer.h"
 #include "KzItemComponent.generated.h"
 
 class UKzItemDefinition;
@@ -59,6 +60,35 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Equipment")
 	FOnItemCustomDetachDelegate OnCustomDetach;
+
+	/** Called by the EquipmentComponent when this item is equipped */
+	void SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlotID);
+
+	/** Called by the EquipmentComponent when this item is dropped/stashed */
+	void ClearEquippedState();
+
+	/** Returns the Actor holding this item, if any. */
+	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
+	AActor* GetEquipper() const { return EquipperActor.Get(); }
+
+	/** Returns the slot this item is currently equipped in. Invalid if not equipped. */
+	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
+	FGameplayTag GetEquippedSlot() const { return EquippedSlotID; }
+
+	/**
+	 * Returns the velocity of the equipper if held,
+	 * or the physical velocity of the item itself if dropped.
+	 */
+	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
+	FVector GetItemVelocity() const;
+
+protected:
+	/** The actor currently holding this item. */
+	TWeakObjectPtr<AActor> EquipperActor = nullptr;
+
+	/** The specific slot this item is occupying. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment")
+	FGameplayTag EquippedSlotID;
 
 public:
 	UKzItemComponent();

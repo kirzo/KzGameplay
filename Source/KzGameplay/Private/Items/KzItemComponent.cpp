@@ -73,3 +73,30 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 
 	return Result;
 }
+
+void UKzItemComponent::SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlotID)
+{
+	EquipperActor = NewEquipper;
+	EquippedSlotID = NewSlotID;
+}
+
+void UKzItemComponent::ClearEquippedState()
+{
+	EquipperActor = nullptr;
+	EquippedSlotID = FGameplayTag::EmptyTag;
+}
+
+FVector UKzItemComponent::GetItemVelocity() const
+{
+	if (AActor* Equipper = EquipperActor.Get())
+	{
+		return Equipper->GetVelocity();
+	}
+
+	if (AActor* OwnerActor = GetOwner())
+	{
+		return OwnerActor->GetVelocity();
+	}
+
+	return FVector::ZeroVector;
+}
