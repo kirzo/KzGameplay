@@ -106,4 +106,10 @@ public:
 	 * @return A list of candidate interactables.
 	 */
 	TArray<UKzInteractableComponent*> QueryInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const;
+
+	/** Returns all registered interactables in the world. */
+	const TSet<TObjectPtr<UKzInteractableComponent>>& GetAllRegisteredInteractables() const
+	{
+		return RegisteredComponents;
+	}
 };

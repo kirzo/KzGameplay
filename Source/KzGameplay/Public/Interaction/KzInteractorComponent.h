@@ -12,6 +12,17 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentInteractableChangedDelegate, UKzInteractableComponent*, NewInteractable, UKzInteractableComponent*, OldInteractable);
 
+#if WITH_GAMEPLAY_DEBUGGER
+struct FKzInteractionDebugCandidate
+{
+	TWeakObjectPtr<class UKzInteractableComponent> Interactable;
+
+	float Score;
+	bool bPassedFilters;
+	bool bIsBest;
+};
+#endif
+
 /**
  * Component attached to the Player (or AI) responsible for finding and evaluating Interactables.
  */
@@ -22,6 +33,11 @@ class KZGAMEPLAY_API UKzInteractorComponent : public UKzShapeComponent
 
 public:
 	UKzInteractorComponent();
+
+#if WITH_GAMEPLAY_DEBUGGER
+	/** Caches the results of the last scan for the Gameplay Debugger. */
+	TArray<FKzInteractionDebugCandidate> LastDebugCandidates;
+#endif
 
 	// ==========================================
 	// CONFIGURATION

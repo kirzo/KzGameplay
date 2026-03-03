@@ -61,6 +61,10 @@ void UKzInteractorComponent::PerformScan()
 	UKzInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzInteractionSubsystem>();
 	if (!Subsystem) return;
 
+#if WITH_GAMEPLAY_DEBUGGER
+	LastDebugCandidates.Empty();
+#endif
+
 	// 1. Query the Grid (Broad + Narrow phase done internally!)
 	FTransform WorldTransform = GetComponentTransform();
 	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
@@ -71,6 +75,14 @@ void UKzInteractorComponent::PerformScan()
 	// 2. Evaluate Candidates
 	for (UKzInteractableComponent* Candidate : Candidates)
 	{
+#if WITH_GAMEPLAY_DEBUGGER
+		FKzInteractionDebugCandidate DebugInfo;
+		DebugInfo.Interactable = Candidate;
+		DebugInfo.Score = 0.0f;
+		DebugInfo.bPassedFilters = false;
+		DebugInfo.bIsBest = false;
+#endif
+
 		// 2A. Filter
 		FilterRequirement.ResetContext();
 		FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
@@ -78,6 +90,9 @@ void UKzInteractorComponent::PerformScan()
 		FilterRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
 		if (!FScriptableRequirement::EvaluateRequirement(this, FilterRequirement))
 		{
+#if WITH_GAMEPLAY_DEBUGGER
+			LastDebugCandidates.Add(DebugInfo); // Saved as Failed
+#endif
 			continue;
 		}
 
@@ -87,11 +102,20 @@ void UKzInteractorComponent::PerformScan()
 		Candidate->InteractionRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
 		if (!FScriptableRequirement::EvaluateRequirement(this, Candidate->InteractionRequirement))
 		{
+#if WITH_GAMEPLAY_DEBUGGER
+			LastDebugCandidates.Add(DebugInfo); // Saved as Failed
+#endif
 			continue;
 		}
 
 		// 2B. Soft Scoring
 		float Score = UKzTargetScoringLibrary::EvaluateTarget(GetOwner(), Candidate->GetOwner(), ScoringProfile);
+
+#if WITH_GAMEPLAY_DEBUGGER
+		DebugInfo.bPassedFilters = true;
+		DebugInfo.Score = Score;
+		LastDebugCandidates.Add(DebugInfo);
+#endif
 
 		// Keep the highest scorer
 		if (Score > BestScore)
@@ -100,6 +124,20 @@ void UKzInteractorComponent::PerformScan()
 			BestCandidate = Candidate;
 		}
 	}
+
+#if WITH_GAMEPLAY_DEBUGGER
+	if (BestCandidate)
+	{
+		for (FKzInteractionDebugCandidate& Dbg : LastDebugCandidates)
+		{
+			if (Dbg.Interactable == BestCandidate)
+			{
+				Dbg.bIsBest = true;
+				break;
+			}
+		}
+	}
+#endif
 
 	// 3. Handle State Changes
 	UKzInteractableComponent* OldInteractable = CurrentFocus.Get();
