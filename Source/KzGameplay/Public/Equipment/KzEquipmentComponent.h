@@ -79,6 +79,14 @@ public:
 	bool EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem);
 
 	/**
+	 * Equips an item directly from its definition.
+	 * Useful for starting gear, granting items via code/Blueprint, or equipping from an inventory.
+	 * @return True if the item was successfully equipped.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
+	bool EquipItemByDefinition(const UKzItemDefinition* ItemDef, FKzItemInstance& OutUnequippedItem);
+
+	/**
 	 * Equips an item directly from an KzItemComponent in the world.
 	 * Triggers pre-pickup events before attaching.
 	 */

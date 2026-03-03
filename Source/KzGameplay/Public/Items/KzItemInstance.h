@@ -8,6 +8,7 @@
 
 class UKzItemDefinition;
 class AActor;
+class UMeshComponent;
 
 /**
  * Represents a live instance of an item in an inventory or equipment slot.
@@ -27,9 +28,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Instance", meta = (ClampMin = "1"))
 	int32 Quantity = 0;
 
-	/** Pointer to the physical actor in the world. */
-	UPROPERTY(BlueprintReadWrite, Category = "Item Instance")
-	TObjectPtr<AActor> PhysicalActor = nullptr;
+	/** The actor representing this item in the world or equipped (Valid if SpawnMode is SpawnActor). */
+	UPROPERTY(BlueprintReadOnly, Category = "Item Instance")
+	TObjectPtr<AActor> SpawnedActor = nullptr;
+
+	/** The mesh component representing this item when equipped (Valid if SpawnMode is SpawnMesh). */
+	UPROPERTY(BlueprintReadOnly, Category = "Item Instance")
+	TObjectPtr<UMeshComponent> SpawnedComponent = nullptr;
 
 	/** Runtime instance of the Acquired action. Holds state while in the inventory. */
 	UPROPERTY()
@@ -41,10 +46,10 @@ public:
 
 	FKzItemInstance() = default;
 
-	FKzItemInstance(const UKzItemDefinition* InDef, int32 InQuantity, AActor* InPhysicalActor = nullptr)
+	FKzItemInstance(const UKzItemDefinition* InDef, int32 InQuantity, AActor* InSpawnedActor = nullptr)
 		: ItemDef(InDef)
 		, Quantity(InQuantity)
-		, PhysicalActor(InPhysicalActor)
+		, SpawnedActor(InSpawnedActor)
 	{
 	}
 
@@ -57,6 +62,12 @@ public:
 	/** Equality operator to easily find specific instances in an array. */
 	bool operator==(const FKzItemInstance& Other) const
 	{
-		return ItemDef == Other.ItemDef && PhysicalActor == Other.PhysicalActor;
+		return ItemDef == Other.ItemDef && SpawnedActor == Other.SpawnedActor;
+	}
+
+	/** Checks if this instance currently has any physical representation in the world. */
+	bool HasPhysicalRepresentation() const
+	{
+		return SpawnedActor != nullptr || SpawnedComponent != nullptr;
 	}
 };

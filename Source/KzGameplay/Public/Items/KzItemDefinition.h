@@ -9,6 +9,7 @@
 #include "KzItemDefinition.generated.h"
 
 class AActor;
+class UStreamableRenderAsset;
 class UTexture2D;
 class UScriptableAction;
 
@@ -24,6 +25,17 @@ enum class EKzItemStorageMode : uint8
 
 	/** The item can be stored in the backpack or equipped in a slot (e.g., An axe, a flashlight). */
 	Both
+};
+
+/** Defines how the item is represented visually when equipped. */
+UENUM(BlueprintType)
+enum class EKzEquipmentSpawnMode : uint8
+{
+	/** Spawns a full Actor (Uses WorldActorClass or EquipmentActorClass). */
+	SpawnActor,
+
+	/** Only creates a Mesh Component (Uses EquipmentMesh). */
+	SpawnMesh
 };
 
 /**
@@ -80,13 +92,13 @@ public:
 	// EQUIPMENT
 	// ==========================================
 
-	/** The specific equipment slot this item goes into (e.g., Equipment.Slot.Hand.Right). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
-	FGameplayTag TargetSlot;
-
 	/** If true, the system will attempt to equip this item immediately upon picking it up, bypassing the backpack if possible. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode == EKzItemStorageMode::Both", EditConditionHides))
 	bool bAutoEquip = false;
+
+	/** The specific equipment slot this item goes into (e.g., Equipment.Slot.Hand.Right). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
+	FGameplayTag TargetSlot;
 
 	/**
 	 * If true, the system will NOT use the default AttachToComponent.
@@ -95,9 +107,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
 	bool bUseCustomAttachment = false;
 
+	/** How this item should be instantiated when equipped. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
+	EKzEquipmentSpawnMode EquipmentSpawnMode = EKzEquipmentSpawnMode::SpawnActor;
+
+	/** If true, uses a different Actor class when equipped instead of the default WorldActorClass. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly && EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnActor", EditConditionHides))
+	bool bOverrideEquipmentActor = false;
+
+	/** The specialized actor class to spawn when equipped (e.g., a weapon with shooting logic). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly && EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnActor && bOverrideEquipmentActor", EditConditionHides))
+	TSoftClassPtr<AActor> EquipmentActorClass;
+
+	/** The mesh to attach to the character. Can be a UStaticMesh or USkeletalMesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly && EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh", EditConditionHides, AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
+	TSoftObjectPtr<UStreamableRenderAsset> EquipmentMesh;
+
 	/** Transform offset applied when the item is attached to an equipment socket. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
 	FTransform AttachmentOffset;
+
+	/** Helper to get the correct class to spawn when equipping as an actor. */
+	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
+	TSoftClassPtr<AActor> GetEquippedActorClass() const
+	{
+		return bOverrideEquipmentActor ? EquipmentActorClass : WorldActorClass;
+	}
 
 	// ==========================================
 	// EVENTS

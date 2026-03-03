@@ -10,6 +10,11 @@
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 
+#include "Engine/StaticMesh.h"
+#include "Engine/SkeletalMesh.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+
 UKzEquipmentComponent::UKzEquipmentComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -69,7 +74,7 @@ void UKzEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& Old
 			});
 
 		// If it's a completely new slot (rare) or the item inside has changed
-		if (!OldSlotPtr || OldSlotPtr->Instance.PhysicalActor != NewSlot.Instance.PhysicalActor || OldSlotPtr->Instance.ItemDef != NewSlot.Instance.ItemDef)
+		if (!OldSlotPtr || OldSlotPtr->Instance.SpawnedActor != NewSlot.Instance.SpawnedActor || OldSlotPtr->Instance.ItemDef != NewSlot.Instance.ItemDef)
 		{
 			// 1. If there was an old item, it means we dropped or replaced it
 			if (OldSlotPtr && OldSlotPtr->Instance.IsValid())
@@ -107,46 +112,102 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			// Assign the new item to the slot
 			Slot.Instance = ItemToEquip;
 
+			USkeletalMeshComponent* OwnerMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
+			FName AttachmentSocket = DefaultLayout->GetSocketForSlot(TargetSlot);
 			UKzItemComponent* ItemComp = nullptr;
 
-			if (AActor* NewPhysicalActor = ItemToEquip.PhysicalActor)
+			// MeshComponent (Cosmetics, simple items)
+			if (ItemToEquip.ItemDef->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
 			{
-				ItemComp = NewPhysicalActor->FindComponentByClass<UKzItemComponent>();
-
-				if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
+				// 1. Destroy the world actor if the item came from the ground
+				if (AActor* PhysicalActor = Slot.Instance.SpawnedActor)
 				{
-					OwnerPrim->IgnoreActorWhenMoving(NewPhysicalActor, true);
+					PhysicalActor->Destroy();
+					Slot.Instance.SpawnedActor = nullptr;
 				}
 
-				if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(NewPhysicalActor->GetRootComponent()))
+				// 2. Create the proper Mesh Component
+				if (UStreamableRenderAsset* LoadedMesh = ItemToEquip.ItemDef->EquipmentMesh.LoadSynchronous())
 				{
-					if (RootPrim->IsSimulatingPhysics())
+					if (UStaticMesh* AsStaticMesh = Cast<UStaticMesh>(LoadedMesh))
 					{
-						RootPrim->SetSimulatePhysics(false);
+						UStaticMeshComponent* NewSMC = NewObject<UStaticMeshComponent>(GetOwner());
+						NewSMC->SetStaticMesh(AsStaticMesh);
+						Slot.Instance.SpawnedComponent = NewSMC;
+					}
+					else if (USkeletalMesh* AsSkeletalMesh = Cast<USkeletalMesh>(LoadedMesh))
+					{
+						USkeletalMeshComponent* NewSKMC = NewObject<USkeletalMeshComponent>(GetOwner());
+						NewSKMC->SetSkeletalMesh(AsSkeletalMesh);
+						Slot.Instance.SpawnedComponent = NewSKMC;
+					}
+
+					// 3. Attach the new component to the character
+					if (Slot.Instance.SpawnedComponent && OwnerMesh)
+					{
+						Slot.Instance.SpawnedComponent->RegisterComponent();
+						Slot.Instance.SpawnedComponent->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
+						Slot.Instance.SpawnedComponent->SetRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
 					}
 				}
+			}
+			// Full Actor (Weapons, complex logic)
+			else
+			{
+				TSubclassOf<AActor> TargetClass = ItemToEquip.ItemDef->GetEquippedActorClass().LoadSynchronous();
+				AActor* CurrentActor = Slot.Instance.SpawnedActor;
 
-				if (USkeletalMeshComponent* MeshComp = GetOwner()->FindComponentByClass<USkeletalMeshComponent>())
+				// 1. If the actor from the ground is different from the equipped class, recreate it
+				if (CurrentActor && TargetClass && CurrentActor->GetClass() != TargetClass)
 				{
-					FName AttachmentSocket = DefaultLayout->GetSocketForSlot(TargetSlot);
+					CurrentActor->Destroy();
+					CurrentActor = nullptr;
+				}
 
-					if (ItemToEquip.ItemDef->bUseCustomAttachment)
+				// 2. Spawn the equipped actor if we don't have one
+				if (!CurrentActor && TargetClass)
+				{
+					FActorSpawnParameters SpawnParams;
+					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+					CurrentActor = GetWorld()->SpawnActor<AActor>(TargetClass, GetOwner()->GetActorLocation(), GetOwner()->GetActorRotation(), SpawnParams);
+					Slot.Instance.SpawnedActor = CurrentActor;
+				}
+
+				// 3. Attach the actor
+				if (CurrentActor)
+				{
+					ItemComp = CurrentActor->FindComponentByClass<UKzItemComponent>();
+
+					if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 					{
-						if (ItemComp)
+						OwnerPrim->IgnoreActorWhenMoving(CurrentActor, true);
+					}
+
+					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(CurrentActor->GetRootComponent()))
+					{
+						if (RootPrim->IsSimulatingPhysics())
 						{
-							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(MeshComp, AttachmentSocket, ItemToEquip.ItemDef->AttachmentOffset));
+							RootPrim->SetSimulatePhysics(false);
 						}
 					}
-					else
-					{
-						NewPhysicalActor->AttachToComponent(MeshComp, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
-						NewPhysicalActor->SetActorRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
-					}
-				}
 
-				if (ItemComp)
-				{
-					ItemComp->SetEquippedState(GetOwner(), TargetSlot);
+					if (OwnerMesh)
+					{
+						if (ItemToEquip.ItemDef->bUseCustomAttachment && ItemComp)
+						{
+							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(OwnerMesh, AttachmentSocket, ItemToEquip.ItemDef->AttachmentOffset));
+						}
+						else
+						{
+							CurrentActor->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
+							CurrentActor->SetActorRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
+						}
+					}
+
+					if (ItemComp)
+					{
+						ItemComp->SetEquippedState(GetOwner(), TargetSlot);
+					}
 				}
 			}
 
@@ -154,12 +215,12 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Item"), ItemComp);
-			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
+			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.SpawnedActor);
 			Slot.Instance.ActiveEquippedAction.Run(this);
 
 			OnItemEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			OnItemEquippedAction.SetContextProperty(TEXT("Equipment"), this);
-			OnItemEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.PhysicalActor);
+			OnItemEquippedAction.SetContextProperty(TEXT("ItemActor"), ItemToEquip.SpawnedActor);
 			OnItemEquippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
 			OnItemEquippedAction.Run(this);
 
@@ -172,6 +233,21 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 
 	// Target slot not found in the character's layout
 	return false;
+}
+
+bool UKzEquipmentComponent::EquipItemByDefinition(const UKzItemDefinition* ItemDef, FKzItemInstance& OutUnequippedItem)
+{
+	if (!GetOwner()->HasAuthority() || !ItemDef)
+	{
+		return false;
+	}
+
+	// Create a fresh instance from the definition
+	FKzItemInstance NewInstance;
+	NewInstance.ItemDef = ItemDef;
+	NewInstance.Quantity = 1;
+
+	return EquipItem(NewInstance, OutUnequippedItem);
 }
 
 bool UKzEquipmentComponent::EquipItemFromWorld(UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem)
@@ -212,7 +288,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 				if (UKzInventoryComponent* InvComp = GetOwner()->FindComponentByClass<UKzInventoryComponent>())
 				{
 					// TryAddItem will destroy the physical actor if it successfully stores it
-					bSentToInventory = InvComp->TryAddItem(OutUnequippedItem.ItemDef, OutUnequippedItem.Quantity, OutUnequippedItem.PhysicalActor);
+					bSentToInventory = InvComp->TryAddItem(OutUnequippedItem.ItemDef, OutUnequippedItem.Quantity, OutUnequippedItem.SpawnedActor);
 				}
 			}
 
@@ -221,7 +297,26 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			// 2. If it couldn't go to the inventory (EquipmentOnly, or inventory full) -> Drop it to the ground
 			if (!bSentToInventory)
 			{
-				if (AActor* OldPhysicalActor = OutUnequippedItem.PhysicalActor)
+				// Handle Component cleanup if it was a Mesh Spawn
+				if (OutUnequippedItem.ItemDef->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
+				{
+					if (OutUnequippedItem.SpawnedComponent)
+					{
+						OutUnequippedItem.SpawnedComponent->DestroyComponent();
+						OutUnequippedItem.SpawnedComponent = nullptr;
+					}
+
+					// Spawn the World Actor representation to drop on the ground
+					TSubclassOf<AActor> WorldClass = OutUnequippedItem.ItemDef->WorldActorClass.LoadSynchronous();
+					if (WorldClass)
+					{
+						FActorSpawnParameters SpawnParams;
+						SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+						OutUnequippedItem.SpawnedActor = GetWorld()->SpawnActor<AActor>(WorldClass, GetOwner()->GetActorLocation(), GetOwner()->GetActorRotation(), SpawnParams);
+					}
+				}
+
+				if (AActor* OldPhysicalActor = OutUnequippedItem.SpawnedActor)
 				{
 					ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>();
 
@@ -300,7 +395,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 
 			OnItemUnequippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			OnItemUnequippedAction.SetContextProperty(TEXT("Equipment"), this);
-			OnItemUnequippedAction.SetContextProperty(TEXT("ItemActor"), OutUnequippedItem.PhysicalActor);
+			OnItemUnequippedAction.SetContextProperty(TEXT("ItemActor"), OutUnequippedItem.SpawnedActor);
 			OnItemUnequippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
 			OnItemUnequippedAction.Run(this);
 
