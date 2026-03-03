@@ -69,6 +69,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules")
 	TSoftClassPtr<AActor> WorldActorClass;
 
+	/**
+	 * Gameplay Tags describing this item's properties or categories.
+	 * e.g., "Item.Weapon.Axe", "Item.Throwable", "Item.Material.Wood".
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules")
+	FGameplayTagContainer ItemTags;
+
 	// ==========================================
 	// EQUIPMENT
 	// ==========================================
