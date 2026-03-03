@@ -5,6 +5,9 @@
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+
 UKzInventoryComponent::UKzInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -90,6 +93,20 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 	// If we successfully added at least *some* items
 	if (RemainingQuantity < Quantity)
 	{
+		// Calculate exactly how many items were actually added to the backpack
+		int32 TotalAdded = Quantity - RemainingQuantity;
+
+		// Grant the Inventory Tags to the owner's Ability System Component
+		if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+		{
+			for (const FGameplayTag& Tag : ItemDef->InventoryTags)
+			{
+				// We call it multiple times (or pass the count) so GAS maintains a correct reference count.
+				// If you add 3 apples, the tag count goes up by 3.
+				ASC->AddLooseGameplayTag(Tag, TotalAdded);
+			}
+		}
+
 		// 3. World Cleanup Rule: Destroy the physical actor if it went into the backpack
 		if (IsValid(PhysicalActor))
 		{
@@ -138,6 +155,19 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 
 	if (RemainingToRemove < Quantity) // We removed at least something
 	{
+		// Calculate exactly how many items were actually removed from the backpack
+		int32 TotalRemoved = Quantity - RemainingToRemove;
+
+		// Remove the Inventory Tags from the owner's Ability System Component
+		if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+		{
+			for (const FGameplayTag& Tag : ItemDef->InventoryTags)
+			{
+				// Remove the exact count we discarded so the reference count drops correctly.
+				ASC->RemoveLooseGameplayTag(Tag, TotalRemoved);
+			}
+		}
+
 		OnInventoryChanged.Broadcast();
 		return true;
 	}

@@ -10,6 +10,9 @@
 #include "GameFramework/Actor.h"
 #include "Components/PrimitiveComponent.h"
 
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
+
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/StaticMeshComponent.h"
@@ -211,6 +214,14 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				}
 			}
 
+			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+			{
+				for (const FGameplayTag& Tag : ItemToEquip.ItemDef->EquippedTags)
+				{
+					ASC->AddLooseGameplayTag(Tag);
+				}
+			}
+
 			Slot.Instance.ActiveEquippedAction = Slot.Instance.ItemDef->OnEquippedAction.Clone(this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
@@ -279,6 +290,14 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
 
 			Slot.Instance = FKzItemInstance(); // Clear the slot
+
+			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+			{
+				for (const FGameplayTag& Tag : OutUnequippedItem.ItemDef->EquippedTags)
+				{
+					ASC->RemoveLooseGameplayTag(Tag);
+				}
+			}
 
 			bool bSentToInventory = false;
 

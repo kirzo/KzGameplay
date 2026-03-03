@@ -73,10 +73,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules")
 	EKzItemStorageMode StorageMode = EKzItemStorageMode::InventoryOnly;
 
-	/** Maximum number of this item that can be stacked in a single inventory slot. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules", meta = (ClampMin = "1"))
-	int32 MaxStackSize = 1;
-
 	/** The physical actor class to spawn if this item is dropped from the inventory into the world. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules")
 	TSoftClassPtr<AActor> WorldActorClass;
@@ -87,6 +83,21 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rules")
 	FGameplayTagContainer ItemTags;
+
+	// ==========================================
+	// INVENTORY
+	// ==========================================
+
+	/** Maximum number of this item that can be stacked in a single inventory slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1", EditCondition = "StorageMode != EKzItemStorageMode::EquipmentOnly", EditConditionHides))
+	int32 MaxStackSize = 1;
+
+	/**
+	 * Tags automatically granted to the Character's Ability System while this item is in the inventory.
+	 * The tag count will increase based on the quantity of this item held.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (EditCondition = "StorageMode != EKzItemStorageMode::EquipmentOnly", EditConditionHides))
+	FGameplayTagContainer InventoryTags;
 
 	// ==========================================
 	// EQUIPMENT
@@ -126,6 +137,10 @@ public:
 	/** Transform offset applied when the item is attached to an equipment socket. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
 	FTransform AttachmentOffset;
+
+	/** Tags automatically granted to the Owner's Ability System while this item is equipped. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
+	FGameplayTagContainer EquippedTags;
 
 	/** Helper to get the correct class to spawn when equipping as an actor. */
 	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
