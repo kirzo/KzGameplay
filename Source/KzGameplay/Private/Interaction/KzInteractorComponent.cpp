@@ -72,6 +72,8 @@ void UKzInteractorComponent::PerformScan()
 	UKzInteractableComponent* BestCandidate = nullptr;
 	float BestScore = -1.0f;
 
+	const FKzTransformSource AsTransformSource = FKzTransformSource(this);
+
 	// 2. Evaluate Candidates
 	for (UKzInteractableComponent* Candidate : Candidates)
 	{
@@ -104,8 +106,10 @@ void UKzInteractorComponent::PerformScan()
 			continue;
 		}
 
+		const FKzTransformSource CandidateTransformSource = Candidate->bRequiresInteractionSpot ? Candidate->InteractionSpot.ToTransformSource(Candidate) : FKzTransformSource(Candidate);
+
 		// 2B. Soft Scoring
-		float Score = UKzTargetScoringLibrary::EvaluateTarget(GetOwner(), Candidate->GetOwner(), ScoringProfile);
+		float Score = UKzTargetScoringLibrary::EvaluateTarget(AsTransformSource, CandidateTransformSource, ScoringProfile);
 
 #if WITH_GAMEPLAY_DEBUGGER
 		DebugInfo.bPassedFilters = true;

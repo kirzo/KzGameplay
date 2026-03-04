@@ -2,9 +2,9 @@
 
 #include "Scoring/KzTargetScoringLibrary.h"
 
-float UKzTargetScoringLibrary::EvaluateTarget(const AActor* Origin, const AActor* Target, const FKzTargetScoringProfile& Profile)
+float UKzTargetScoringLibrary::EvaluateTarget(const FKzTransformSource& Origin, const FKzTransformSource& Target, const FKzTargetScoringProfile& Profile)
 {
-	if (!Origin || !Target) return 0.0f;
+	if (!Origin.IsValid() || !Target.IsValid()) return 0.0f;
 
 	float FinalScore = 0.0f;
 

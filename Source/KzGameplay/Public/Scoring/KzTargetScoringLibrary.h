@@ -24,5 +24,5 @@ public:
 	 * @return The final accumulated score (higher is better).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzGameplay|Scoring")
-	static float EvaluateTarget(const AActor* Origin, const AActor* Target, const FKzTargetScoringProfile& Profile);
+	static float EvaluateTarget(const FKzTransformSource& Origin, const FKzTransformSource& Target, const FKzTargetScoringProfile& Profile);
 };

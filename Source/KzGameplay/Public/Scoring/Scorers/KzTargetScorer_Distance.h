@@ -25,5 +25,5 @@ public:
 	bool bUseHorizontalDistanceOnly = false;
 
 protected:
-	virtual float CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const override;
+	virtual float CalculateScore_Implementation(const FKzTransformSource& Origin, const FKzTransformSource& Target) const override;
 };

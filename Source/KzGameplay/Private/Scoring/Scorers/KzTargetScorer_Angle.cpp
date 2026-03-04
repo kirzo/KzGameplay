@@ -3,15 +3,17 @@
 #include "Scoring/Scorers/KzTargetScorer_Angle.h"
 #include "GameFramework/Actor.h"
 
-float UKzTargetScorer_Angle::CalculateScore_Implementation(const AActor* Origin, const AActor* Target) const
+float UKzTargetScorer_Angle::CalculateScore_Implementation(const FKzTransformSource& Origin, const FKzTransformSource& Target) const
 {
-	if (!Origin || !Target) return 0.0f;
+	if (!Origin.IsValid() || !Target.IsValid()) return 0.0f;
+
+	const FTransform OriginTransform = Origin.GetTransform();
 
 	// Use the Origin's forward vector to determine where it's looking.
-	const FVector OriginForward = Origin->GetActorForwardVector();
+	const FVector OriginForward = OriginTransform.GetRotation().GetForwardVector();
 
 	// Get the direction pointing from the Origin to the Target
-	const FVector DirectionToTarget = Target->GetActorLocation() - Origin->GetActorLocation();
+	const FVector DirectionToTarget = Target.GetLocation() - OriginTransform.GetLocation();
 
 	float AngleDifference = 0.0f;
 
