@@ -8,6 +8,7 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/Controller.h"
 
 UKzInputHandlerComponent::UKzInputHandlerComponent()
 {

@@ -5,6 +5,8 @@
 #if WITH_GAMEPLAY_DEBUGGER
 #include "KzDrawDebugHelpers.h"
 #include "Interaction/KzInteractionSubsystem.h"
+#include "Interaction/KzInteractableComponent.h"
+#include "Engine/World.h"
 
 FKzGameplayDebuggerCategory::FKzGameplayDebuggerCategory()
 {

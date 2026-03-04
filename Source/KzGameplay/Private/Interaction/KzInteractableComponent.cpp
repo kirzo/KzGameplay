@@ -5,6 +5,7 @@
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractableInterface.h"
 
+#include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
 UKzInteractableComponent::UKzInteractableComponent()

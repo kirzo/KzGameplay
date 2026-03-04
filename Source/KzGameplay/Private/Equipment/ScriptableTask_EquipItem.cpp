@@ -3,6 +3,7 @@
 #include "Equipment/ScriptableTask_EquipItem.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "GameFramework/Actor.h"
 
 void UScriptableTask_EquipItem::BeginTask()
 {

@@ -13,6 +13,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 
+#include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/StaticMeshComponent.h"

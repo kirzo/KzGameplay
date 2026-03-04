@@ -23,7 +23,7 @@ public:
 	virtual void DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext) override;
 
 protected:
-	TWeakObjectPtr<class UKzInteractorComponent> Interactor;
+	TWeakObjectPtr<UKzInteractorComponent> Interactor;
 	TArray<FKzInteractionDebugCandidate> CandidatesData;
 
 	/** Toggles the global rendering of all interactables in the subsystem. */

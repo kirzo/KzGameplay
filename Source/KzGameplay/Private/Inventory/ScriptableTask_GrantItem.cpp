@@ -4,6 +4,7 @@
 #include "Inventory/KzInventoryComponent.h"
 #include "Items/KzItemDefinition.h"
 #include "Items/KzItemInstance.h"
+#include "GameFramework/Actor.h"
 
 void UScriptableTask_GrantItem::BeginTask()
 {

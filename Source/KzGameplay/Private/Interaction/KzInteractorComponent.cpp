@@ -4,6 +4,9 @@
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 
+#include "Engine/World.h"
+#include "TimerManager.h"
+
 UKzInteractorComponent::UKzInteractorComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false; // We use timers
