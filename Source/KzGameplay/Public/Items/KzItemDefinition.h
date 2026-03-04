@@ -13,6 +13,8 @@ class UStreamableRenderAsset;
 class UTexture2D;
 class UScriptableAction;
 
+class UKzItemFragment;
+
 /** Defines how this item can be stored or handled by the character. */
 UENUM(BlueprintType)
 enum class EKzItemStorageMode : uint8
@@ -48,6 +50,10 @@ class KZGAMEPLAY_API UKzItemDefinition : public UPrimaryDataAsset
 
 public:
 	UKzItemDefinition();
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+#endif
 
 	// ==========================================
 	// VISUALS & UI
@@ -142,12 +148,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "StorageMode != EKzItemStorageMode::InventoryOnly", EditConditionHides))
 	FGameplayTagContainer EquippedTags;
 
-	/** Helper to get the correct class to spawn when equipping as an actor. */
-	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
-	TSoftClassPtr<AActor> GetEquippedActorClass() const
-	{
-		return bOverrideEquipmentActor ? EquipmentActorClass : WorldActorClass;
-	}
+	/** List of modular fragments defining specific behaviors for this item. */
+	UPROPERTY(EditDefaultsOnly, Instanced, Category = "Fragments")
+	TArray<TObjectPtr<UKzItemFragment>> Fragments;
 
 	// ==========================================
 	// EVENTS
@@ -166,4 +169,54 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
 	FORCEINLINE bool ShouldAutoEquip() const { return StorageMode == EKzItemStorageMode::EquipmentOnly || (IsEquippable() && bAutoEquip); }
+
+	/** Helper to get the correct class to spawn when equipping as an actor. */
+	UFUNCTION(BlueprintCallable, Category = "Item|Equipment")
+	TSoftClassPtr<AActor> GetEquippedActorClass() const
+	{
+		return bOverrideEquipmentActor ? EquipmentActorClass : WorldActorClass;
+	}
+
+	/** Searches fragments array and returns first encountered fragment of the specified class, native version of GetFragmentByClass */
+	const UKzItemFragment* FindFragmentByClass(const TSubclassOf<UKzItemFragment> FragmentClass) const;
+
+	/** Searches fragments array and returns first encountered fragment of the specified class */
+	UFUNCTION(BlueprintCallable, Category = "Item", meta = (DeterminesOutputType = "FragmentClass"))
+	const UKzItemFragment* GetFragmentByClass(TSubclassOf<UKzItemFragment> FragmentClass) const;
+
+	/** Searches fragments array and returns first encountered fragment that implements the given interface. */
+	const UKzItemFragment* FindFragmentByInterface(const TSubclassOf<UInterface> Interface) const;
+
+	/** Gets all the fragments that implements the given interface. */
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	const UKzItemFragment* GetFragmentByInterface(TSubclassOf<UInterface> Interface) const;
+
+	/** Returns true if the item definition contains a fragment of the specified class. */
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	bool HasFragment(TSubclassOf<UKzItemFragment> FragmentClass) const;
+
+	/** Templatized version of FindFragmentByClass that handles casting for you */
+	template<class T>
+	const T* FindFragmentByClass() const
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, const UKzItemFragment>::Value, "'T' template parameter to FindFragmentByClass must be derived from UKzItemFragment");
+
+		return (T*)FindFragmentByClass(T::StaticClass());
+	}
+
+	/** Templatized version of FindFragmentByInterface that handles casting for you */
+	template<class T UE_REQUIRES(TIsIInterface<T>::Value)>
+	const T* FindFragmentByInterface() const
+	{
+		return Cast<T>(FindFragmentByInterface(T::UClassType::StaticClass()));
+	}
+
+	/** Templatized version of HasFragment that handles casting for you */
+	template <class T>
+	bool HasFragment() const
+	{
+		static_assert(TPointerIsConvertibleFromTo<T, const UKzItemFragment>::Value, "'T' template parameter to HasFragment must be derived from UKzItemFragment");
+
+		return HasFragment(T::StaticClass());
+	}
 };
