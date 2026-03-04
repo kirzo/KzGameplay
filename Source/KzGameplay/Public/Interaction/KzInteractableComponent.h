@@ -68,7 +68,7 @@ public:
 	 * e.g., "Does the player have the Key?", "Is the power On?"
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	FScriptableRequirement InteractionRequirement;
+	mutable FScriptableRequirement InteractionRequirement;
 
 	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -115,6 +115,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	bool GetInteractionTransform(FTransform& OutTransform) const;
+
+	/** Evaluates if the given interactor can interact with this component. */
+	virtual bool CanInteract(class UKzInteractorComponent* Interactor) const;
 
 	/**
 	 * Called to execute the interaction.

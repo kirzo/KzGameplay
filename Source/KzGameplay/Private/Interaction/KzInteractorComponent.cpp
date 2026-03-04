@@ -96,11 +96,7 @@ void UKzInteractorComponent::PerformScan()
 			continue;
 		}
 
-		Candidate->InteractionRequirement.ResetContext();
-		Candidate->InteractionRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
-		Candidate->InteractionRequirement.SetContextProperty(TEXT("Interactor"), this);
-		Candidate->InteractionRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
-		if (!FScriptableRequirement::EvaluateRequirement(this, Candidate->InteractionRequirement))
+		if (!Candidate->CanInteract(this))
 		{
 #if WITH_GAMEPLAY_DEBUGGER
 			LastDebugCandidates.Add(DebugInfo); // Saved as Failed

@@ -80,6 +80,50 @@ bool UKzInteractableComponent::GetInteractionTransform(FTransform& OutTransform)
 	return true;
 }
 
+bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) const
+{
+	if (!Interactor) return false;
+
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	// 1. Evaluate the baseline Scriptable Requirement
+	InteractionRequirement.ResetContext();
+	InteractionRequirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+	InteractionRequirement.SetContextProperty(TEXT("Interactor"), Interactor);
+	InteractionRequirement.SetContextProperty(TEXT("Interactable"), MutableThis);
+
+	if (!FScriptableRequirement::EvaluateRequirement(Interactor, InteractionRequirement))
+	{
+		return false;
+	}
+
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor) return false;
+
+	// 2. Query the Actor if it implements the interface
+	if (OwnerActor->Implements<UKzInteractableInterface>())
+	{
+		if (!IKzInteractableInterface::Execute_CanInteract(OwnerActor, Interactor, MutableThis))
+		{
+			return false;
+		}
+	}
+
+	// 3. Query all sibling components that implement the interface
+	for (UActorComponent* Comp : OwnerActor->GetComponents())
+	{
+		if (Comp && Comp->Implements<UKzInteractableInterface>())
+		{
+			if (!IKzInteractableInterface::Execute_CanInteract(Comp, Interactor, MutableThis))
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorComponent* Interactor)
 {
 	if (!Interactor) return EKzInteractionResult::Ignored;

@@ -22,6 +22,10 @@ class KZGAMEPLAY_API IKzInteractableInterface
 	GENERATED_BODY()
 
 public:
+	/** Called to determine if this interaction is currently allowed. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	bool CanInteract(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
 	/**
 	 * Called when an interactor successfully executes an interaction on this target.
 	 * @param Interactor The component that initiated the interaction.
@@ -38,4 +42,7 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	void StopInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
+protected:
+	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
 };
