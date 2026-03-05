@@ -128,7 +128,7 @@ public:
 
 	/** The current stack quantity of this item. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Instance", meta = (ClampMin = "1"))
-	int32 Quantity = 0;
+	int32 Quantity = 1;
 
 	/** Dynamic statistics attached to this specific item instance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Instance")
@@ -151,13 +151,7 @@ public:
 	FScriptableAction ActiveEquippedAction;
 
 	FKzItemInstance() = default;
-
-	FKzItemInstance(const UKzItemDefinition* InDef, int32 InQuantity, AActor* InSpawnedActor = nullptr)
-		: ItemDef(InDef)
-		, Quantity(InQuantity)
-		, SpawnedActor(InSpawnedActor)
-	{
-	}
+	FKzItemInstance(const UKzItemDefinition* InDef, int32 InQuantity = 1, AActor* InSpawnedActor = nullptr);
 
 	/** Checks if this instance contains a valid item definition. */
 	bool IsValid() const
@@ -176,4 +170,7 @@ public:
 	{
 		return SpawnedActor != nullptr || SpawnedComponent != nullptr;
 	}
+
+	/** Initializes a newly created item instance by running all fragment initialization logic. */
+	void Initialize(const UKzItemDefinition* ItemDefinition);
 };

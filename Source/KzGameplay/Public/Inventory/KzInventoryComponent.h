@@ -32,12 +32,19 @@ public:
 	int32 Capacity;
 
 	/**
-	 * Attempts to add an item to the inventory.
-	 * If successful, the PhysicalActor (if valid) will be destroyed as it enters the backpack.
+	 * Attempts to add an item to the inventory, creating a fresh instance from its definition.
 	 * @return True if at least some quantity of the item was added.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
-	bool TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor = nullptr);
+	bool TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity = 1, AActor* PhysicalActor = nullptr);
+
+	/**
+	 * Attempts to add an existing live instance to the inventory.
+	 * Crucial for picking up dropped items to preserve their dynamic stats (e.g., durability).
+	 * @return True if at least some quantity of the item was added.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")
+	bool TryAddInstance(const FKzItemInstance& Instance, AActor* PhysicalActor = nullptr);
 
 	/** Attempts to remove a specific quantity of an item from the inventory. */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Inventory")

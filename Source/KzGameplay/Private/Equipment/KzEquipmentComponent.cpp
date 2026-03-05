@@ -257,21 +257,18 @@ bool UKzEquipmentComponent::EquipItemByDefinition(const UKzItemDefinition* ItemD
 	}
 
 	// Create a fresh instance from the definition
-	FKzItemInstance NewInstance;
-	NewInstance.ItemDef = ItemDef;
-	NewInstance.Quantity = 1;
-
+	FKzItemInstance NewInstance(ItemDef);
 	return EquipItem(NewInstance, OutUnequippedItem);
 }
 
 bool UKzEquipmentComponent::EquipItemFromWorld(UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority() || !ItemComp || !ItemComp->ItemDef)
+	if (!GetOwner()->HasAuthority() || !ItemComp || !ItemComp->ItemInstance.ItemDef)
 	{
 		return false;
 	}
 
-	return EquipItem(ItemComp->ToKzItemInstance(), OutUnequippedItem);
+	return EquipItem(ItemComp->ItemInstance, OutUnequippedItem);
 }
 
 bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem)

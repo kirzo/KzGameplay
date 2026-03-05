@@ -28,13 +28,9 @@ class KZGAMEPLAY_API UKzItemComponent : public UActorComponent, public IKzIntera
 	GENERATED_BODY()
 
 public:
-	/** The data asset defining what this item is. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
-	TObjectPtr<const UKzItemDefinition> ItemDef;
-
-	/** The amount of this item contained in this physical actor. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
-	int32 Quantity;
+	/** The live instance of the item represented by this component. Holds Definition, Quantity, and Stats. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	FKzItemInstance ItemInstance;
 
 	/**
 	 * If true, the item will simulate physics when dropped or unequipped.
@@ -92,11 +88,6 @@ protected:
 
 public:
 	UKzItemComponent();
-
-	FKzItemInstance ToKzItemInstance() const
-	{
-		return FKzItemInstance(ItemDef, Quantity, GetOwner());
-	}
 
 protected:
 	virtual void BeginPlay() override;

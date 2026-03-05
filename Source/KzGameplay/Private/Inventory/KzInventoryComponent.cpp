@@ -3,6 +3,7 @@
 #include "Inventory/KzInventoryComponent.h"
 #include "Items/KzItemDefinition.h"
 #include "Items/Fragments/KzItemFragment_Storable.h"
+#include "Items/KzItemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 
@@ -54,22 +55,41 @@ int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef)
 
 bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor)
 {
-	const UKzItemFragment_Storable* StoreFrag = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_Storable>() : nullptr;
-	if (!StoreFrag || Quantity <= 0 || !GetOwner()->HasAuthority())
+	if (!ItemDef || Quantity <= 0)
 	{
 		return false;
 	}
 
-	int32 RemainingQuantity = Quantity;
+	// Create a fresh instance and route it through the master function.
+	// We pass nullptr for SpawnedActor internally because the item is going into the backpack,
+	// but we still pass PhysicalActor to the function to handle the world cleanup.
+	FKzItemInstance FreshInstance(ItemDef, Quantity, nullptr);
+
+	return TryAddInstance(FreshInstance, PhysicalActor);
+}
+
+bool UKzInventoryComponent::TryAddInstance(const FKzItemInstance& Instance, AActor* PhysicalActor)
+{
+	if (!GetOwner()->HasAuthority() || !Instance.IsValid())
+	{
+		return false;
+	}
+
+	const UKzItemFragment_Storable* StoreFrag = Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
+	if (!StoreFrag)
+	{
+		return false;
+	}
+
+	int32 RemainingQuantity = Instance.Quantity;
 
 	// 1. Try to fill existing stacks first
+	// Note: If items are stackable, their unique stats (if any) will be absorbed by the existing stack.
+	// It is highly recommended that items with dynamic stats have a MaxStackSize of 1.
 	while (RemainingQuantity > 0)
 	{
-		int32 StackIndex = FindStackableSlot(ItemDef);
-		if (StackIndex == INDEX_NONE)
-		{
-			break; // No more stackable slots available
-		}
+		int32 StackIndex = FindStackableSlot(Instance.ItemDef);
+		if (StackIndex == INDEX_NONE) break;
 
 		int32 AvailableSpaceInStack = StoreFrag->MaxStackSize - Items[StackIndex].Quantity;
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, AvailableSpaceInStack);
@@ -83,9 +103,13 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 	{
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, StoreFrag->MaxStackSize);
 
-		// Note: We deliberately pass nullptr for the PhysicalActor because it's going into the backpack
-		FKzItemInstance& NewInstance = Items.Add_GetRef(FKzItemInstance(ItemDef, AmountToAdd, nullptr));
+		// Add a copy of the live instance to preserve dynamic stats
+		FKzItemInstance& NewInstance = Items.Add_GetRef(Instance);
+		NewInstance.Quantity = AmountToAdd;
+		NewInstance.SpawnedActor = nullptr; // Erase physical references since it's now stored
+		NewInstance.SpawnedComponent = nullptr;
 
+		// Initialize Acquired Actions
 		NewInstance.ActiveAcquiredAction = StoreFrag->OnAcquiredAction.Clone(this);
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Inventory"), this);
@@ -95,32 +119,38 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 		RemainingQuantity -= AmountToAdd;
 	}
 
-	// If we successfully added at least *some* items
-	if (RemainingQuantity < Quantity)
+	// 3. Process results
+	if (RemainingQuantity < Instance.Quantity)
 	{
-		// Calculate exactly how many items were actually added to the backpack
-		int32 TotalAdded = Quantity - RemainingQuantity;
+		int32 TotalAdded = Instance.Quantity - RemainingQuantity;
 
-		// Grant the Inventory Tags to the owner's Ability System Component
+		// Grant passive tags
 		if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 		{
 			for (const FGameplayTag& Tag : StoreFrag->InventoryTags)
 			{
-				// We call it multiple times (or pass the count) so GAS maintains a correct reference count.
-				// If you add 3 apples, the tag count goes up by 3.
 				ASC->AddLooseGameplayTag(Tag, TotalAdded);
 			}
 		}
 
-		// 3. World Cleanup Rule: Destroy the physical actor if it went into the backpack
-		if (IsValid(PhysicalActor))
+		// Handle the physical actor (cleanup or update remaining quantity)
+		if (PhysicalActor)
 		{
-			PhysicalActor->Destroy();
+			if (RemainingQuantity == 0)
+			{
+				PhysicalActor->Destroy();
+			}
+			else
+			{
+				// If we couldn't fit everything, update the remaining quantity on the physical item
+				if (UKzItemComponent* ItemComp = PhysicalActor->FindComponentByClass<UKzItemComponent>())
+				{
+					ItemComp->ItemInstance.Quantity = RemainingQuantity;
+				}
+			}
 		}
 
-		// 4. Notify server-side listeners
 		OnInventoryChanged.Broadcast();
-
 		return true;
 	}
 

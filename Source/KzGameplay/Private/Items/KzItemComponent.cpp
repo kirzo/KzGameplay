@@ -12,7 +12,7 @@
 UKzItemComponent::UKzItemComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	Quantity = 1;
+	SetIsReplicatedByDefault(true);
 }
 
 void UKzItemComponent::BeginPlay()
@@ -28,12 +28,25 @@ void UKzItemComponent::BeginPlay()
 				bSimulatePhysics = RootPrim->IsSimulatingPhysics();
 			}
 		}
+
+		if (OwnerActor->HasAuthority())
+		{
+			// Link the physical world actor to the instance
+			ItemInstance.SpawnedActor = OwnerActor;
+
+			// If this component was placed in the world via the editor, its ItemInstance might have an ItemDef
+			// but no initialized stats. We ensure it's properly initialized here.
+			if (ItemInstance.ItemDef && ItemInstance.Quantity > 0 && ItemInstance.Stats.Items.IsEmpty())
+			{
+				ItemInstance.Initialize(ItemInstance.ItemDef);
+			}
+		}
 	}
 }
 
 EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
-	if (!GetOwner()->HasAuthority() || !ItemDef || Quantity <= 0 || !Interactor)
+	if (!GetOwner()->HasAuthority() || !ItemInstance.IsValid() || !Interactor)
 	{
 		return EKzInteractionResult::Ignored;
 	}
@@ -41,8 +54,8 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 	EKzInteractionResult Result = EKzInteractionResult::Ignored;
 	AActor* InteractorActor = Interactor->GetOwner();
 
-	const UKzItemFragment_Equippable* EquipFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
-	const UKzItemFragment_Storable* StoreFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
+	const UKzItemFragment_Equippable* EquipFrag = ItemInstance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+	const UKzItemFragment_Storable* StoreFrag = ItemInstance.ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
 
 	// 1. Try to Auto-Equip first (if the item allows it)
 	if (EquipFrag && (EquipFrag->bAutoEquip || !StoreFrag))
@@ -66,7 +79,7 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 		if (UKzInventoryComponent* InvComp = InteractorActor->FindComponentByClass<UKzInventoryComponent>())
 		{
 			// TryAddItem will automatically destroy GetOwner() if it fits in the backpack
-			bool bItemAdded = InvComp->TryAddItem(ItemDef, Quantity, GetOwner());
+			bool bItemAdded = InvComp->TryAddInstance(ItemInstance, GetOwner());
 			if (bItemAdded)
 			{
 				Result = EKzInteractionResult::Completed;
