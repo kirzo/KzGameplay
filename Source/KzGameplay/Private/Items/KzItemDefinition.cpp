@@ -2,26 +2,10 @@
 
 #include "Items/KzItemDefinition.h"
 #include "Items/KzItemFragment.h"
-#include "Items/KzItemComponent.h"
-#include "Inventory/KzInventoryComponent.h"
-#include "Equipment/KzEquipmentComponent.h"
-
-#include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
 #endif
-
-UKzItemDefinition::UKzItemDefinition()
-{
-	OnAcquiredAction.AddContextProperty<AActor*>(TEXT("Instigator"));
-	OnAcquiredAction.AddContextProperty<UKzInventoryComponent*>(TEXT("Inventory"));
-
-	OnEquippedAction.AddContextProperty<AActor*>(TEXT("Instigator"));
-	OnEquippedAction.AddContextProperty<UKzEquipmentComponent*>(TEXT("Equipment"));
-	OnEquippedAction.AddContextProperty<UKzItemComponent*>(TEXT("Item"));
-	OnEquippedAction.AddContextProperty<AActor*>(TEXT("ItemActor"));
-}
 
 #if WITH_EDITOR
 EDataValidationResult UKzItemDefinition::IsDataValid(FDataValidationContext& Context) const

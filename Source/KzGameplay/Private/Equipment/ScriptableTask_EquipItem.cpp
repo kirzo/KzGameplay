@@ -3,6 +3,7 @@
 #include "Equipment/ScriptableTask_EquipItem.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "GameFramework/Actor.h"
 
 void UScriptableTask_EquipItem::BeginTask()
@@ -31,9 +32,12 @@ void UScriptableTask_EquipItem::ResetTask()
 		{
 			if (const UKzItemDefinition* LoadedItemDef = ItemToEquip.LoadSynchronous())
 			{
-				// To revert an equipment task, we simply unequip whatever is in the target slot
-				FKzItemInstance UnequippedItem;
-				EquipComp->UnequipItem(LoadedItemDef->TargetSlot, UnequippedItem);
+				if (const UKzItemFragment_Equippable* EquipFrag = LoadedItemDef->FindFragmentByClass<UKzItemFragment_Equippable>())
+				{
+					// To revert an equipment task, we simply unequip whatever is in the target slot
+					FKzItemInstance UnequippedItem;
+					EquipComp->UnequipItem(EquipFrag->TargetSlot, UnequippedItem);
+				}
 			}
 		}
 	}

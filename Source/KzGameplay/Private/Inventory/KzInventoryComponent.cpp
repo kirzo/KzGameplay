@@ -2,6 +2,7 @@
 
 #include "Inventory/KzInventoryComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Items/Fragments/KzItemFragment_Storable.h"
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 
@@ -38,9 +39,12 @@ int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef)
 {
 	if (!ItemDef) return INDEX_NONE;
 
+	const UKzItemFragment_Storable* StoreFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
+	if (!StoreFrag) return INDEX_NONE;
+
 	for (int32 i = 0; i < Items.Num(); ++i)
 	{
-		if (Items[i].ItemDef == ItemDef && Items[i].Quantity < ItemDef->MaxStackSize)
+		if (Items[i].ItemDef == ItemDef && Items[i].Quantity < StoreFrag->MaxStackSize)
 		{
 			return i;
 		}
@@ -50,7 +54,8 @@ int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef)
 
 bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Quantity, AActor* PhysicalActor)
 {
-	if (!ItemDef || Quantity <= 0 || !GetOwner()->HasAuthority())
+	const UKzItemFragment_Storable* StoreFrag = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_Storable>() : nullptr;
+	if (!StoreFrag || Quantity <= 0 || !GetOwner()->HasAuthority())
 	{
 		return false;
 	}
@@ -66,7 +71,7 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 			break; // No more stackable slots available
 		}
 
-		int32 AvailableSpaceInStack = ItemDef->MaxStackSize - Items[StackIndex].Quantity;
+		int32 AvailableSpaceInStack = StoreFrag->MaxStackSize - Items[StackIndex].Quantity;
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, AvailableSpaceInStack);
 
 		Items[StackIndex].Quantity += AmountToAdd;
@@ -76,12 +81,12 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 	// 2. Create new slots for the remaining quantity
 	while (RemainingQuantity > 0 && HasSpace())
 	{
-		int32 AmountToAdd = FMath::Min(RemainingQuantity, ItemDef->MaxStackSize);
+		int32 AmountToAdd = FMath::Min(RemainingQuantity, StoreFrag->MaxStackSize);
 
 		// Note: We deliberately pass nullptr for the PhysicalActor because it's going into the backpack
 		FKzItemInstance& NewInstance = Items.Add_GetRef(FKzItemInstance(ItemDef, AmountToAdd, nullptr));
 
-		NewInstance.ActiveAcquiredAction = ItemDef->OnAcquiredAction.Clone(this);
+		NewInstance.ActiveAcquiredAction = StoreFrag->OnAcquiredAction.Clone(this);
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Inventory"), this);
 
@@ -99,7 +104,7 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 		// Grant the Inventory Tags to the owner's Ability System Component
 		if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 		{
-			for (const FGameplayTag& Tag : ItemDef->InventoryTags)
+			for (const FGameplayTag& Tag : StoreFrag->InventoryTags)
 			{
 				// We call it multiple times (or pass the count) so GAS maintains a correct reference count.
 				// If you add 3 apples, the tag count goes up by 3.
@@ -124,10 +129,8 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 
 bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Quantity)
 {
-	if (!ItemDef || Quantity <= 0 || !GetOwner()->HasAuthority())
-	{
-		return false;
-	}
+	const UKzItemFragment_Storable* StoreFrag = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_Storable>() : nullptr;
+	if (!StoreFrag || Quantity <= 0 || !GetOwner()->HasAuthority()) return false;
 
 	int32 RemainingToRemove = Quantity;
 
@@ -161,7 +164,7 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 		// Remove the Inventory Tags from the owner's Ability System Component
 		if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 		{
-			for (const FGameplayTag& Tag : ItemDef->InventoryTags)
+			for (const FGameplayTag& Tag : StoreFrag->InventoryTags)
 			{
 				// Remove the exact count we discarded so the reference count drops correctly.
 				ASC->RemoveLooseGameplayTag(Tag, TotalRemoved);

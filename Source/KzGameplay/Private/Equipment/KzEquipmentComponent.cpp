@@ -2,6 +2,8 @@
 
 #include "Equipment/KzEquipmentComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
+#include "Items/Fragments/KzItemFragment_Storable.h"
 #include "Items/KzItemComponent.h"
 #include "Inventory/KzInventoryComponent.h"
 #include "Misc/KzTransformSource.h"
@@ -97,12 +99,12 @@ void UKzEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& Old
 
 bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid() || !ItemToEquip.ItemDef->IsEquippable())
-	{
-		return false;
-	}
+	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid()) return false;
 
-	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(ItemToEquip.ItemDef->TargetSlot);
+	const UKzItemFragment_Equippable* EquipFrag = ItemToEquip.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+	if (!EquipFrag) return false; // Not equippable!
+
+	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(EquipFrag->TargetSlot);
 
 	for (FEquippedSlot& Slot : EquippedSlots)
 	{
@@ -121,7 +123,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			UKzItemComponent* ItemComp = nullptr;
 
 			// MeshComponent (Cosmetics, simple items)
-			if (ItemToEquip.ItemDef->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
+			if (EquipFrag->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
 			{
 				// 1. Destroy the world actor if the item came from the ground
 				if (AActor* PhysicalActor = Slot.Instance.SpawnedActor)
@@ -131,7 +133,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				}
 
 				// 2. Create the proper Mesh Component
-				if (UStreamableRenderAsset* LoadedMesh = ItemToEquip.ItemDef->EquipmentMesh.LoadSynchronous())
+				if (UStreamableRenderAsset* LoadedMesh = EquipFrag->EquipmentMesh.LoadSynchronous())
 				{
 					if (UStaticMesh* AsStaticMesh = Cast<UStaticMesh>(LoadedMesh))
 					{
@@ -151,14 +153,14 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 					{
 						Slot.Instance.SpawnedComponent->RegisterComponent();
 						Slot.Instance.SpawnedComponent->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
-						Slot.Instance.SpawnedComponent->SetRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
+						Slot.Instance.SpawnedComponent->SetRelativeTransform(EquipFrag->AttachmentOffset);
 					}
 				}
 			}
 			// Full Actor (Weapons, complex logic)
 			else
 			{
-				TSubclassOf<AActor> TargetClass = ItemToEquip.ItemDef->GetEquippedActorClass().LoadSynchronous();
+				TSubclassOf<AActor> TargetClass = EquipFrag->GetEquippedActorClass(ItemToEquip.ItemDef->WorldActorClass).LoadSynchronous();
 				AActor* CurrentActor = Slot.Instance.SpawnedActor;
 
 				// 1. If the actor from the ground is different from the equipped class, recreate it
@@ -197,14 +199,14 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 
 					if (OwnerMesh)
 					{
-						if (ItemToEquip.ItemDef->bUseCustomAttachment && ItemComp)
+						if (EquipFrag->bUseCustomAttachment && ItemComp)
 						{
-							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(OwnerMesh, AttachmentSocket, ItemToEquip.ItemDef->AttachmentOffset));
+							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(OwnerMesh, AttachmentSocket, EquipFrag->AttachmentOffset));
 						}
 						else
 						{
 							CurrentActor->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
-							CurrentActor->SetActorRelativeTransform(ItemToEquip.ItemDef->AttachmentOffset);
+							CurrentActor->SetActorRelativeTransform(EquipFrag->AttachmentOffset);
 						}
 					}
 
@@ -217,13 +219,13 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 
 			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 			{
-				for (const FGameplayTag& Tag : ItemToEquip.ItemDef->EquippedTags)
+				for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
 				{
 					ASC->AddLooseGameplayTag(Tag);
 				}
 			}
 
-			Slot.Instance.ActiveEquippedAction = Slot.Instance.ItemDef->OnEquippedAction.Clone(this);
+			Slot.Instance.ActiveEquippedAction = EquipFrag->OnEquippedAction.Clone(this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Item"), ItemComp);
@@ -287,6 +289,9 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 		{
 			OutUnequippedItem = Slot.Instance;
 
+			const UKzItemFragment_Equippable* EquipFrag = OutUnequippedItem.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+			const UKzItemFragment_Storable* StoreFrag = OutUnequippedItem.ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
+
 			OutUnequippedItem.ActiveEquippedAction.Reset();
 			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
 
@@ -294,7 +299,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 
 			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 			{
-				for (const FGameplayTag& Tag : OutUnequippedItem.ItemDef->EquippedTags)
+				for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
 				{
 					ASC->RemoveLooseGameplayTag(Tag);
 				}
@@ -303,7 +308,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			bool bSentToInventory = false;
 
 			// 1. Check if the item is allowed to go to the backpack
-			if (OutUnequippedItem.ItemDef->StorageMode != EKzItemStorageMode::EquipmentOnly)
+			if (StoreFrag)
 			{
 				if (UKzInventoryComponent* InvComp = GetOwner()->FindComponentByClass<UKzInventoryComponent>())
 				{
@@ -318,7 +323,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			if (!bSentToInventory)
 			{
 				// Handle Component cleanup if it was a Mesh Spawn
-				if (OutUnequippedItem.ItemDef->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
+				if (EquipFrag->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
 				{
 					if (OutUnequippedItem.SpawnedComponent)
 					{
@@ -344,13 +349,13 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 					{
 						ItemComp->ClearEquippedState();
 
-						if (OutUnequippedItem.ItemDef->bUseCustomAttachment)
+						if (EquipFrag && EquipFrag->bUseCustomAttachment)
 						{
 							ItemComp->OnCustomDetach.Broadcast(GetOwner());
 						}
 					}
 
-					if (!OutUnequippedItem.ItemDef->bUseCustomAttachment)
+					if (!EquipFrag || !EquipFrag->bUseCustomAttachment)
 					{
 						OldPhysicalActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 					}
@@ -408,6 +413,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 						{
 							RootPrim->SetSimulatePhysics(true);
 							RootPrim->SetPhysicsLinearVelocity(GetOwner()->GetVelocity());
+							RootPrim->AddTorqueInRadians(FVector::CrossProduct(FVector::UpVector, GetOwner()->GetVelocity()), NAME_None, true);
 						}
 					}
 				}

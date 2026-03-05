@@ -2,6 +2,8 @@
 
 #include "Items/KzItemComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Items/Fragments/KzItemFragment_Storable.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Inventory/KzInventoryComponent.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "Interaction/KzInteractorComponent.h"
@@ -37,11 +39,13 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 	}
 
 	EKzInteractionResult Result = EKzInteractionResult::Ignored;
-
 	AActor* InteractorActor = Interactor->GetOwner();
 
+	const UKzItemFragment_Equippable* EquipFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+	const UKzItemFragment_Storable* StoreFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
+
 	// 1. Try to Auto-Equip first (if the item allows it)
-	if (ItemDef->ShouldAutoEquip())
+	if (EquipFrag && (EquipFrag->bAutoEquip || !StoreFrag))
 	{
 		if (UKzEquipmentComponent* EquipmentComp = InteractorActor->FindComponentByClass<UKzEquipmentComponent>())
 		{
@@ -51,14 +55,13 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 			if (bEquipped)
 			{
 				OnPickedUp.Broadcast(InteractorActor);
+				Result = EKzInteractionResult::Completed;
 			}
-
-			Result = EKzInteractionResult::Completed;
 		}
 	}
 
 	// 2. If it wasn't equipped (not auto-equip, or equipment full/failed), send to Backpack
-	if (Result == EKzInteractionResult::Ignored)
+	if (Result == EKzInteractionResult::Ignored && StoreFrag)
 	{
 		if (UKzInventoryComponent* InvComp = InteractorActor->FindComponentByClass<UKzInventoryComponent>())
 		{
