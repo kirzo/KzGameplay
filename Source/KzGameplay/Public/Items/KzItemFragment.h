@@ -10,7 +10,7 @@
  * Base class for modular item data fragments.
  * Fragments define specific properties or behaviors for an item definition.
  */
-UCLASS(DefaultToInstanced, EditInlineNew, Abstract)
+UCLASS(DefaultToInstanced, EditInlineNew, Abstract, Blueprintable)
 class KZGAMEPLAY_API UKzItemFragment : public UObject
 {
 	GENERATED_BODY()
