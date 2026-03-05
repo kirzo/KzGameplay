@@ -21,3 +21,13 @@ void UKzGameplayAbility::OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo,
 		ActorInfo->AbilitySystemComponent->TryActivateAbility(Spec.Handle, false);
 	}
 }
+
+bool UKzGameplayAbility::IsInputPressed() const
+{
+	if (const FGameplayAbilitySpec* Spec = GetCurrentAbilitySpec())
+	{
+		return Spec->InputPressed;
+	}
+
+	return false;
+}

@@ -57,4 +57,12 @@ public:
 	TArray<FAbilityTriggerData> AbilityCancelTriggers;
 
 	virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+
+	/**
+	 * Returns true if the input action associated with this ability is currently being held down.
+	 * Useful for abilities that need to check the continuous input state (e.g., auto-firing, charging)
+	 * without relying on asynchronous input tasks.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Ability|Input")
+	bool IsInputPressed() const;
 };
