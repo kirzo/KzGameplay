@@ -13,6 +13,7 @@ public class KzGameplay : ModuleRules
 			{
 				"Core",
 				"EnhancedInput",
+				"NetCore",
 				"GameplayTags",
 				"GameplayAbilities",
 				"GameplayTasks",
