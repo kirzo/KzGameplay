@@ -31,6 +31,18 @@ public:
 
 	FEquippedSlot() {}
 	FEquippedSlot(FGameplayTag InSlotID) : SlotID(InSlotID) {}
+
+	/** Equality operator against another slot. */
+	bool operator==(const FEquippedSlot& Other) const
+	{
+		return SlotID == Other.SlotID;
+	}
+
+	/** Equality operator against a GameplayTag (Allows using TArray::FindByKey). */
+	bool operator==(FGameplayTag OtherTag) const
+	{
+		return SlotID == OtherTag;
+	}
 };
 
 /**
@@ -99,7 +111,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
 	bool UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem);
 
-	/** Returns the item instance currently occupying the given slot, if any. */
+	/**
+	 * Returns a read-only pointer to the item instance currently occupying the given slot, if any.
+	 * @return Pointer to the instance, or nullptr if the slot is empty or invalid.
+	 */
+	const FKzItemInstance* FindItemInSlot(FGameplayTag SlotID) const;
+
+	/** Returns a copy of the item instance currently occupying the given slot, if any. */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	FKzItemInstance GetItemInSlot(FGameplayTag SlotID) const;
 

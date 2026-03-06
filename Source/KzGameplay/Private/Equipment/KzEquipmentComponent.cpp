@@ -174,6 +174,8 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				if (!CurrentActor && TargetClass)
 				{
 					FActorSpawnParameters SpawnParams;
+					SpawnParams.Owner = GetOwner();
+					SpawnParams.Instigator = Cast<APawn>(GetOwner());
 					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 					CurrentActor = GetWorld()->SpawnActor<AActor>(TargetClass, GetOwner()->GetActorLocation(), GetOwner()->GetActorRotation(), SpawnParams);
 					Slot.Instance.SpawnedActor = CurrentActor;
@@ -182,6 +184,9 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				// 3. Attach the actor
 				if (CurrentActor)
 				{
+					CurrentActor->SetOwner(GetOwner());
+					CurrentActor->SetInstigator(Cast<APawn>(GetOwner()));
+
 					ItemComp = CurrentActor->FindComponentByClass<UKzItemComponent>();
 
 					if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
@@ -340,6 +345,9 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 
 				if (AActor* OldPhysicalActor = OutUnequippedItem.SpawnedActor)
 				{
+					OldPhysicalActor->SetOwner(nullptr);
+					OldPhysicalActor->SetInstigator(nullptr);
+
 					ItemComp = OldPhysicalActor->FindComponentByClass<UKzItemComponent>();
 
 					if (ItemComp)
@@ -430,17 +438,28 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 	return false;
 }
 
-FKzItemInstance UKzEquipmentComponent::GetItemInSlot(FGameplayTag SlotID) const
+const FKzItemInstance* UKzEquipmentComponent::FindItemInSlot(FGameplayTag SlotID) const
 {
-	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
-
-	for (const FEquippedSlot& Slot : EquippedSlots)
+	if (!DefaultLayout)
 	{
-		if (Slot.SlotID == TargetSlot)
-		{
-			return Slot.Instance;
-		}
+		return nullptr;
 	}
 
+	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
+
+	if (const FEquippedSlot* FoundSlot = EquippedSlots.FindByKey(TargetSlot))
+	{
+		return &FoundSlot->Instance;
+	}
+
+	return nullptr;
+}
+
+FKzItemInstance UKzEquipmentComponent::GetItemInSlot(FGameplayTag SlotID) const
+{
+	if (const FKzItemInstance* FoundItem = FindItemInSlot(SlotID))
+	{
+		return *FoundItem;
+	}
 	return FKzItemInstance();
 }
