@@ -4,8 +4,6 @@
 #include "Engine/World.h"
 #include "KismetTraceUtils.h"
 
-UE_DISABLE_OPTIMIZATION
-
 UAbilityTask_WaitTraceCollision::UAbilityTask_WaitTraceCollision(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -152,5 +150,3 @@ void UAbilityTask_WaitTraceCollision::OnDestroy(bool bInOwnerFinished)
 	IgnoredActors.Empty();
 	Super::OnDestroy(bInOwnerFinished);
 }
-
-UE_ENABLE_OPTIMIZATION

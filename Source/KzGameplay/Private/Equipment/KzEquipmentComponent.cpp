@@ -9,17 +9,17 @@
 #include "Misc/KzTransformSource.h"
 
 #include "Net/UnrealNetwork.h"
-#include "GameFramework/Actor.h"
-#include "Components/PrimitiveComponent.h"
-
-#include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
-
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 UKzEquipmentComponent::UKzEquipmentComponent()
 {

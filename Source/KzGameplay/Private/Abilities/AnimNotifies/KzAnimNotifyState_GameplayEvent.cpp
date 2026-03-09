@@ -4,6 +4,7 @@
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimSequenceBase.h"
 
 UKzAnimNotifyState_GameplayEvent::UKzAnimNotifyState_GameplayEvent()
 {

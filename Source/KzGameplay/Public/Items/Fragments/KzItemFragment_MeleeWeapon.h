@@ -6,6 +6,7 @@
 #include "Items/KzItemFragment.h"
 #include "Core/KzDatabase.h" 
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Misc/KzTransformSource.h"
 #include "KzItemFragment_MeleeWeapon.generated.h"
 
 /** Defines which mesh should be used as the base for the melee collision trace. */
@@ -73,47 +74,27 @@ public:
 
 	/** Returns the total number of steps in this weapon's combo sequence. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	int32 GetNumComboSteps() const
-	{
-		return ComboSteps.Num();
-	}
+	int32 GetNumComboSteps() const { return ComboSteps.Num(); }
 
 	/** Returns true if this weapon has at least one combo step defined. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	bool HasCombos() const
-	{
-		return !ComboSteps.IsEmpty();
-	}
+	bool HasCombos() const { return !ComboSteps.IsEmpty(); }
 
-	/** * Safely retrieves the combo step at the specified index.
+	/**
+	 * Safely retrieves the combo step at the specified index.
 	 * @param Index The index of the combo step to retrieve.
 	 * @param OutStep The retrieved combo step data.
 	 * @return True if the index was valid and the step was found, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	bool GetComboStep(int32 Index, FKzMeleeComboStep& OutStep) const
-	{
-		if (ComboSteps.IsValidIndex(Index))
-		{
-			OutStep = ComboSteps[Index];
-			return true;
-		}
-		return false;
-	}
+	bool GetComboStep(int32 Index, FKzMeleeComboStep& OutStep) const;
 
 	/**
 	 * Calculates the final damage for a specific combo step (BaseDamage * Step.DamageMultiplier).
 	 * If the index is invalid, it defaults to returning the BaseDamage.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	float CalculateDamageForStep(int32 Index) const
-	{
-		if (ComboSteps.IsValidIndex(Index))
-		{
-			return BaseDamage * ComboSteps[Index].DamageMultiplier;
-		}
-		return BaseDamage;
-	}
+	float CalculateDamageForStep(int32 Index) const;
 
 	/**
 	 * Safely calculates the next combo index based on the current sequence length.
@@ -122,22 +103,7 @@ public:
 	 * @return The next valid combo index, or -1 if there are no combos defined.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	int32 GetNextComboIndex(int32 CurrentIndex, bool bLoop = true) const
-	{
-		if (ComboSteps.IsEmpty())
-		{
-			return INDEX_NONE;
-		}
-
-		int32 NextIndex = CurrentIndex + 1;
-
-		if (NextIndex >= ComboSteps.Num())
-		{
-			return bLoop ? 0 : (ComboSteps.Num() - 1);
-		}
-
-		return NextIndex;
-	}
+	int32 GetNextComboIndex(int32 CurrentIndex, bool bLoop = true) const;
 
 	/**
 	 * Resolves the collision shape and transform source for a specific combo step.
@@ -150,55 +116,5 @@ public:
 	 * @return True if the step was valid and the data was successfully resolved, false otherwise.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
-	bool GetCollisionDataForStep(int32 Index, AActor* AvatarActor, AActor* WeaponActor, FKzShapeInstance& OutShape, FKzTransformSource& OutTransformSource) const
-	{
-		if (!ComboSteps.IsValidIndex(Index))
-		{
-			return false;
-		}
-
-		const FKzMeleeComboStep& Step = ComboSteps[Index];
-
-		// 1. Output the exact shape defined by the designers
-		OutShape = Step.TraceShape;
-
-		// 2. Resolve the target mesh based on the step configuration
-		UMeshComponent* TargetMesh = nullptr;
-
-		if (Step.MeshTarget == EKzMeleeMeshTarget::Weapon && WeaponActor)
-		{
-			// Try to find a specific tagged mesh ("MeleeMesh"), otherwise fallback to any MeshComponent
-			TArray<UMeshComponent*> Meshes;
-			WeaponActor->GetComponents<UMeshComponent>(Meshes);
-
-			for (UMeshComponent* Mesh : Meshes)
-			{
-				if (Mesh->ComponentHasTag(TEXT("MeleeMesh")))
-				{
-					TargetMesh = Mesh;
-					break;
-				}
-			}
-
-			// If no specific tag was found, just grab the first mesh available
-			if (!TargetMesh && Meshes.Num() > 0)
-			{
-				TargetMesh = Meshes[0];
-			}
-		}
-		else if (Step.MeshTarget == EKzMeleeMeshTarget::Avatar && AvatarActor)
-		{
-			// Unarmed combat: grab the character's primary skeletal mesh
-			TargetMesh = AvatarActor->FindComponentByClass<USkeletalMeshComponent>();
-		}
-
-		// 3. Build the generic transform source safely
-		if (TargetMesh)
-		{
-			OutTransformSource.Initialize(TargetMesh, Step.TraceSocketName, Step.TraceOffset);
-			return true;
-		}
-
-		return false;
-	}
+	bool GetCollisionDataForStep(int32 Index, AActor* AvatarActor, AActor* WeaponActor, FKzShapeInstance& OutShape, FKzTransformSource& OutTransformSource) const;
 };

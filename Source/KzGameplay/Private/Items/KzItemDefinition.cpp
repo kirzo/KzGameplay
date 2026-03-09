@@ -2,6 +2,7 @@
 
 #include "Items/KzItemDefinition.h"
 #include "Items/KzItemFragment.h"
+#include "UObject/Interface.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
