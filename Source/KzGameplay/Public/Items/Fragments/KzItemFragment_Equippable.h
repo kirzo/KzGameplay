@@ -57,6 +57,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnActor && bOverrideEquipmentActor", EditConditionHides))
 	TSoftClassPtr<AActor> EquipmentActorClass;
 
+	/** If true, completely disables physics collision on the spawned actor while equipped. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment")
+	bool bDisableCollisionOnEquip = true;
+
 	/** The mesh to attach to the character. Can be a UStaticMesh or USkeletalMesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (EditCondition = "EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh", EditConditionHides, AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
 	TSoftObjectPtr<UStreamableRenderAsset> EquipmentMesh;

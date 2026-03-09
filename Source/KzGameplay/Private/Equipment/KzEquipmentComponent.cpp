@@ -194,6 +194,11 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 						OwnerPrim->IgnoreActorWhenMoving(CurrentActor, true);
 					}
 
+					if (EquipFrag->bDisableCollisionOnEquip)
+					{
+						CurrentActor->SetActorEnableCollision(false);
+					}
+
 					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(CurrentActor->GetRootComponent()))
 					{
 						if (RootPrim->IsSimulatingPhysics())
@@ -396,6 +401,11 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 					if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 					{
 						OwnerPrim->IgnoreActorWhenMoving(OldPhysicalActor, false);
+					}
+
+					if (EquipFrag->bDisableCollisionOnEquip)
+					{
+						OldPhysicalActor->SetActorEnableCollision(true);
 					}
 
 					// Enable physics only if the KzItemComponent dictates it
