@@ -5,7 +5,19 @@
 #include "CoreMinimal.h"
 #include "Items/KzItemFragment.h"
 #include "Core/KzDatabase.h" 
+#include "Math/Geometry/KzShapeInstance.h"
 #include "KzItemFragment_MeleeWeapon.generated.h"
+
+/** Defines which mesh should be used as the base for the melee collision trace. */
+UENUM(BlueprintType)
+enum class EKzMeleeMeshTarget : uint8
+{
+	/** Uses the physical actor spawned by the equipment system (e.g., the Sword mesh). */
+	Weapon,
+
+	/** Uses the character's skeletal mesh (e.g., for punches, kicks, or unarmed combat). */
+	Avatar
+};
 
 /** Defines a single step in a melee attack combo, using semantic queries for animation retrieval. */
 USTRUCT(BlueprintType)
@@ -23,6 +35,24 @@ struct FKzMeleeComboStep
 	/** Damage multiplier applied to the weapon's base damage for this specific hit. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee")
 	float DamageMultiplier = 1.0f;
+
+	// --- Collision Data ---
+
+	/** Defines whether this step traces from the weapon's mesh or the character's body. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee|Collision")
+	EKzMeleeMeshTarget MeshTarget = EKzMeleeMeshTarget::Weapon;
+
+	/** The geometric shape to use for the melee sweep (e.g., Capsule for swords, Box for shields). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee|Collision")
+	FKzShapeInstance TraceShape;
+
+	/** The socket name on the resolved mesh to use as the center of the shape. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee|Collision")
+	FName TraceSocketName = TEXT("b_melee_center");
+
+	/** Local space offset from the socket to perfectly align the shape with the impact point. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee|Collision")
+	FTransform TraceOffset = FTransform::Identity;
 };
 
 /** Defines generic melee combat data for an item. */
@@ -107,5 +137,68 @@ public:
 		}
 
 		return NextIndex;
+	}
+
+	/**
+	 * Resolves the collision shape and transform source for a specific combo step.
+	 * This encapsulates the logic of finding the correct mesh (Weapon vs Avatar) and applying sockets/offsets.
+	 * @param Index The combo step index to evaluate.
+	 * @param AvatarActor The character performing the attack. Used if the step targets the Avatar mesh.
+	 * @param WeaponActor The physical weapon actor spawned in the world. Used if the step targets the Weapon mesh.
+	 * @param OutShape The resolved collision shape ready to be passed to the Ability Task.
+	 * @param OutTransformSource The resolved transform source ready to be passed to the Ability Task.
+	 * @return True if the step was valid and the data was successfully resolved, false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Item|Melee")
+	bool GetCollisionDataForStep(int32 Index, AActor* AvatarActor, AActor* WeaponActor, FKzShapeInstance& OutShape, FKzTransformSource& OutTransformSource) const
+	{
+		if (!ComboSteps.IsValidIndex(Index))
+		{
+			return false;
+		}
+
+		const FKzMeleeComboStep& Step = ComboSteps[Index];
+
+		// 1. Output the exact shape defined by the designers
+		OutShape = Step.TraceShape;
+
+		// 2. Resolve the target mesh based on the step configuration
+		UMeshComponent* TargetMesh = nullptr;
+
+		if (Step.MeshTarget == EKzMeleeMeshTarget::Weapon && WeaponActor)
+		{
+			// Try to find a specific tagged mesh ("MeleeMesh"), otherwise fallback to any MeshComponent
+			TArray<UMeshComponent*> Meshes;
+			WeaponActor->GetComponents<UMeshComponent>(Meshes);
+
+			for (UMeshComponent* Mesh : Meshes)
+			{
+				if (Mesh->ComponentHasTag(TEXT("MeleeMesh")))
+				{
+					TargetMesh = Mesh;
+					break;
+				}
+			}
+
+			// If no specific tag was found, just grab the first mesh available
+			if (!TargetMesh && Meshes.Num() > 0)
+			{
+				TargetMesh = Meshes[0];
+			}
+		}
+		else if (Step.MeshTarget == EKzMeleeMeshTarget::Avatar && AvatarActor)
+		{
+			// Unarmed combat: grab the character's primary skeletal mesh
+			TargetMesh = AvatarActor->FindComponentByClass<USkeletalMeshComponent>();
+		}
+
+		// 3. Build the generic transform source safely
+		if (TargetMesh)
+		{
+			OutTransformSource.Initialize(TargetMesh, Step.TraceSocketName, Step.TraceOffset);
+			return true;
+		}
+
+		return false;
 	}
 };
