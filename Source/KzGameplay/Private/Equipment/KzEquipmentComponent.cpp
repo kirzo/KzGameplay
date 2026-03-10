@@ -154,6 +154,11 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 						Slot.Instance.SpawnedComponent->RegisterComponent();
 						Slot.Instance.SpawnedComponent->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
 						Slot.Instance.SpawnedComponent->SetRelativeTransform(EquipFrag->AttachmentOffset);
+
+						if (EquipFrag->bDisableCollisionOnEquip)
+						{
+							Slot.Instance.SpawnedComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+						}
 					}
 				}
 			}
