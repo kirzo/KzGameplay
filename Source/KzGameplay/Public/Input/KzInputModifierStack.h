@@ -52,10 +52,11 @@ public:
 
 	/**
 	 * Processes the input vector through the entire stack of modifiers.
+	 * @param Avatar The actor generating the input.
 	 * @param RawInput The original input vector from the controller.
 	 * @return The final modified input vector.
 	 */
-	FVector Process(const FVector& RawInput) const
+	FVector Process(const AActor* Avatar, const FVector& RawInput) const
 	{
 		FVector CurrentInput = RawInput;
 
@@ -65,7 +66,7 @@ public:
 		{
 			if (Mod)
 			{
-				CurrentInput = Mod->ModifyInput(RawInput, CurrentInput);
+				CurrentInput = Mod->ModifyInput(Avatar, RawInput, CurrentInput);
 			}
 		}
 

@@ -25,15 +25,16 @@ public:
 
 	/**
 	 * Calculates the modified input.
+	 * @param Avatar The actor generating the input.
 	 * @param OriginalInput The raw input from the controller (before any modifier in the stack).
 	 * @param CurrentInput The input as modified by previous modifiers in the stack.
 	 * @return The new input vector.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Input Modifier")
-	FVector ModifyInput(const FVector& OriginalInput, const FVector& CurrentInput) const;
+	FVector ModifyInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const;
 
 private:
-	virtual FVector ModifyInput_Implementation(const FVector& OriginalInput, const FVector& CurrentInput) const
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
 	{
 		return CurrentInput;
 	}

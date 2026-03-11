@@ -179,7 +179,7 @@ void UKzInputHandlerComponent::RemoveMoveModifier(UKzInputModifier* Modifier)
 FVector UKzInputHandlerComponent::ProcessMoveInput(const FVector& RawInput) const
 {
 	if (!IgnoreMoveInputStack.IsEmpty() && IgnoreMoveInputStack.Top()) return FVector::ZeroVector;
-	return MoveModifierStack.Process(RawInput);
+	return MoveModifierStack.Process(GetOwner(), RawInput);
 }
 
 void UKzInputHandlerComponent::PushLookModifier(UKzInputModifier* Modifier)
@@ -198,5 +198,5 @@ void UKzInputHandlerComponent::RemoveLookModifier(UKzInputModifier* Modifier)
 FVector UKzInputHandlerComponent::ProcessLookInput(const FVector& RawInput) const
 {
 	if (!IgnoreLookInputStack.IsEmpty() && IgnoreLookInputStack.Top()) return FVector::ZeroVector;
-	return LookModifierStack.Process(RawInput);
+	return LookModifierStack.Process(GetOwner(), RawInput);
 }
