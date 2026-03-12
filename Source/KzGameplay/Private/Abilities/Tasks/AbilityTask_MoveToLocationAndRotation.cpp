@@ -38,30 +38,55 @@ UAbilityTask_MoveToLocationAndRotation* UAbilityTask_MoveToLocationAndRotation::
 		MyObj->StartRotation = Avatar->GetActorQuat();
 
 		FVector FinalTargetLocation = Location;
+		const float HalfHeight = Avatar->GetSimpleCollisionHalfHeight();
+		const FVector UpDir = Avatar->GetActorUpVector();
 
 		switch (VerticalAlignment)
 		{
-			case EKzTargetVerticalAlignment::KeepStartZ:
+		case EKzTargetVerticalAlignment::KeepStartZ:
+		{
+			FinalTargetLocation.Z = Avatar->GetActorLocation().Z;
+			break;
+		}
+		case EKzTargetVerticalAlignment::AlignFeetToTarget:
+		{
+			// Offset the target upwards by half-height
+			FinalTargetLocation += (UpDir * HalfHeight);
+			break;
+		}
+		case EKzTargetVerticalAlignment::AlignFeetToFloor:
+		{
+			if (UWorld* World = Avatar->GetWorld())
 			{
-				FinalTargetLocation.Z = MyObj->StartLocation.Z;
-				break;
-			}
-			case EKzTargetVerticalAlignment::AlignFeetToTarget:
-			{
-				if (ACharacter* Character = Cast<ACharacter>(Avatar))
+				FHitResult HitResult;
+
+				FVector TraceStart = Location + (UpDir * 10.0f);
+				FVector TraceEnd = Location - (UpDir * HalfHeight * 2.0f);
+
+				FCollisionQueryParams QueryParams;
+				QueryParams.AddIgnoredActor(Avatar);
+
+				ECollisionChannel ObjectType = ECC_Visibility;
+				FCollisionResponseParams ResponseParams;
+
+				if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Avatar->GetRootComponent()))
 				{
-					if (UCapsuleComponent* Capsule = Character->GetCapsuleComponent())
-					{
-						const FVector UpDir = Character->GetActorUpVector();
-						const float HalfHeight = Capsule->GetScaledCapsuleHalfHeight();
-
-						// Offset the target upwards by half-height
-						FinalTargetLocation += (UpDir * HalfHeight);
-					}
+					ObjectType = Primitive->GetCollisionObjectType();
+					ResponseParams = FCollisionResponseParams(Primitive->GetCollisionResponseToChannels());
 				}
-				break;
-			}
 
+				if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ObjectType, QueryParams, ResponseParams))
+				{
+					FinalTargetLocation = HitResult.ImpactPoint + (UpDir * HalfHeight);
+				}
+				else
+				{
+					// Fallback to AlignFeetToTarget if no floor was found in range
+					FinalTargetLocation += (UpDir * HalfHeight);
+				}
+			}
+			break;
+		}
 		case EKzTargetVerticalAlignment::UseTargetZ:
 		default:
 			// Use the raw location provided
