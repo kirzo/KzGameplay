@@ -114,6 +114,12 @@ void UAbilityTask_MoveToLocationUsingInput::Activate()
 {
 	Super::Activate();
 	TimeStarted = GetWorld()->GetTimeSeconds();
+	StuckTime = 0.0f;
+
+	if (AActor* Avatar = GetAvatarActor())
+	{
+		LastLocation = Avatar->GetActorLocation();
+	}
 
 	// Safely block player movement input if requested
 	if (bBlockInput)
@@ -168,8 +174,42 @@ void UAbilityTask_MoveToLocationUsingInput::TickTask(float DeltaTime)
 		DirectionToTarget.Z = 0.0f;
 		const float DistanceToTargetSq = DirectionToTarget.SizeSquared();
 
+		bool bJustFinished = false;
+
 		// Check if reached naturally
 		if (DistanceToTargetSq <= FMath::Square(AcceptanceRadius))
+		{
+			bJustFinished = true;
+		}
+		else
+		{
+			// Inject Input
+			const FVector NormalizedDirection = DirectionToTarget.GetSafeNormal();
+			AvatarPawn->AddMovementInput(NormalizedDirection, 1.0f, true);
+
+			// Anti-Stuck
+			if ((CurrentTime - TimeStarted) > 0.15f && DistanceToTargetSq < FMath::Square(AvatarPawn->GetSimpleCollisionRadius()))
+			{
+				if (FVector::DistSquaredXY(CurrentLocation, LastLocation) < FMath::Square(1.0f))
+				{
+					StuckTime += DeltaTime;
+
+					if (StuckTime >= 0.1f)
+					{
+						bJustFinished = true;
+						TargetLocation = CurrentLocation;
+					}
+				}
+				else
+				{
+					StuckTime = 0.0f;
+				}
+			}
+
+			LastLocation = CurrentLocation;
+		}
+
+		if (bJustFinished)
 		{
 			if (UMovementComponent* MovementComponent = AvatarPawn->FindComponentByClass< UMovementComponent>())
 			{
@@ -192,12 +232,6 @@ void UAbilityTask_MoveToLocationUsingInput::TickTask(float DeltaTime)
 				if (ShouldBroadcastAbilityTaskDelegates()) OnTargetReached.Broadcast(false);
 				EndTask();
 			}
-		}
-		else
-		{
-			// Inject Input
-			const FVector NormalizedDirection = DirectionToTarget.GetSafeNormal();
-			AvatarPawn->AddMovementInput(NormalizedDirection, 1.0f, true);
 		}
 	}
 	else

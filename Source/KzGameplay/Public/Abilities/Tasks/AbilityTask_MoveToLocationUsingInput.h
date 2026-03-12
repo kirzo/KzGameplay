@@ -79,6 +79,10 @@ protected:
 	float TimeStarted;
 	bool bIsFinished;
 
+	// --- Anti-Stuck State ---
+	FVector LastLocation;
+	float StuckTime;
+
 	// --- Interpolation Phase State ---
 	bool bIsInterpolatingPhase;
 	float TimeInterpolationStarted;
