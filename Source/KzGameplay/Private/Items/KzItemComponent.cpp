@@ -44,6 +44,11 @@ void UKzItemComponent::BeginPlay()
 	}
 }
 
+bool UKzItemComponent::CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+{
+	return !EquipperActor.IsValid();
+}
+
 EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
 	if (!GetOwner()->HasAuthority() || !ItemInstance.IsValid() || !Interactor)

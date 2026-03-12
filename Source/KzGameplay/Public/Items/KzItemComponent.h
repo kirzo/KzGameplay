@@ -93,5 +93,6 @@ protected:
 	virtual void BeginPlay() override;
 
 	/** Native implementation of the interaction interface */
+	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 	virtual EKzInteractionResult HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 };
