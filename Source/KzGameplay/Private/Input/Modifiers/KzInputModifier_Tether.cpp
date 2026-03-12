@@ -11,7 +11,7 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 	}
 
 	FVector AvatarLoc = Avatar->GetActorLocation();
-	FVector AnchorLoc = AnchorSource.GetLocation();
+	FVector AnchorLoc = AnchorSource.GetLocation() + AnchorSource.GetVelocity() * 0.1f;
 
 	// Vector from Anchor to Avatar on the XY plane
 	FVector AnchorToAvatar = AvatarLoc - AnchorLoc;
