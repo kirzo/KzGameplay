@@ -85,6 +85,12 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 {
 	if (!Interactor) return false;
 
+	// Check capacity first. If we are full and this interactor is not already in the list, block it.
+	if (IsInteractionFull() && !CurrentInteractors.Contains(Interactor))
+	{
+		return false;
+	}
+
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
 	// 1. Evaluate the baseline Scriptable Requirement
@@ -125,9 +131,55 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 	return true;
 }
 
+bool UKzInteractableComponent::IsInteractionFull() const
+{
+	if (MaxInteractors <= 0) return false; // 0 or less means unlimited
+
+	// Count only valid interactors to prevent ghost blocks if an interactor was destroyed abruptly
+	int32 ValidCount = 0;
+	for (UKzInteractorComponent* Interactor : CurrentInteractors)
+	{
+		if (IsValid(Interactor))
+		{
+			ValidCount++;
+		}
+	}
+
+	return ValidCount >= MaxInteractors;
+}
+
+bool UKzInteractableComponent::HasInteractor(const UKzInteractorComponent* Interactor) const
+{
+	return Interactor != nullptr && CurrentInteractors.Contains(Interactor);
+}
+
+bool UKzInteractableComponent::IsActorInteracting(const AActor* Actor) const
+{
+	if (!Actor) return false;
+
+	for (UKzInteractorComponent* Interactor : CurrentInteractors)
+	{
+		if (IsValid(Interactor) && Interactor->GetOwner() == Actor)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorComponent* Interactor)
 {
+	// Clean up any invalid pointers first
+	CurrentInteractors.Remove(nullptr);
+
 	if (!Interactor) return EKzInteractionResult::Ignored;
+
+	// Safety check in case Execute is called without checking CanInteract first
+	if (IsInteractionFull() && !CurrentInteractors.Contains(Interactor))
+	{
+		return EKzInteractionResult::Ignored;
+	}
 
 	EKzInteractionResult FinalResult = DefaultInteractionResult;
 	AActor* OwnerActor = GetOwner();
@@ -158,7 +210,13 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 		}
 	}
 
-	// 3. Only broadcast the generic event if the interaction actually did something
+	// 3. Track continuous interactions
+	if (FinalResult == EKzInteractionResult::Continuous)
+	{
+		CurrentInteractors.AddUnique(Interactor);
+	}
+
+	// 4. Only broadcast the generic event if the interaction actually did something
 	if (FinalResult != EKzInteractionResult::Ignored)
 	{
 		OnInteract.Broadcast(Interactor);
@@ -175,6 +233,8 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 void UKzInteractableComponent::StopInteraction(UKzInteractorComponent* Interactor)
 {
 	if (!Interactor) return;
+
+	CurrentInteractors.Remove(Interactor);
 
 	AActor* OwnerActor = GetOwner();
 	if (OwnerActor)

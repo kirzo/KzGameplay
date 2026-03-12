@@ -59,6 +59,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 			CanvasContext.Printf(TEXT("{cyan}Global Registered Interactables: {yellow}%d"), AllInteractables.Num());
 
 			// Legend for the color coding
+			CanvasContext.Printf(TEXT("  {magenta}Magenta {white}= Full (Max Capacity)"));
 			CanvasContext.Printf(TEXT("  {orange}Orange {white}= Dynamic"));
 			CanvasContext.Printf(TEXT("  {cyan}Cyan {white}= Static"));
 
@@ -66,7 +67,16 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 			{
 				if (IsValid(Interactable))
 				{
-					FColor DrawColor = Interactable->bIsDynamicInteraction ? FColor::Orange : FColor::Cyan;
+					FColor DrawColor;
+					if (Interactable->IsInteractionFull())
+					{
+						DrawColor = FColor::Magenta;
+					}
+					else
+					{
+						DrawColor = Interactable->bIsDynamicInteraction ? FColor::Orange : FColor::Cyan;
+					}
+
 					DrawDebugShape(World, Interactable->GetComponentLocation(), Interactable->GetComponentQuat(), Interactable->Shape, DrawColor, false, 0.0f, SDPG_World, 1.0f);
 				}
 			}
@@ -87,23 +97,37 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 
 	for (const FKzInteractionDebugCandidate& Cand : CandidatesData)
 	{
+		UKzInteractableComponent* InteractableComp = Cand.Interactable.Get();
+		if (!InteractableComp) continue;
+
+		bool bIsFull = InteractableComp->IsInteractionFull();
+
 		FColor DrawColor = Cand.bPassedFilters ? (Cand.bIsBest ? FColor::Green : FColor::Yellow) : FColor::Red;
 		FString Text = Cand.bPassedFilters ? FString::Printf(TEXT("Score: %.2f"), Cand.Score) : TEXT("Filtered");
+
+		// Append FULL warning to the floating text
+		if (bIsFull)
+		{
+			Text += TEXT(" (FULL)");
+			DrawColor = FColor::Magenta;
+		}
 
 		// Draw text
 		DrawDebugString(World, Cand.Interactable->GetComponentLocation() + FVector(0, 0, 40.0f), Text, nullptr, DrawColor, 0.0f);
 
 		// ======= DRAW THE INTERACTABLE =======
 		// If the pointer is still valid, draw its bounds or specific shape
-		if (UKzInteractableComponent* InteractableComp = Cand.Interactable.Get())
-		{
-			DrawDebugShape(World, InteractableComp->GetComponentLocation(), InteractableComp->GetComponentQuat(), InteractableComp->Shape, DrawColor, false, 0.0f, SDPG_World, 2.0f);
+		DrawDebugShape(World, InteractableComp->GetComponentLocation(), InteractableComp->GetComponentQuat(), InteractableComp->Shape, DrawColor, false, 0.0f, SDPG_World, 2.0f);
 
-			// If you want to show extra details on the 2D panel for the winning target:
-			if (Cand.bIsBest)
+		// If you want to show extra details on the 2D panel for the winning target:
+		if (Cand.bIsBest)
+		{
+			CanvasContext.Printf(TEXT("  {green}Winner: {white}%s"), *GetNameSafe(Cand.Interactable->GetOwner()));
+			CanvasContext.Printf(TEXT("  {green}Is Automatic: {white}%s"), InteractableComp->bIsAutomaticInteraction ? TEXT("True") : TEXT("False"));
+
+			if (bIsFull)
 			{
-				CanvasContext.Printf(TEXT("  {green}Winner: {white}%s"), *GetNameSafe(Cand.Interactable->GetOwner()));
-				CanvasContext.Printf(TEXT("  {green}Is Automatic: {white}%s"), InteractableComp->bIsAutomaticInteraction ? TEXT("True") : TEXT("False"));
+				CanvasContext.Printf(TEXT("  {magenta}Warning: Target is FULL"));
 			}
 		}
 

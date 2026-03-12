@@ -35,8 +35,15 @@ public:
 	FText PromptText;
 
 	/** How long the interaction button must be held. 0.0 means instant interaction. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0"))
 	float InteractionTime;
+
+	/**
+	 * The maximum number of simultaneous interactors allowed.
+	 * 1 = Single user (Default). 0 or less = Unlimited interactors.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0"))
+	int32 MaxInteractors = 1;
 
 	/**
 	 * If true, this interactable requires the interactor to be at a specific spot.
@@ -104,6 +111,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableActionDelegate OnInteract;
 
+protected:
+	/** Tracks the interactors currently locked into a continuous interaction with this component. */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Interaction")
+	TArray<TObjectPtr<UKzInteractorComponent>> CurrentInteractors;
+
+public:
 	// ==========================================
 	// RUNTIME LOGIC
 	// ==========================================
@@ -118,6 +131,22 @@ public:
 
 	/** Evaluates if the given interactor can interact with this component. */
 	virtual bool CanInteract(class UKzInteractorComponent* Interactor) const;
+
+	/** Returns true if the interactable has reached its maximum allowed interactors. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsInteractionFull() const;
+
+	/** Returns true if the specified Interactor Component is currently interacting with this object. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool HasInteractor(const UKzInteractorComponent* Interactor) const;
+
+	/** Returns true if the specified Actor is currently interacting with this object. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsActorInteracting(const AActor* Actor) const;
+
+	/** Returns the list of components currently interacting with this object. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	const TArray<UKzInteractorComponent*>& GetInteractors() const { return CurrentInteractors; }
 
 	/**
 	 * Called to execute the interaction.
