@@ -10,8 +10,17 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 		return CurrentInput;
 	}
 
+	UWorld* World = Avatar->GetWorld();
+	if (!World)
+	{
+		return CurrentInput;
+	}
+
+	const float DeltaTime = Avatar->GetActorTimeDilation() * World->GetDeltaSeconds();
+	const FVector AnchorVelocity = AnchorSource.GetVelocity();
+
 	FVector AvatarLoc = Avatar->GetActorLocation();
-	FVector AnchorLoc = AnchorSource.GetLocation() + AnchorSource.GetVelocity() * 0.1f;
+	FVector AnchorLoc = AnchorSource.GetLocation() + (AnchorVelocity * DeltaTime);
 
 	// Vector from Anchor to Avatar on the XY plane
 	FVector AnchorToAvatar = AvatarLoc - AnchorLoc;
@@ -31,7 +40,7 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 	float PlayerOutwardInput = FVector::DotProduct(CurrentInput, OutwardDir);
 
 	// 1. Centripetal correction (We are currently outside the boundary)
-	if (Dist > MaxDistance)
+	if (bUseCentripetalCorrection && Dist > MaxDistance)
 	{
 		// Calculate how badly we have overshot
 		float Overshoot = Dist - MaxDistance;

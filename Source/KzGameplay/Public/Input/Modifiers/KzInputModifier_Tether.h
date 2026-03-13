@@ -26,12 +26,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether", meta = (ExposeOnSpawn = "true", ClampMin = 0.0))
 	float MaxDistance = 150.0f;
 
+	/** 
+	 * If true, applies negative input to physically pull the character back when they overshoot the boundary.
+	 * If false, purely cancels outward input without injecting artificial negative forces.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether", meta = (ExposeOnSpawn = "true"))
+	bool bUseCentripetalCorrection = false;
+
 	/**
 	 * The amount of predicted overshoot (in cm) required to apply maximum inward correction (1.0).
 	 * Lower values make the tether feel more rigid and snappy; higher values make it elastic.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether", meta = (ExposeOnSpawn = "true", ClampMin = 1.0))
-	float BrakingTolerance = 25.0f;
+	float BrakingTolerance = 1.0f;
 
 protected:
 	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const override;
