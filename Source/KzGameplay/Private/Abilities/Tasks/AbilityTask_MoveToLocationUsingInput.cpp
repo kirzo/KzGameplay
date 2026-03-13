@@ -101,7 +101,7 @@ UAbilityTask_MoveToLocationUsingInput* UAbilityTask_MoveToLocationUsingInput::Mo
 	}
 
 	MyObj->bUseTargetRotation = bUseTargetRotation;
-	MyObj->TargetRotation = TargetRotation;
+	MyObj->TargetRotation = FRotator(0.0f, TargetRotation.Yaw, 0.0f);
 	MyObj->AcceptanceRadius = FMath::Max(AcceptanceRadius, 4.0f);
 	MyObj->Timeout = Timeout;
 	MyObj->InterpolationDuration = FMath::Max(InterpolationDuration, 0.0f);
