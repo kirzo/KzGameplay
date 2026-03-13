@@ -18,9 +18,12 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 
 	const float DeltaTime = Avatar->GetActorTimeDilation() * World->GetDeltaSeconds();
 	const FVector AnchorVelocity = AnchorSource.GetVelocity();
+	const FVector AvatarVelocity = Avatar->GetVelocity();
 
-	FVector AvatarLoc = Avatar->GetActorLocation();
-	FVector AnchorLoc = AnchorSource.GetLocation() + (AnchorVelocity * DeltaTime);
+	const float LookaheadTime = 0.2f;
+
+	FVector AvatarLoc = Avatar->GetActorLocation() + (AvatarVelocity * LookaheadTime);
+	FVector AnchorLoc = AnchorSource.GetLocation() + (AnchorVelocity * LookaheadTime);
 
 	// Vector from Anchor to Avatar on the XY plane
 	FVector AnchorToAvatar = AvatarLoc - AnchorLoc;
@@ -39,35 +42,13 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 	FVector TangentInput = FVector::VectorPlaneProject(CurrentInput, OutwardDir);
 	float PlayerOutwardInput = FVector::DotProduct(CurrentInput, OutwardDir);
 
-	// 1. Centripetal correction (We are currently outside the boundary)
-	if (bUseCentripetalCorrection && Dist > MaxDistance)
-	{
-		// Calculate how badly we have overshot
-		float Overshoot = Dist - MaxDistance;
-
-		// Calculate the required inward input to cancel the overshoot (Negative means pushing inward)
-		float NeededInwardInput = -1.0f * FMath::Clamp(Overshoot / BrakingTolerance, 0.0f, 1.0f);
-
-		// Combine intentions: We take the MOST inward value between what the player is doing and what the system needs.
-		float FinalOutwardAmount = FMath::Min(PlayerOutwardInput, NeededInwardInput);
-
-		// Reconstruct the final input vector
-		FVector FinalInput = TangentInput + (OutwardDir * FinalOutwardAmount);
-
-		// Clamp to ensure we don't accidentally create an input vector > 1.0 diagonally
-		FinalInput = FinalInput.GetClampedToMaxSize(1.0f);
-		FinalInput.Z = CurrentInput.Z;
-
-		return FinalInput;
-	}
-
-	// 2. Tangent projection (Exactly at the edge, trying to push out)
+	// Tangent projection
 	if (Dist >= (MaxDistance - UE_KINDA_SMALL_NUMBER) && PlayerOutwardInput > 0.0f)
 	{
 		TangentInput.Z = CurrentInput.Z;
 		return TangentInput; // Allow pure orbital movement, delete the outward push
 	}
 
-	// 3. Safe Zone (Inside the circle)
+	// Safe Zone (Inside the circle)
 	return CurrentInput;
 }
