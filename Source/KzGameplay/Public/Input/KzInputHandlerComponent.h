@@ -33,7 +33,7 @@ protected:
 	TObjectPtr<UKzInputProfile> DefaultInputProfile;
 
 	/** Default modifiers applied automatically upon initialization. */
-	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	UPROPERTY(EditDefaultsOnly, Category = "Input", meta = (Categories = "Input"))
 	TMap<FGameplayTag, FKzInputModifierContainer> DefaultModifiers;
 
 public:
