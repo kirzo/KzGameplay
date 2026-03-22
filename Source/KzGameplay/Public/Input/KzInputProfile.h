@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "InputTriggers.h"
 #include "KzInputProfile.generated.h"
 
 class UInputAction;
@@ -22,9 +23,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<const UInputAction> InputAction = nullptr;
 
-	/** The logical gameplay tag associated with this action (e.g., Input.Action.Interact). */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Categories = "InputTag"))
+	/** The logical gameplay tag associated with this action (e.g., Input.Move). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Categories = "Input"))
 	FGameplayTag InputTag;
+
+	/** Bitmask to define which trigger states we want to listen to for this action. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Bitmask, BitmaskEnum = "/Script/EnhancedInput.ETriggerEvent"))
+	int32 TriggerEvents = uint8(ETriggerEvent::Started) | uint8(ETriggerEvent::Completed);
+
+	/** Gameplay Event sent to the ASC when this action Starts. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
+	FGameplayTag OnStartedEvent;
+
+	/** Gameplay Event sent to the ASC when this action Completes or Cancels. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
+	FGameplayTag OnCompletedEvent;
 };
 
 /**
@@ -40,6 +53,9 @@ public:
 	/** List of input actions used by this profile and their corresponding tags. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (TitleProperty = "InputTag"))
 	TArray<FKzInputAction> InputActions;
+
+	/** Returns the full action configuration for a given Gameplay Tag. */
+	const FKzInputAction* FindActionConfigForTag(const FGameplayTag& InputTag) const;
 
 	/**
 	 * Returns the first Input Action associated with a given Gameplay Tag.

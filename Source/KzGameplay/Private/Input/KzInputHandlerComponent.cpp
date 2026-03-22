@@ -19,6 +19,17 @@ void UKzInputHandlerComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	for (const auto& [InputTag, Modifiers] : DefaultModifiers)
+	{
+		for (UKzInputModifier* Modifier : Modifiers)
+		{
+			if (Modifier)
+			{
+				PushInputModifier(InputTag, Modifier);
+			}
+		}
+	}
+
 	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
 	{
 		// Check if the InputComponent is already valid (e.g., late BeginPlay)
@@ -55,8 +66,8 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 		return;
 	}
 
-	UKzInputProfile* ActiveProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get();
-	if (!ActiveProfile)
+	ActiveInputProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get();
+	if (!ActiveInputProfile)
 	{
 		return;
 	}
@@ -69,134 +80,178 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 	BindHandles.Empty();
 
 	// 2. Bind new actions and store their handles
-	for (const FKzInputAction& Action : ActiveProfile->InputActions)
+	for (const FKzInputAction& Action : ActiveInputProfile->InputActions)
 	{
 		if (Action.InputAction && Action.InputTag.IsValid())
 		{
-			// Bind Pressed (Started)
-			FEnhancedInputActionEventBinding& PressedBind = EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Started, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag);
-			BindHandles.Add(PressedBind.GetHandle());
+			const ETriggerEvent TiggerMask = static_cast<ETriggerEvent>(Action.TriggerEvents);
 
-			// Bind Released (Completed)
-			FEnhancedInputActionEventBinding& ReleasedBind = EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Completed, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag);
-			BindHandles.Add(ReleasedBind.GetHandle());
+			// Convert our Bitmask into a list of actual Unreal Trigger Events
+			TArray<ETriggerEvent> ActiveTriggers;
+			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Triggered)) ActiveTriggers.Add(ETriggerEvent::Triggered);
+			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Started)) ActiveTriggers.Add(ETriggerEvent::Started);
+			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Ongoing)) ActiveTriggers.Add(ETriggerEvent::Ongoing);
+			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Canceled)) ActiveTriggers.Add(ETriggerEvent::Canceled);
+			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Completed)) ActiveTriggers.Add(ETriggerEvent::Completed);
+
+			for (ETriggerEvent Trigger : ActiveTriggers)
+			{
+				if (Trigger == ETriggerEvent::Started)
+				{
+					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag, Action.OnStartedEvent);
+					BindHandles.Add(Bind.GetHandle());
+				}
+				else if (Trigger == ETriggerEvent::Completed || Trigger == ETriggerEvent::Canceled)
+				{
+					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent);
+					BindHandles.Add(Bind.GetHandle());
+				}
+				else if (Trigger == ETriggerEvent::Triggered)
+				{
+					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_Axis, Action.InputTag, Trigger);
+					BindHandles.Add(Bind.GetHandle());
+				}
+			}
 		}
 	}
 }
 
-void UKzInputHandlerComponent::Input_ActionPressed(FGameplayTag InputTag)
+void UKzInputHandlerComponent::Input_ActionPressed(FGameplayTag InputTag, FGameplayTag EventTag)
 {
+	if (IsInputIgnored(InputTag)) return;
+
 	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner()))
 	{
 		if (UKzAbilitySystemComponent* KzASC = Cast<UKzAbilitySystemComponent>(ASC))
 		{
 			KzASC->AbilityInputTagPressed(InputTag);
 		}
-		else
+
+		if (EventTag.IsValid())
 		{
 			FGameplayEventData Payload;
 			Payload.Instigator = GetOwner();
 			Payload.Target = GetOwner();
-			Payload.EventTag = InputTag;
-			ASC->HandleGameplayEvent(InputTag, &Payload);
+			Payload.EventTag = EventTag;
+			ASC->HandleGameplayEvent(EventTag, &Payload);
 		}
 	}
 }
 
-void UKzInputHandlerComponent::Input_ActionReleased(FGameplayTag InputTag)
+void UKzInputHandlerComponent::Input_ActionReleased(FGameplayTag InputTag, FGameplayTag EventTag)
 {
-	if (UKzAbilitySystemComponent* KzASC = Cast<UKzAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner())))
+	if (IsInputIgnored(InputTag)) return;
+
+	ExecuteActionReleased(InputTag, EventTag);
+}
+
+void UKzInputHandlerComponent::ExecuteActionReleased(FGameplayTag InputTag, FGameplayTag EventTag)
+{
+	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner()))
 	{
-		KzASC->AbilityInputTagReleased(InputTag);
-	}
-}
-
-void UKzInputHandlerComponent::PushMoveInputIgnore(FName SourceID, bool bIgnoreMoveInput, int32 Priority)
-{
-	IgnoreMoveInputStack.Push(bIgnoreMoveInput, SourceID, Priority);
-	UpdateMoveInputIgnore();
-}
-
-void UKzInputHandlerComponent::RemoveMoveInputIgnore(FName SourceID)
-{
-	if (IgnoreMoveInputStack.Remove(SourceID) > 0)
-	{
-		UpdateMoveInputIgnore();
-	}
-}
-
-void UKzInputHandlerComponent::PushLookInputIgnore(FName SourceID, bool bIgnoreLookInput, int32 Priority)
-{
-	IgnoreLookInputStack.Push(bIgnoreLookInput, SourceID, Priority);
-	UpdateLookInputIgnore();
-}
-
-void UKzInputHandlerComponent::RemoveLookInputIgnore(FName SourceID)
-{
-	if (IgnoreLookInputStack.Remove(SourceID) > 0)
-	{
-		UpdateLookInputIgnore();
-	}
-}
-
-void UKzInputHandlerComponent::UpdateMoveInputIgnore()
-{
-	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
-	{
-		if (AController* Controller = PawnOwner->GetController())
+		if (UKzAbilitySystemComponent* KzASC = Cast<UKzAbilitySystemComponent>(ASC))
 		{
-			const bool bIgnore = IgnoreMoveInputStack.IsEmpty() ? false : IgnoreMoveInputStack.Top();
-			Controller->SetIgnoreMoveInput(bIgnore);
+			KzASC->AbilityInputTagReleased(InputTag);
 		}
-	}
-}
 
-void UKzInputHandlerComponent::UpdateLookInputIgnore()
-{
-	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
-	{
-		if (AController* Controller = PawnOwner->GetController())
+		if (EventTag.IsValid())
 		{
-			const bool bIgnore = IgnoreLookInputStack.IsEmpty() ? false : IgnoreLookInputStack.Top();
-			Controller->SetIgnoreLookInput(bIgnore);
+			FGameplayEventData Payload;
+			Payload.Instigator = GetOwner();
+			Payload.Target = GetOwner();
+			Payload.EventTag = EventTag;
+			ASC->HandleGameplayEvent(EventTag, &Payload);
 		}
 	}
 }
 
-void UKzInputHandlerComponent::PushMoveModifier(UKzInputModifier* Modifier)
+void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGameplayTag InputTag, ETriggerEvent TriggerEvent)
 {
-	if (Modifier)
+	FVector RawVector = Value.Get<FVector>();
+	FVector ModifiedVector = ProcessInput(InputTag, RawVector); // This checks ignores
+	OnInputAxis.Broadcast(InputTag, FInputActionValue(ModifiedVector), TriggerEvent);
+}
+
+void UKzInputHandlerComponent::PushInputIgnore(FGameplayTag InputTag, FName SourceID, bool bIgnoreInput, int32 Priority)
+{
+	if (!InputTag.IsValid()) return;
+
+	bool bWasIgnored = IsInputIgnored(InputTag);
+	IgnoreInputStacks.FindOrAdd(InputTag).Push(bIgnoreInput, SourceID, Priority);
+	bool bIsNowIgnored = IsInputIgnored(InputTag);
+
+	if (!bWasIgnored && bIsNowIgnored)
 	{
-		MoveModifierStack.Push(Modifier);
+		// Find the configured Completed event to properly tell GAS that the action ended
+		FGameplayTag EventTagToRelease;
+		if (ActiveInputProfile)
+		{
+			if (const FKzInputAction* ActionConfig = ActiveInputProfile->FindActionConfigForTag(InputTag))
+			{
+				EventTagToRelease = ActionConfig->OnCompletedEvent;
+			}
+		}
+
+		// Force the release
+		ExecuteActionReleased(InputTag, EventTagToRelease);
+
+		// Zero out the analog axes
+		OnInputAxis.Broadcast(InputTag, FInputActionValue(), ETriggerEvent::Canceled);
 	}
 }
 
-void UKzInputHandlerComponent::RemoveMoveModifier(UKzInputModifier* Modifier)
+void UKzInputHandlerComponent::RemoveInputIgnore(FGameplayTag InputTag, FName SourceID)
 {
-	MoveModifierStack.Remove(Modifier);
-}
-
-FVector UKzInputHandlerComponent::ProcessMoveInput(const FVector& RawInput) const
-{
-	if (!IgnoreMoveInputStack.IsEmpty() && IgnoreMoveInputStack.Top()) return FVector::ZeroVector;
-	return MoveModifierStack.Process(GetOwner(), RawInput);
-}
-
-void UKzInputHandlerComponent::PushLookModifier(UKzInputModifier* Modifier)
-{
-	if (Modifier)
+	if (auto Stack = IgnoreInputStacks.Find(InputTag))
 	{
-		LookModifierStack.Push(Modifier);
+		Stack->Remove(SourceID);
+		if (Stack->IsEmpty())
+		{
+			IgnoreInputStacks.Remove(InputTag);
+		}
 	}
 }
 
-void UKzInputHandlerComponent::RemoveLookModifier(UKzInputModifier* Modifier)
+bool UKzInputHandlerComponent::IsInputIgnored(FGameplayTag InputTag) const
 {
-	LookModifierStack.Remove(Modifier);
+	if (auto Stack = IgnoreInputStacks.Find(InputTag))
+	{
+		return !Stack->IsEmpty() && Stack->Top();
+	}
+	return false;
 }
 
-FVector UKzInputHandlerComponent::ProcessLookInput(const FVector& RawInput) const
+void UKzInputHandlerComponent::PushInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier)
 {
-	if (!IgnoreLookInputStack.IsEmpty() && IgnoreLookInputStack.Top()) return FVector::ZeroVector;
-	return LookModifierStack.Process(GetOwner(), RawInput);
+	if (InputTag.IsValid() && Modifier)
+	{
+		ModifierStacks.FindOrAdd(InputTag).Push(Modifier);
+	}
+}
+
+void UKzInputHandlerComponent::RemoveInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier)
+{
+	if (FKzInputModifierStack* Stack = ModifierStacks.Find(InputTag))
+	{
+		Stack->Remove(Modifier);
+		if (Stack->IsEmpty())
+		{
+			ModifierStacks.Remove(InputTag);
+		}
+	}
+}
+
+FVector UKzInputHandlerComponent::ProcessInput(FGameplayTag InputTag, const FVector& RawInput) const
+{
+	if (IsInputIgnored(InputTag))
+	{
+		return FVector::ZeroVector;
+	}
+
+	if (const FKzInputModifierStack* Stack = ModifierStacks.Find(InputTag))
+	{
+		return Stack->Process(GetOwner(), RawInput);
+	}
+
+	return RawInput;
 }

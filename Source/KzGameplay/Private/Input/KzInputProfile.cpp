@@ -1,7 +1,18 @@
 // Copyright 2026 kirzo
 
 #include "Input/KzInputProfile.h"
-#include "KzGameplay.h" 
+
+const FKzInputAction* UKzInputProfile::FindActionConfigForTag(const FGameplayTag& InputTag) const
+{
+	for (const FKzInputAction& Action : InputActions)
+	{
+		if (Action.InputTag == InputTag)
+		{
+			return &Action;
+		}
+	}
+	return nullptr;
+}
 
 const UInputAction* UKzInputProfile::FindNativeInputActionForTag(const FGameplayTag& InputTag, bool bLogNotFound) const
 {

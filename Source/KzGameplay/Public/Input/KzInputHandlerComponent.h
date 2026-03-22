@@ -12,6 +12,11 @@
 class UKzInputProfile;
 class UEnhancedInputComponent;
 class APawn;
+struct FInputActionValue;
+enum class ETriggerEvent : uint8;
+
+// Delegate for routing analog values
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKzInputAxisDelegate, FGameplayTag, InputTag, const FInputActionValue&, Value, ETriggerEvent, TriggerEvent);
 
 /**
  * Component responsible for translating Enhanced Input Actions into Gameplay Tags
@@ -24,23 +29,32 @@ class KZGAMEPLAY_API UKzInputHandlerComponent : public UActorComponent
 
 protected:
 	/** The default input profile to use. Can be overridden at runtime. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Input")
 	TObjectPtr<UKzInputProfile> DefaultInputProfile;
 
+	/** Default modifiers applied automatically upon initialization. */
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TMap<FGameplayTag, FKzInputModifierContainer> DefaultModifiers;
+
+public:
+	/** Broadcasts whenever an Analog action is triggered, started, or completed. */
+	UPROPERTY(BlueprintAssignable, Category = "Input")
+	FKzInputAxisDelegate OnInputAxis;
+
 private:
+	/** The currently active input profile. */
+	UPROPERTY(Transient)
+	TObjectPtr<UKzInputProfile> ActiveInputProfile;
+
 	/** Stores the handles of current bindings so we can cleanly remove them on profile swaps. */
 	TArray<uint32> BindHandles;
 
-	/** Stacks to handle conflicting input block requests (e.g., UI open vs Interaction playing). */
-	Kz::TPriorityStack<bool, false, FName, false> IgnoreMoveInputStack;
-	Kz::TPriorityStack<bool, false, FName, false> IgnoreLookInputStack;
+	/** Map of ignore stacks, keyed by the specific Gameplay Tag of the input. */
+	TMap<FGameplayTag, Kz::TPriorityStack<bool, false, FName, false>> IgnoreInputStacks;
 
-	/** Stacks of active input modifiers (e.g., for recoil, slowdowns, forced movement). */
+	/** Map of modifier stacks, keyed by the specific Gameplay Tag of the input. */
 	UPROPERTY(Transient)
-	FKzInputModifierStack MoveModifierStack;
-
-	UPROPERTY(Transient)
-	FKzInputModifierStack LookModifierStack;
+	TMap<FGameplayTag, FKzInputModifierStack> ModifierStacks;
 
 public:
 	UKzInputHandlerComponent();
@@ -49,45 +63,35 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void InitializeInput(UKzInputProfile* OverrideProfile);
 
-	/** Pushes a new move input ignore state to the stack. */
+	/**
+	 * Pushes a new input ignore state to the stack for a specific Gameplay Tag.
+	 * @param InputTag The specific input to block (e.g., Input.Move)
+	 * @param SourceID Unique identifier for the source applying the block
+	 * @param bIgnoreInput True to block the input, false to explicitly allow it
+	 * @param Priority Stack priority
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Input|Control")
-	void PushMoveInputIgnore(FName SourceID, bool bIgnoreMoveInput, int32 Priority);
+	void PushInputIgnore(FGameplayTag InputTag, FName SourceID, bool bIgnoreInput, int32 Priority);
 
-	/** Removes a previously applied move input ignore state. */
+	/** Removes a previously applied input ignore state for a specific Gameplay Tag. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Control")
-	void RemoveMoveInputIgnore(FName SourceID);
+	void RemoveInputIgnore(FGameplayTag InputTag, FName SourceID);
 
-	/** Pushes a new look input ignore state to the stack. */
+	/** Checks if a specific input tag is currently blocked by the priority stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Control")
-	void PushLookInputIgnore(FName SourceID, bool bIgnoreLookInput, int32 Priority);
+	bool IsInputIgnored(FGameplayTag InputTag) const;
 
-	/** Removes a previously applied look input ignore state. */
-	UFUNCTION(BlueprintCallable, Category = "Input|Control")
-	void RemoveLookInputIgnore(FName SourceID);
-
-	/** Adds a new modifier instance to the movement stack */
+	/** Adds a new modifier instance to a specific input tag's stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
-	void PushMoveModifier(UKzInputModifier* Modifier);
+	void PushInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier);
 
-	/** Removes a specific modifier instance from the movement stack */
+	/** Removes a specific modifier instance from a specific input tag's stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
-	void RemoveMoveModifier(UKzInputModifier* Modifier);
+	void RemoveInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier);
 
-	/** Processes a raw movement vector through the stack */
+	/** Processes a raw input vector through the specific tag's modifier stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Processing")
-	FVector ProcessMoveInput(const FVector& RawInput) const;
-
-	/** Adds a new modifier instance to the look stack */
-	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
-	void PushLookModifier(UKzInputModifier* Modifier);
-
-	/** Removes a specific modifier instance from the look stack */
-	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
-	void RemoveLookModifier(UKzInputModifier* Modifier);
-
-	/** Processes a raw look vector through the stack */
-	UFUNCTION(BlueprintCallable, Category = "Input|Processing")
-	FVector ProcessLookInput(const FVector& RawInput) const;
+	FVector ProcessInput(FGameplayTag InputTag, const FVector& RawInput) const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -101,12 +105,14 @@ private:
 	void TryBindInput(APawn* Pawn, UKzInputProfile* ProfileToUse = nullptr);
 
 	/** Internal callback for when an input action is pressed. */
-	void Input_ActionPressed(FGameplayTag InputTag);
+	void Input_ActionPressed(FGameplayTag InputTag, FGameplayTag EventTag);
 
 	/** Internal callback for when an input action is released. */
-	void Input_ActionReleased(FGameplayTag InputTag);
+	void Input_ActionReleased(FGameplayTag InputTag, FGameplayTag EventTag);
 
-	/** Internal functions to apply the top of the stack to the Controller. */
-	void UpdateMoveInputIgnore();
-	void UpdateLookInputIgnore();
+	/** Internal execution of release, bypassing ignore checks. Used to force releases when input gets blocked. */
+	void ExecuteActionReleased(FGameplayTag InputTag, FGameplayTag EventTag);
+
+	/** Internal callback to handle analog values with custom payload. */
+	void Input_Axis(const FInputActionValue& Value, FGameplayTag InputTag, ETriggerEvent TriggerEvent);
 };

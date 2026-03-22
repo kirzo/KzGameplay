@@ -2,6 +2,7 @@
 
 #include "Input/Modifiers/KzInputModifier_Tether.h"
 #include "GameFramework/Actor.h"
+#include "Engine/World.h"
 
 FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
 {
