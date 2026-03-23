@@ -39,6 +39,13 @@ public:
 	FGameplayTag TargetSlot;
 
 	/**
+	 * If set, the item will visually attach to this socket instead of the Layout's default socket for the TargetSlot.
+	 * Useful for items that occupy the hands logically but sit on the shoulder or use a special IK socket.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment")
+	FName SocketOverride = NAME_None;
+
+	/**
 	 * If true, the system will NOT use the default AttachToComponent.
 	 * Instead, it will call PerformCustomAttach/Detach on the item's ItemComponent.
 	 */

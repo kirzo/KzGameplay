@@ -119,7 +119,13 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			Slot.Instance = ItemToEquip;
 
 			USkeletalMeshComponent* OwnerMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
-			FName AttachmentSocket = DefaultLayout->GetSocketForSlot(TargetSlot);
+
+			FName AttachmentSocket = EquipFrag->SocketOverride;
+			if (AttachmentSocket.IsNone())
+			{
+				AttachmentSocket = DefaultLayout->GetSocketForSlot(TargetSlot);
+			}
+
 			UKzItemComponent* ItemComp = nullptr;
 
 			// MeshComponent (Cosmetics, simple items)
