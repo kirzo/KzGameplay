@@ -23,6 +23,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Animation")
 	TSoftClassPtr<UAnimInstance> AnimLayerClass;
 
+	/** The priority of the layer when pushed to the AnimLayerComponent. Ignored if the component is missing. */
+	UPROPERTY(EditAnywhere, Category = "Animation")
+	int32 LayerPriority = 1;
+
 	/** If true, calling Reset() on this task will unlink the layers, restoring the previous animation state. */
 	UPROPERTY(EditAnywhere, Category = "Animation")
 	bool bRevertOnReset = false;

@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Animation/ScriptableTask_LinkAnimLayers.h"
+#include "Animation/KzAnimLayerComponent.h"
 #include "GameFramework/Actor.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
@@ -9,11 +10,17 @@ void UScriptableTask_LinkAnimLayers::BeginTask()
 {
 	if (IsValid(TargetActor) && !AnimLayerClass.IsNull())
 	{
-		if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
+		if (UClass* LoadedLayerClass = AnimLayerClass.LoadSynchronous())
 		{
-			if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
+			// Try to use the custom priority stack component
+			if (UKzAnimLayerComponent* LayerComp = TargetActor->FindComponentByClass<UKzAnimLayerComponent>())
 			{
-				if (UClass* LoadedLayerClass = AnimLayerClass.LoadSynchronous())
+				LayerComp->PushLayer(LoadedLayerClass, LayerPriority);
+			}
+			// Fallback: Apply directly to the Skeletal Mesh
+			else if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
+			{
+				if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
 				{
 					AnimInstance->LinkAnimClassLayers(LoadedLayerClass);
 				}
@@ -28,11 +35,15 @@ void UScriptableTask_LinkAnimLayers::ResetTask()
 {
 	if (bRevertOnReset && IsValid(TargetActor) && !AnimLayerClass.IsNull())
 	{
-		if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
+		if (UClass* LoadedLayerClass = AnimLayerClass.LoadSynchronous())
 		{
-			if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
+			if (UKzAnimLayerComponent* LayerComp = TargetActor->FindComponentByClass<UKzAnimLayerComponent>())
 			{
-				if (UClass* LoadedLayerClass = AnimLayerClass.LoadSynchronous())
+				LayerComp->PopLayer(LoadedLayerClass);
+			}
+			else if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
+			{
+				if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
 				{
 					AnimInstance->UnlinkAnimClassLayers(LoadedLayerClass);
 				}
