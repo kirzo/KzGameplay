@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Containers/KzPriorityStack.h"
-#include "Components/KzComponentSocketReference.h"
+#include "Components/KzComponentReference.h"
 #include "KzAnimLayerComponent.generated.h"
 
 class UAnimInstance;
@@ -28,8 +28,8 @@ public:
 	 * The specific skeletal mesh component that should receive the animation layers.
 	 * If left empty, it will automatically fallback to the first SkeletalMeshComponent found on the Owner.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Animation Layers", meta = (NoSocket, NoOffset, AllowedClasses = "/Script/Engine.SkeletalMeshComponent"))
-	FKzComponentSocketReference TargetMeshReference;
+	UPROPERTY(EditAnywhere, Category = "Animation Layers", meta = (AllowedClasses = "/Script/Engine.SkeletalMeshComponent"))
+	FKzComponentReference TargetMeshReference;
 
 	/** The default layer pushed when the component begins play (e.g., Unarmed locomotion). */
 	UPROPERTY(EditAnywhere, Category = "Animation Layers")

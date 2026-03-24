@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
-#include "Components/KzComponentSocketReference.h"
+#include "Components/KzComponentReference.h"
 #include "Interaction/KzInteractionTypes.h"
 #include "ScriptableConditions/ScriptableRequirement.h" 
 #include "ScriptableTasks/ScriptableAction.h" 
