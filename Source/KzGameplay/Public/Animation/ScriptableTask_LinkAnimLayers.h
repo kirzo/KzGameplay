@@ -9,7 +9,7 @@
 class UAnimInstance;
 
 /** Task that dynamically links an Animation Blueprint Layer to the target actor's main Skeletal Mesh. */
-UCLASS(DisplayName = "Link Anim Layers", meta = (TaskCategory = "Animation"))
+UCLASS(NotBlueprintable, DisplayName = "Link Anim Layers", meta = (TaskCategory = "Animation"))
 class KZGAMEPLAY_API UScriptableTask_LinkAnimLayers : public UScriptableTask
 {
 	GENERATED_BODY()
