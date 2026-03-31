@@ -21,6 +21,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "KzAI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "KzGameplayEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit"
