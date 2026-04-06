@@ -17,11 +17,11 @@ class KZAI_API UKzSteeringBehavior : public UObject
 
 public:
 	/** How much this behavior influences the final steering force. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering", meta = (ExposeOnSpawn, ClampMin = "0.0"))
 	float Weight = 1.0f;
 
 	/** Should calculations be strictly 2D (ignore Z axis)? */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering", meta = (ExposeOnSpawn))
 	bool bForce2D = true;
 
 	/** Called once when the component activates or the behavior is added. */

@@ -16,11 +16,11 @@ class KZAI_API UKzSteeringBehavior_Seek : public UKzSteeringBehavior
 
 public:
 	/** Optional actor to follow. If null, TargetLocation is used. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seek")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seek", meta = (ExposeOnSpawn))
 	TObjectPtr<AActor> TargetActor;
 
 	/** Fallback location if TargetActor is null. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seek")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seek", meta = (ExposeOnSpawn))
 	FVector TargetLocation = FVector::ZeroVector;
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
@@ -32,14 +32,14 @@ class KZAI_API UKzSteeringBehavior_Flee : public UKzSteeringBehavior
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee", meta = (ExposeOnSpawn))
 	TObjectPtr<AActor> TargetActor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee", meta = (ExposeOnSpawn))
 	FVector TargetLocation = FVector::ZeroVector;
 
 	/** If the agent is further than this from the threat, the behavior produces no force (0 = infinite). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flee", meta = (ExposeOnSpawn))
 	float PanicDistance = 1000.0f;
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
@@ -51,14 +51,14 @@ class KZAI_API UKzSteeringBehavior_Arrive : public UKzSteeringBehavior
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive", meta = (ExposeOnSpawn))
 	TObjectPtr<AActor> TargetActor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive", meta = (ExposeOnSpawn))
 	FVector TargetLocation = FVector::ZeroVector;
 
 	/** The distance at which the agent starts slowing down. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive", meta = (ClampMin = "10.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arrive", meta = (ExposeOnSpawn, ClampMin = "10.0"))
 	float SlowingRadius = 300.0f;
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
@@ -71,11 +71,11 @@ class KZAI_API UKzSteeringBehavior_WanderArea : public UKzSteeringBehavior
 
 public:
 	/** The specific area network to roam inside. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wander")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wander", meta = (ExposeOnSpawn))
 	TObjectPtr<AKzAreaNetwork> AreaNetwork;
 
 	/** Distance at which the agent considers a point reached and requests a new one. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wander")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wander", meta = (ExposeOnSpawn))
 	float AcceptanceRadius = 150.0f;
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
@@ -95,20 +95,20 @@ class KZAI_API UKzSteeringBehavior_Flocking : public UKzSteeringBehavior
 
 public:
 	/** Tags to identify flock mates (e.g., "Creature.Bird") */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking", meta = (ExposeOnSpawn))
 	FGameplayTagQuery FlockMateQuery;
 
 	/** Radius to search for neighbors using the spatial grid. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking", meta = (ExposeOnSpawn))
 	float SearchRadius = 500.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights", meta = (ExposeOnSpawn))
 	float SeparationWeight = 1.5f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights", meta = (ExposeOnSpawn))
 	float AlignmentWeight = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flocking|Weights", meta = (ExposeOnSpawn))
 	float CohesionWeight = 1.0f;
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
