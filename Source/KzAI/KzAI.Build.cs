@@ -12,11 +12,15 @@ public class KzAI : ModuleRules
 			new string[]
 			{
 				"Core",
+				"AIModule",
 				"GameplayTags",
 				"GameplayAbilities",
 				"GameplayTasks",
 				"KzLib",
-				"ScriptableFramework"
+				"ScriptableFramework",
+				"KzGameplay",
+				"StateTreeModule",
+				"GameplayStateTreeModule"
 			}
 			);
 
