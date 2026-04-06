@@ -2,6 +2,7 @@
 
 #include "Sensors/KzSensableComponent.h"
 #include "Sensors/KzSpatialSenseSubsystem.h"
+#include "Sensors/KzSensorComponent.h"
 #include "Components/KzShapeComponent.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
@@ -39,24 +40,37 @@ void UKzSensableComponent::CacheShapeComponent()
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// 1. Look for a KzShapeComponent explicitly
-	if (UKzShapeComponent* KzShape = Owner->FindComponentByClass<UKzShapeComponent>())
-	{
-		CachedPrimitive = KzShape;
-		return;
-	}
-
-	// 2. Fallback to the Root Component if it's a Primitive
+	// 1. Prioritize the Root Component if it's a Primitive (KzShapeComponent inherits from Primitive)
 	if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(Owner->GetRootComponent()))
 	{
 		CachedPrimitive = RootPrim;
 		return;
 	}
 
-	// 3. Fallback to the first Primitive Component
-	if (UPrimitiveComponent* AnyPrim = Owner->FindComponentByClass<UPrimitiveComponent>())
+	// 2. Fallback to a KzShapeComponent explicitly, but NEVER pick a Sensor
+	TArray<UKzShapeComponent*> ShapeComponents;
+	Owner->GetComponents<UKzShapeComponent>(ShapeComponents);
+
+	for (UKzShapeComponent* Shape : ShapeComponents)
 	{
-		CachedPrimitive = AnyPrim;
+		if (!Shape->IsA(UKzSensorComponent::StaticClass()))
+		{
+			CachedPrimitive = Shape;
+			return;
+		}
+	}
+
+	// 3. Fallback to the first Primitive Component, again ignoring Sensors
+	TArray<UPrimitiveComponent*> PrimitiveComponents;
+	Owner->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+
+	for (UPrimitiveComponent* Prim : PrimitiveComponents)
+	{
+		if (!Prim->IsA(UKzSensorComponent::StaticClass()))
+		{
+			CachedPrimitive = Prim;
+			return;
+		}
 	}
 }
 
