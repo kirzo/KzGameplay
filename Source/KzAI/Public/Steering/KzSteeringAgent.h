@@ -18,6 +18,9 @@ class KZAI_API IKzSteeringAgent
 	GENERATED_BODY()
 
 public:
+	/** Returns the agent's radius. */
+	virtual float GetAgentRadius() const = 0;
+
 	/** Returns the agent's current location in world space. */
 	virtual FVector GetAgentLocation() const = 0;
 

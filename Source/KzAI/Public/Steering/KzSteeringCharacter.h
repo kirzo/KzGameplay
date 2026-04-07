@@ -20,6 +20,7 @@ public:
 	AKzSteeringCharacter(const FObjectInitializer& ObjectInitializer);
 
 	//~ Begin IKzSteeringAgent Interface
+	virtual float GetAgentRadius() const override;
 	virtual FVector GetAgentLocation() const override;
 	virtual FVector GetAgentVelocity() const override;
 	virtual float GetAgentMaxSpeed() const override;

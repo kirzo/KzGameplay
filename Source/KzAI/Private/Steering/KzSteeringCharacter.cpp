@@ -8,6 +8,11 @@ AKzSteeringCharacter::AKzSteeringCharacter(const FObjectInitializer& ObjectIniti
 {
 }
 
+float AKzSteeringCharacter::GetAgentRadius() const
+{
+	return GetSimpleCollisionRadius();
+}
+
 FVector AKzSteeringCharacter::GetAgentLocation() const
 {
 	return GetActorLocation();
@@ -22,7 +27,7 @@ float AKzSteeringCharacter::GetAgentMaxSpeed() const
 {
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
-		return MoveComp->MaxWalkSpeed;
+		return MoveComp->GetMaxSpeed();
 	}
 	return 0.0f;
 }

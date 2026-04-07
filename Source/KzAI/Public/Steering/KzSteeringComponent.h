@@ -68,6 +68,9 @@ public:
 	void RemoveLayer(FGameplayTag LayerTag);
 
 protected:
+	/** Finds and caches the AgentInterface if it hasn't been cached yet. */
+	void EnsureAgentInterface();
+
 	/** The native priority stack managing our layers. */
 	Kz::TPriorityStack<FKzSteeringLayer, false, FGameplayTag, false> LayerStack;
 

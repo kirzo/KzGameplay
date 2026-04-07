@@ -42,7 +42,7 @@ public:
 
 	/** Flocking: Steers away from neighbors to avoid crowding. Force is inversely proportional to distance. */
 	UFUNCTION(BlueprintPure, Category = "KzAI|Steering|Flocking")
-	static FVector Separation(const FVector& CurrentLocation, const FVector& CurrentVelocity, const TArray<FVector>& NeighborLocations, float MaxSpeed, bool bForce2D = false);
+	static FVector Separation(const FVector& CurrentLocation, const FVector& CurrentVelocity, const TArray<FVector>& NeighborLocations, float MaxSpeed, float AgentRadius = 50.0f, bool bForce2D = false);
 
 	/** Flocking: Steers to match the average velocity (heading and speed) of neighbors. */
 	UFUNCTION(BlueprintPure, Category = "KzAI|Steering|Flocking")
@@ -51,4 +51,8 @@ public:
 	/** Flocking: Steers towards the center of mass of neighbors. */
 	UFUNCTION(BlueprintPure, Category = "KzAI|Steering|Flocking")
 	static FVector Cohesion(const FVector& CurrentLocation, const FVector& CurrentVelocity, const TArray<FVector>& NeighborLocations, float MaxSpeed, bool bForce2D = false);
+
+	/** Predicts future collisions with moving neighbors and outputs a steering velocity to avoid them. */
+	UFUNCTION(BlueprintPure, Category = "KzAI|Steering")
+	static FVector CollisionAvoidance(const FVector& CurrentLocation, const FVector& CurrentVelocity, float AgentRadius, const TArray<FVector>& NeighborLocations, const TArray<FVector>& NeighborVelocities, float MaxLookAhead, float MaxSpeed, bool bForce2D = false);
 };

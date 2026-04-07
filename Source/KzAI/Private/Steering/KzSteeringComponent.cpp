@@ -27,9 +27,9 @@ void UKzSteeringComponent::AddReferencedObjects(UObject* InThis, FReferenceColle
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
-void UKzSteeringComponent::BeginPlay()
+void UKzSteeringComponent::EnsureAgentInterface()
 {
-	Super::BeginPlay();
+	if (AgentInterface) return;
 
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
@@ -37,7 +37,7 @@ void UKzSteeringComponent::BeginPlay()
 	// 1. Check Owner
 	AgentInterface = Cast<IKzSteeringAgent>(Owner);
 
-	// 2. Check Components (useful if a NavMovementComponent implements the interface)
+	// 2. Check Components
 	if (!AgentInterface)
 	{
 		for (UActorComponent* Comp : Owner->GetComponents())
@@ -49,49 +49,89 @@ void UKzSteeringComponent::BeginPlay()
 			}
 		}
 	}
+}
+
+void UKzSteeringComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	EnsureAgentInterface();
 
 	if (!AgentInterface)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UKzSteeringComponent requires the owner or a component to implement IKzSteeringAgent."));
-		SetComponentTickEnabled(false);
 	}
 }
 
 void UKzSteeringComponent::PushProfile(UKzSteeringProfile* Profile, FGameplayTag LayerTag, int32 Priority)
 {
+	EnsureAgentInterface();
+
 	if (!Profile || !AgentInterface) return;
 
-	FKzSteeringLayer NewLayer;
-	NewLayer.LayerTag = LayerTag;
-	NewLayer.Priority = Priority;
+	FKzSteeringLayer* ExistingLayer = LayerStack.Find(LayerTag);
+	FKzSteeringLayer NewLayer; // Used only if it doesn't exist
 
+	// Point to the correct array of behaviors
+	TArray<TObjectPtr<UKzSteeringBehavior>>* TargetBehaviors = nullptr;
+
+	if (ExistingLayer)
+	{
+		TargetBehaviors = &ExistingLayer->Behaviors;
+	}
+	else
+	{
+		NewLayer.LayerTag = LayerTag;
+		NewLayer.Priority = Priority;
+		TargetBehaviors = &NewLayer.Behaviors;
+	}
+
+	// Instantiate all behaviors in the profile
 	for (const UKzSteeringBehavior* TemplateBehavior : Profile->Behaviors)
 	{
 		if (TemplateBehavior)
 		{
 			UKzSteeringBehavior* NewBehavior = DuplicateObject<UKzSteeringBehavior>(TemplateBehavior, this);
 			NewBehavior->InitBehavior(this, AgentInterface);
-			NewLayer.Behaviors.Add(NewBehavior);
+			TargetBehaviors->Add(NewBehavior);
 		}
 	}
 
-	LayerStack.Push(NewLayer, LayerTag, Priority);
+	// Push only if it was a completely new layer
+	if (!ExistingLayer)
+	{
+		LayerStack.Push(NewLayer, LayerTag, Priority);
+	}
 }
 
 void UKzSteeringComponent::PushBehavior(UKzSteeringBehavior* PreconfiguredBehavior, FGameplayTag LayerTag, int32 Priority)
 {
-	if (!PreconfiguredBehavior || !AgentInterface) return;
+	EnsureAgentInterface();
 
-	FKzSteeringLayer NewLayer;
-	NewLayer.LayerTag = LayerTag;
-	NewLayer.Priority = Priority;
+	if (!PreconfiguredBehavior || !AgentInterface) return;
 
 	// Duplicate the passed object so the component owns its own unique, safe instance
 	UKzSteeringBehavior* NewBehavior = DuplicateObject<UKzSteeringBehavior>(PreconfiguredBehavior, this);
 	NewBehavior->InitBehavior(this, AgentInterface);
-	NewLayer.Behaviors.Add(NewBehavior);
 
-	LayerStack.Push(NewLayer, LayerTag, Priority);
+	// Check if the layer already exists in the stack
+	if (FKzSteeringLayer* ExistingLayer = LayerStack.Find(LayerTag))
+	{
+		ExistingLayer->Behaviors.Add(NewBehavior);
+
+		// Note: We ignore the Priority argument here because the layer is already sorted in the Heap.
+		// The layer's priority was defined by the first behavior that created it.
+	}
+	else
+	{
+		// Create a new layer from scratch
+		FKzSteeringLayer NewLayer;
+		NewLayer.LayerTag = LayerTag;
+		NewLayer.Priority = Priority;
+		NewLayer.Behaviors.Add(NewBehavior);
+
+		LayerStack.Push(NewLayer, LayerTag, Priority);
+	}
 }
 
 void UKzSteeringComponent::RemoveLayer(FGameplayTag LayerTag)
@@ -142,9 +182,18 @@ void UKzSteeringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	if (!TotalForce.IsNearlyZero())
 	{
-		const float MaxAccel = AgentInterface->GetAgentMaxAcceleration();
-		const FVector MovementInput = TotalForce / FMath::Max(MaxAccel, 1.0f);
+		const float MaxSpeed = AgentInterface->GetAgentMaxSpeed();
 
-		AgentInterface->ApplySteeringInput(MovementInput);
+		if (MaxSpeed > UE_KINDA_SMALL_NUMBER)
+		{
+			// TotalForce is a combination of Desired Velocities (e.g. Seek + Separation).
+			// We clamp it to MaxSpeed so we don't request more than 100% input (magnitude > 1.0)
+			FVector ClampedDesiredVelocity = TotalForce.GetClampedToMaxSize(MaxSpeed);
+
+			// Map the desired velocity to a 0.0 - 1.0 scale for the virtual joystick
+			FVector MovementInput = ClampedDesiredVelocity / MaxSpeed;
+
+			AgentInterface->ApplySteeringInput(MovementInput);
+		}
 	}
 }
