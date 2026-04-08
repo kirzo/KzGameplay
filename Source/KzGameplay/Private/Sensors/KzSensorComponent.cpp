@@ -124,6 +124,7 @@ void UKzSensorComponent::PerformScan()
 
 		if (bIsNew)
 		{
+			LastDetectedActor = NewActor;
 			OnObjectBeginOverlap.Broadcast(NewResult);
 		}
 	}
@@ -144,6 +145,12 @@ void UKzSensorComponent::PerformScan()
 		// If it's no longer overlapping but the actor still exists, broadcast end overlap
 		if (!bStillOverlapping && OldActor)
 		{
+			// Clean up the cached reference so we don't hold stale data
+			if (LastDetectedActor == OldActor)
+			{
+				LastDetectedActor = nullptr;
+			}
+
 			OnObjectEndOverlap.Broadcast(OldResult);
 		}
 	}

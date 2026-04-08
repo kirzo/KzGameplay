@@ -55,6 +55,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "KzSensor")
 	FScriptableRequirement DetectionRequirement;
 
+	/** The last actor detected by the sensor. */
+	UPROPERTY(VisibleAnywhere, Category = "KzSensor")
+	TObjectPtr<AActor> LastDetectedActor = nullptr;
+
 	// --- Events ---
 
 	/** Fired when an object enters the sensor and passes all filters. */
