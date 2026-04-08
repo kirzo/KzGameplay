@@ -53,13 +53,13 @@ FVector UKzSteeringBehavior_WanderArea::ComputeForce(const UKzSteeringComponent*
 	const FVector AgentVel = Agent->GetAgentVelocity();
 	const float MaxSpeed = Agent->GetAgentMaxSpeed();
 
-	// 1. Initialization: Pick the very first target
+	// Initialization: Pick the very first target
 	if (!bHasTarget && !bIsWaiting)
 	{
 		PickNewTarget(AgentPos, MaxSpeed);
 	}
 
-	// 2. Handle Waiting State
+	// Handle Waiting State
 	if (bIsWaiting)
 	{
 		TimeWaited += DeltaTime;
@@ -75,8 +75,8 @@ FVector UKzSteeringBehavior_WanderArea::ComputeForce(const UKzSteeringComponent*
 		}
 	}
 
-	// 3. Check conditions to stop moving (Reached physically or Timed out)
-	const bool bReachedByDistance = FVector::DistSquared(AgentPos, CurrentWanderTarget) < (AcceptanceRadius * AcceptanceRadius);
+	const float DistSq = bForce2D ? FVector::DistSquared2D(AgentPos, CurrentWanderTarget) : FVector::DistSquared(AgentPos, CurrentWanderTarget);
+	const bool bReachedByDistance = DistSq < (AcceptanceRadius * AcceptanceRadius);
 	
 	// Only apply timeout if the agent is inside the valid AreaNetwork.
 	// This prevents the agent from giving up while returning from a long distance (e.g., after fleeing).
@@ -96,7 +96,7 @@ FVector UKzSteeringBehavior_WanderArea::ComputeForce(const UKzSteeringComponent*
 		return FVector::ZeroVector;
 	}
 
-	// 4. Moving towards target
+	// Moving towards target
 	if (bHasTarget)
 	{
 		TimeSpentMoving += DeltaTime;
@@ -114,7 +114,7 @@ void UKzSteeringBehavior_WanderArea::PickNewTarget(const FVector& AgentPos, floa
 	if (AgentMaxSpeed > 5.0f)
 	{
 		// Calculate how long it should take in a perfect straight line
-		const float StraightLineDist = FVector::Distance(AgentPos, CurrentWanderTarget);
+		const float StraightLineDist = bForce2D ? FVector::DistXY(AgentPos, CurrentWanderTarget) : FVector::Distance(AgentPos, CurrentWanderTarget);
 		const float ExpectedTime = StraightLineDist / AgentMaxSpeed;
 
 		MaxTimeToReachTarget = ExpectedTime * TimeoutMultiplier;
