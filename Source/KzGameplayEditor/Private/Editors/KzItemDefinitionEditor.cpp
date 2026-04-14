@@ -58,14 +58,12 @@ void FKzItemDefinitionEditor::InitKzItemEditor(const EToolkitMode::Type Mode, co
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.4f)
 					->AddTab(AssetDetailsTabId, ETabState::OpenedTab)
-					->SetHideTabWell(true)
 				)
 				->Split
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.6f)
 					->AddTab(FragmentStackTabId, ETabState::OpenedTab)
-					->SetHideTabWell(true)
 				)
 			)
 			->Split
@@ -73,7 +71,6 @@ void FKzItemDefinitionEditor::InitKzItemEditor(const EToolkitMode::Type Mode, co
 				FTabManager::NewStack()
 				->SetSizeCoefficient(0.6f)
 				->AddTab(FragmentDetailsTabId, ETabState::OpenedTab)
-				->SetHideTabWell(true)
 			)
 		);
 
@@ -81,7 +78,6 @@ void FKzItemDefinitionEditor::InitKzItemEditor(const EToolkitMode::Type Mode, co
 	const bool bCreateDefaultToolbar = true;
 	InitAssetEditor(Mode, InitToolkitHost, FName("KzItemEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ItemDefinition);
 }
-
 
 void FKzItemDefinitionEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
