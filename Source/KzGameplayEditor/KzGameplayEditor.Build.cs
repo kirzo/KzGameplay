@@ -25,7 +25,9 @@ public class KzGameplayEditor : ModuleRules
 				"PropertyEditor",
 				"InputCore",
 				"Projects",
-				"BlueprintGraph"
+				"ApplicationCore",
+				"BlueprintGraph",
+				"ToolWidgets"
 			});
 	}
 }
