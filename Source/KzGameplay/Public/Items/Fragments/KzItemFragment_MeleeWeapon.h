@@ -57,7 +57,7 @@ struct FKzMeleeComboStep
 };
 
 /** Defines generic melee combat data for an item. */
-UCLASS(DisplayName = "Melee Weapon")
+UCLASS(ClassGroup = "Weapons", DisplayName = "Melee Weapon")
 class KZGAMEPLAY_API UKzItemFragment_MeleeWeapon : public UKzItemFragment
 {
 	GENERATED_BODY()

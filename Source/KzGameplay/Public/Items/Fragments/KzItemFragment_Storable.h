@@ -11,7 +11,7 @@
 class UKzInventoryComponent;
 
 /** Defines the rules for storing this item in a backpack/inventory. */
-UCLASS(DisplayName = "Storable")
+UCLASS(ClassGroup = "Inventory", DisplayName = "Storable")
 class KZGAMEPLAY_API UKzItemFragment_Storable : public UKzItemFragment
 {
 	GENERATED_BODY()

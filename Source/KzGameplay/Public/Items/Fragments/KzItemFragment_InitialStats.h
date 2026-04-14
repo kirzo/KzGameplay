@@ -11,7 +11,7 @@
  * A generic fragment that grants a set of default statistics to an item instance upon creation.
  * Examples: Initial durability, max ammo, charge level, etc.
  */
-UCLASS(DisplayName = "Initial Stats")
+UCLASS(ClassGroup = "Stats", DisplayName = "Initial Stats")
 class KZGAMEPLAY_API UKzItemFragment_InitialStats : public UKzItemFragment
 {
 	GENERATED_BODY()

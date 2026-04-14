@@ -22,7 +22,7 @@ enum class EKzEquipmentSpawnMode : uint8
 };
 
 /** Defines the rules and visuals for equipping this item in the character's hands/slots. */
-UCLASS(DisplayName = "Equippable")
+UCLASS(ClassGroup = "Equipment", DisplayName = "Equippable")
 class KZGAMEPLAY_API UKzItemFragment_Equippable : public UKzItemFragment
 {
 	GENERATED_BODY()
