@@ -181,3 +181,45 @@ public:
 
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
 };
+
+UCLASS(DisplayName = "Obstacle Avoidance (Environment)")
+class KZAI_API UKzSteeringBehavior_ObstacleAvoidance : public UKzSteeringBehavior
+{
+	GENERATED_BODY()
+
+public:
+	/** Base length of the forward-facing raycast. Side feelers will be dynamically extended to match this forward depth. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn))
+	float FeelerLength = 500.0f;
+
+	/** Angle (in degrees) for the side feelers relative to the agent's forward direction. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn, ClampMin = "1.0", ClampMax = "89.0"))
+	float FeelerAngle = 30.0f;
+
+	/** Multiplier applied to the feeler length while actively avoiding an obstacle to prevent jitter (hysteresis). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn, ClampMin = "1.0"))
+	float HysteresisMultiplier = 1.5f;
+
+	/** How quickly the avoidance force decays or adjusts to new obstacles. Lower values mean smoother, wider turns around corners. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn, ClampMin = "0.0"))
+	float ForceSmoothingSpeed = 4.0f;
+
+	/** Collision channel to trace against (typically static geometry). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn))
+	TEnumAsByte<ECollisionChannel> TraceChannel = ECC_WorldStatic;
+
+	/** If true, draws debug lines for the feelers in the viewport to visualize hits and repulsive forces. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance|Debug")
+	bool bShowDebug = false;
+
+	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
+
+private:
+	/** Tracks if the agent was avoiding an obstacle in the previous frame to apply hysteresis. */
+	UPROPERTY(Transient)
+	bool bIsAvoiding = false;
+
+	/** Stores the force applied in the previous frame to interpolate smoothly and prevent sharp turns. */
+	UPROPERTY(Transient)
+	FVector LastSmoothedForce = FVector::ZeroVector;
+};

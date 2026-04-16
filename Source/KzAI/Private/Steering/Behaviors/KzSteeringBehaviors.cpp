@@ -8,6 +8,7 @@
 #include "Sensors/KzSpatialSenseSubsystem.h"
 #include "Sensors/KzSensableComponent.h"
 #include "Engine/World.h"
+#include "DrawDebugHelpers.h"
 
 FVector UKzSteeringBehavior_Seek::ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime)
 {
@@ -230,4 +231,182 @@ FVector UKzSteeringBehavior_CollisionAvoidance::ComputeForce(const UKzSteeringCo
 	if (NeighborLocations.IsEmpty()) return FVector::ZeroVector;
 
 	return UKzSteeringLibrary::CollisionAvoidance(AgentPos, AgentVel, AgentRadius, NeighborLocations, NeighborVelocities, MaxLookAheadTime, MaxSpeed, bForce2D);
+}
+
+FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime)
+{
+	UWorld* World = OwnerComponent->GetWorld();
+	AActor* OwnerActor = OwnerComponent->GetOwner();
+
+	if (!World || !OwnerActor)
+	{
+		return FVector::ZeroVector;
+	}
+
+	const FVector AgentPos = Agent->GetAgentLocation();
+	const FVector AgentVel = Agent->GetAgentVelocity();
+	const float MaxSpeed = Agent->GetAgentMaxSpeed();
+
+	// Use a slightly smaller radius than the actual agent to allow tight navigation without scraping.
+	const float FeelerRadius = FMath::Max(10.0f, Agent->GetAgentRadius() * 0.8f);
+
+	// Use velocity direction if moving, otherwise fallback to actor's forward vector.
+	FVector AgentDir = AgentVel.IsNearlyZero() ? OwnerActor->GetActorForwardVector() : AgentVel.GetSafeNormal();
+
+	if (bForce2D)
+	{
+		AgentDir.Z = 0.0f;
+		AgentDir.Normalize();
+	}
+
+	FVector TargetEvasionForce = FVector::ZeroVector;
+
+	// 1. Calculate Hysteresis and Lengths
+	const float CurrentFeelerLength = bIsAvoiding ? (FeelerLength * HysteresisMultiplier) : FeelerLength;
+	const float SafeAngle = FMath::Clamp(FeelerAngle, 1.0f, 89.0f);
+	const float SideFeelerLength = CurrentFeelerLength / FMath::Cos(FMath::DegreesToRadians(SafeAngle));
+
+	// 2. Define standard horizontal feeler directions (Center, Left, Right)
+	const FVector FeelerCenter = AgentDir;
+	const FVector FeelerLeft = AgentDir.RotateAngleAxis(-SafeAngle, FVector::UpVector);
+	const FVector FeelerRight = AgentDir.RotateAngleAxis(SafeAngle, FVector::UpVector);
+
+	FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(ObstacleAvoidanceTrace), false, OwnerActor);
+	FCollisionShape FeelerShape = FCollisionShape::MakeSphere(FeelerRadius);
+	FHitResult Hit;
+
+	bool bHitThisFrame = false;
+
+	// Lambda helper to process a single sweep feeler
+	auto ProcessFeeler = [&](const FVector& Direction, float Length) -> FVector
+		{
+			const FVector End = AgentPos + (Direction * Length);
+
+			// Use Sweep instead of LineTrace to give the feeler "thickness" and prevent jitter.
+			if (World->SweepSingleByChannel(Hit, AgentPos, End, FQuat::Identity, TraceChannel, FeelerShape, TraceParams))
+			{
+				bHitThisFrame = true;
+
+				// Project the agent's direction onto the wall's plane to find the parallel glide path.
+				FVector ParallelDir = FVector::VectorPlaneProject(AgentDir, Hit.ImpactNormal).GetSafeNormal();
+
+				const float DistanceRatio = 1.0f - (Hit.Distance / Length);
+				FVector Repulsion;
+
+				// If the dot product is positive, the agent is already flying parallel to or away from the wall.
+				if (FVector::DotProduct(AgentDir, Hit.ImpactNormal) > 0.05f)
+				{
+					// Provide a "cushion" force: Glide forward and push slightly outward to counter any inward Seek forces.
+					Repulsion = ParallelDir + (Hit.ImpactNormal * 0.2f);
+
+					if (bShowDebug)
+					{
+						DrawDebugLine(World, AgentPos, Hit.ImpactPoint, FColor::Orange, false, -1.0f, 0, 1.0f);
+					}
+				}
+				else
+				{
+					// The agent is heading into the wall. Blend the parallel glide with the outward normal push.
+					Repulsion = FMath::Lerp(ParallelDir, Hit.ImpactNormal, DistanceRatio);
+
+					if (bShowDebug)
+					{
+						DrawDebugLine(World, AgentPos, Hit.ImpactPoint, FColor::Red, false, -1.0f, 0, 2.0f);
+					}
+				}
+
+				if (bForce2D)
+				{
+					Repulsion.Z = 0.0f;
+				}
+
+				Repulsion.Normalize();
+				Repulsion *= DistanceRatio;
+
+				if (bShowDebug)
+				{
+					DrawDebugBox(World, Hit.ImpactPoint, FVector(5.0f), FColor::Red, false, -1.0f, 0, 2.0f);
+					const FVector RepulsionEnd = Hit.ImpactPoint + (Repulsion * 100.0f);
+					DrawDebugLine(World, Hit.ImpactPoint, RepulsionEnd, FColor::Yellow, false, -1.0f, 0, 3.0f);
+				}
+
+				return Repulsion;
+			}
+
+			if (bShowDebug)
+			{
+				DrawDebugLine(World, AgentPos, End, FColor::Green, false, -1.0f, 0, 1.0f);
+			}
+
+			return FVector::ZeroVector;
+		};
+
+	// Accumulate repulsive forces from the primary horizontal feelers
+	TargetEvasionForce += ProcessFeeler(FeelerCenter, CurrentFeelerLength);
+	TargetEvasionForce += ProcessFeeler(FeelerLeft, SideFeelerLength);
+	TargetEvasionForce += ProcessFeeler(FeelerRight, SideFeelerLength);
+
+	// 3. 3D Vertical Awareness (Pitch Feelers)
+	// Only apply if we are not restricted to 2D and there is significant vertical movement.
+	if (!bForce2D && FMath::Abs(AgentVel.Z) > 10.0f)
+	{
+		// Calculate the agent's Right Vector based on its current velocity direction to act as the pitch axis.
+		FVector AgentRight = FVector::CrossProduct(FVector::UpVector, AgentDir);
+		if (AgentRight.IsNearlyZero())
+		{
+			// Fallback if flying perfectly straight up or down.
+			AgentRight = OwnerActor->GetActorRightVector();
+		}
+		else
+		{
+			AgentRight.Normalize();
+		}
+
+		// If ascending (Z > 0), pitch feelers DOWN (+SafeAngle).
+		// If descending (Z < 0), pitch feelers UP (-SafeAngle).
+		const float PitchAngle = (AgentVel.Z > 0.0f) ? SafeAngle : -SafeAngle;
+
+		// Create the new pitched base direction.
+		const FVector PitchedDir = AgentDir.RotateAngleAxis(PitchAngle, AgentRight);
+
+		// Generate the 3 extra feelers from this pitched base.
+		const FVector PitchedCenter = PitchedDir;
+		const FVector PitchedLeft = PitchedDir.RotateAngleAxis(-SafeAngle, FVector::UpVector);
+		const FVector PitchedRight = PitchedDir.RotateAngleAxis(SafeAngle, FVector::UpVector);
+
+		// Accumulate forces from the vertical awareness feelers.
+		// We use slightly shorter lengths for the vertical ones to prevent them from hitting the ground too early when flying low.
+		TargetEvasionForce += ProcessFeeler(PitchedCenter, CurrentFeelerLength * 0.8f);
+		TargetEvasionForce += ProcessFeeler(PitchedLeft, SideFeelerLength * 0.8f);
+		TargetEvasionForce += ProcessFeeler(PitchedRight, SideFeelerLength * 0.8f);
+	}
+
+	// 4. Update Hysteresis State for the next frame
+	bIsAvoiding = bHitThisFrame;
+
+	// 5. Scale the target force to match steering agent standards
+	if (!TargetEvasionForce.IsNearlyZero())
+	{
+		TargetEvasionForce.Normalize();
+		TargetEvasionForce *= MaxSpeed;
+	}
+
+	// 6. Apply conditional smoothing (Inertia/Decay)
+	if (ForceSmoothingSpeed > 0.0f && DeltaTime > 0.0f)
+	{
+		const float SmoothingSpeed = bIsAvoiding ? 2.0f * ForceSmoothingSpeed : ForceSmoothingSpeed;
+		LastSmoothedForce = FMath::VInterpTo(LastSmoothedForce, TargetEvasionForce, DeltaTime, SmoothingSpeed);
+	}
+	else
+	{
+		LastSmoothedForce = TargetEvasionForce;
+	}
+
+	if (bShowDebug && !LastSmoothedForce.IsNearlyZero())
+	{
+		const FVector SmoothedEnd = AgentPos + (LastSmoothedForce.GetSafeNormal() * 150.0f);
+		DrawDebugLine(World, AgentPos, SmoothedEnd, FColor::Cyan, false, -1.0f, 0, 4.0f);
+	}
+
+	return LastSmoothedForce;
 }
