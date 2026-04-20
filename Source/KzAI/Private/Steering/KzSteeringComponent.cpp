@@ -147,53 +147,60 @@ void UKzSteeringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	TArray<FKzSteeringLayer*> SortedLayers = LayerStack.GetSortedElements();
 
-	FVector TotalForce = FVector::ZeroVector;
-	float ForceMagnitudeLeft = MaxSteeringForce;
+	FVector TotalDesiredVelocity = FVector::ZeroVector;
+	const float MaxSpeed = AgentInterface->GetAgentMaxSpeed();
+
+	// We use MaxSpeed as our budget for the prioritized truncated sum
+	float SpeedBudgetLeft = MaxSpeed;
 
 	for (const FKzSteeringLayer* Layer : SortedLayers)
 	{
-		FVector LayerForce = FVector::ZeroVector;
+		FVector LayerVelocity = FVector::ZeroVector;
 
 		for (UKzSteeringBehavior* Behavior : Layer->Behaviors)
 		{
 			if (Behavior && Behavior->Weight > 0.0f)
 			{
-				LayerForce += Behavior->ComputeForce(this, AgentInterface, DeltaTime) * Behavior->Weight;
+				// ComputeForce now acts as ComputeDesiredVelocity
+				LayerVelocity += Behavior->ComputeForce(this, AgentInterface, DeltaTime) * Behavior->Weight;
 			}
 		}
 
-		float LayerForceMag = LayerForce.Size();
-		if (LayerForceMag > UE_KINDA_SMALL_NUMBER)
+		float LayerVelocityMag = LayerVelocity.Size();
+		if (LayerVelocityMag > UE_KINDA_SMALL_NUMBER)
 		{
 			// Prioritized Truncated Sum Math
-			if (LayerForceMag > ForceMagnitudeLeft)
+			if (LayerVelocityMag > SpeedBudgetLeft)
 			{
-				TotalForce += (LayerForce / LayerForceMag) * ForceMagnitudeLeft;
-				ForceMagnitudeLeft = 0.0f;
+				TotalDesiredVelocity += (LayerVelocity / LayerVelocityMag) * SpeedBudgetLeft;
+				SpeedBudgetLeft = 0.0f;
 				break; // The highest priority layer ate all the budget. Skip lower layers.
 			}
 			else
 			{
-				TotalForce += LayerForce;
-				ForceMagnitudeLeft -= LayerForceMag;
+				TotalDesiredVelocity += LayerVelocity;
+				SpeedBudgetLeft -= LayerVelocityMag;
 			}
 		}
 	}
 
-	if (!TotalForce.IsNearlyZero())
+	FVector CurrentVelocity = AgentInterface->GetAgentVelocity();
+
+	// We only skip if the agent is completely at rest AND has no desired velocity (no orders)
+	if (!TotalDesiredVelocity.IsNearlyZero() || !CurrentVelocity.IsNearlyZero())
 	{
-		const float MaxSpeed = AgentInterface->GetAgentMaxSpeed();
+		// Calculate the ideal change in velocity needed to match the desired state
+		FVector DeltaVelocity = TotalDesiredVelocity - CurrentVelocity;
 
-		if (MaxSpeed > UE_KINDA_SMALL_NUMBER)
-		{
-			// TotalForce is a combination of Desired Velocities (e.g. Seek + Separation).
-			// We clamp it to MaxSpeed so we don't request more than 100% input (magnitude > 1.0)
-			FVector ClampedDesiredVelocity = TotalForce.GetClampedToMaxSize(MaxSpeed);
+		// Limit the change by our physical maximum acceleration (Physics: DeltaV = Acceleration * DeltaTime)
+		const float MaxAcceleration = AgentInterface->GetAgentMaxAcceleration();
+		const float MaxVelocityChangeThisFrame = MaxAcceleration * DeltaTime;
 
-			// Map the desired velocity to a 0.0 - 1.0 scale for the virtual joystick
-			FVector MovementInput = ClampedDesiredVelocity / MaxSpeed;
+		// Clamp the DeltaVelocity so the agent doesn't stop or turn instantly, maintaining inertia
+		DeltaVelocity = DeltaVelocity.GetClampedToMaxSize(MaxVelocityChangeThisFrame);
 
-			AgentInterface->ApplySteeringInput(MovementInput);
-		}
+		// Calculate the actual physical velocity for this frame
+		FVector NewVelocity = CurrentVelocity + DeltaVelocity;
+		AgentInterface->ApplySteeringForce(NewVelocity);
 	}
 }

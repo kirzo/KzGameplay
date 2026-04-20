@@ -27,5 +27,6 @@ public:
 	virtual float GetAgentMaxAcceleration() const override;
 	virtual FVector GetAgentDirection() const override;
 	virtual void ApplySteeringInput(const FVector& InputVector) override;
+	virtual void ApplySteeringForce(const FVector& VelocityToApply) override;
 	//~ End IKzSteeringAgent Interface
 };

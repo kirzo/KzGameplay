@@ -103,7 +103,8 @@ FVector UKzSteeringBehavior_WanderArea::ComputeForce(const UKzSteeringComponent*
 		TimeSpentMoving += DeltaTime;
 	}
 
-	return UKzSteeringLibrary::Seek(AgentPos, CurrentWanderTarget, AgentVel, MaxSpeed, bForce2D);
+	const float SlowingRadius = AcceptanceRadius * 2.0f;
+	return UKzSteeringLibrary::Arrive(AgentPos, CurrentWanderTarget, AgentVel, MaxSpeed, SlowingRadius, bForce2D);
 }
 
 void UKzSteeringBehavior_WanderArea::PickNewTarget(const FVector& AgentPos, float AgentMaxSpeed)
@@ -259,7 +260,7 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 		AgentDir.Normalize();
 	}
 
-	FVector TargetEvasionForce = FVector::ZeroVector;
+	FVector TargetDesiredVelocity = FVector::ZeroVector;
 
 	// 1. Calculate Hysteresis and Lengths
 	const float CurrentFeelerLength = bIsAvoiding ? (FeelerLength * HysteresisMultiplier) : FeelerLength;
@@ -342,9 +343,9 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 		};
 
 	// Accumulate repulsive forces from the primary horizontal feelers
-	TargetEvasionForce += ProcessFeeler(FeelerCenter, CurrentFeelerLength);
-	TargetEvasionForce += ProcessFeeler(FeelerLeft, SideFeelerLength);
-	TargetEvasionForce += ProcessFeeler(FeelerRight, SideFeelerLength);
+	TargetDesiredVelocity += ProcessFeeler(FeelerCenter, CurrentFeelerLength);
+	TargetDesiredVelocity += ProcessFeeler(FeelerLeft, SideFeelerLength);
+	TargetDesiredVelocity += ProcessFeeler(FeelerRight, SideFeelerLength);
 
 	// 3. 3D Vertical Awareness (Pitch Feelers)
 	// Only apply if we are not restricted to 2D and there is significant vertical movement.
@@ -376,37 +377,37 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 
 		// Accumulate forces from the vertical awareness feelers.
 		// We use slightly shorter lengths for the vertical ones to prevent them from hitting the ground too early when flying low.
-		TargetEvasionForce += ProcessFeeler(PitchedCenter, CurrentFeelerLength * 0.8f);
-		TargetEvasionForce += ProcessFeeler(PitchedLeft, SideFeelerLength * 0.8f);
-		TargetEvasionForce += ProcessFeeler(PitchedRight, SideFeelerLength * 0.8f);
+		TargetDesiredVelocity += ProcessFeeler(PitchedCenter, CurrentFeelerLength * 0.8f);
+		TargetDesiredVelocity += ProcessFeeler(PitchedLeft, SideFeelerLength * 0.8f);
+		TargetDesiredVelocity += ProcessFeeler(PitchedRight, SideFeelerLength * 0.8f);
 	}
 
 	// 4. Update Hysteresis State for the next frame
 	bIsAvoiding = bHitThisFrame;
 
 	// 5. Scale the target force to match steering agent standards
-	if (!TargetEvasionForce.IsNearlyZero())
+	if (!TargetDesiredVelocity.IsNearlyZero())
 	{
-		TargetEvasionForce.Normalize();
-		TargetEvasionForce *= MaxSpeed;
+		TargetDesiredVelocity.Normalize();
+		TargetDesiredVelocity *= MaxSpeed;
 	}
 
 	// 6. Apply conditional smoothing (Inertia/Decay)
 	if (ForceSmoothingSpeed > 0.0f && DeltaTime > 0.0f)
 	{
 		const float SmoothingSpeed = bIsAvoiding ? 2.0f * ForceSmoothingSpeed : ForceSmoothingSpeed;
-		LastSmoothedForce = FMath::VInterpTo(LastSmoothedForce, TargetEvasionForce, DeltaTime, SmoothingSpeed);
+		LastSmoothedVelocity = FMath::VInterpTo(LastSmoothedVelocity, TargetDesiredVelocity, DeltaTime, SmoothingSpeed);
 	}
 	else
 	{
-		LastSmoothedForce = TargetEvasionForce;
+		LastSmoothedVelocity = TargetDesiredVelocity;
 	}
 
-	if (bShowDebug && !LastSmoothedForce.IsNearlyZero())
+	if (bShowDebug && !LastSmoothedVelocity.IsNearlyZero())
 	{
-		const FVector SmoothedEnd = AgentPos + (LastSmoothedForce.GetSafeNormal() * 150.0f);
+		const FVector SmoothedEnd = AgentPos + (LastSmoothedVelocity.GetSafeNormal() * 150.0f);
 		DrawDebugLine(World, AgentPos, SmoothedEnd, FColor::Cyan, false, -1.0f, 0, 4.0f);
 	}
 
-	return LastSmoothedForce;
+	return LastSmoothedVelocity;
 }

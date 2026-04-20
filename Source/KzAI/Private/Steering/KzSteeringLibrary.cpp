@@ -21,7 +21,7 @@ FVector UKzSteeringLibrary::Arrive(const FVector& CurrentLocation, const FVector
 	const float Distance = ToTarget.Size();
 	if (Distance <= KINDA_SMALL_NUMBER)
 	{
-		return -CurrentVelocity;
+		return FVector::ZeroVector;
 	}
 
 	const float RampedSpeed = MaxSpeed * (Distance / FMath::Max(SlowingRadius, 1.0f));

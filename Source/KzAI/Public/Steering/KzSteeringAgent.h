@@ -36,9 +36,9 @@ public:
 	/** Optional: Returns the agent's forward direction. */
 	virtual FVector GetAgentDirection() const { return FVector::ForwardVector; }
 
-	/** 
-	 * Applies the calculated steering input to the agent.
-	 * @param InputVector The normalized or clamped input vector [-1.0, 1.0].
-	 */
+	/** Applies the calculated steering input (0.0 to 1.0 scale) to the agent's movement system. */
 	virtual void ApplySteeringInput(const FVector& InputVector) = 0;
+
+	/** Direct application of the raw steering force. */
+	virtual void ApplySteeringForce(const FVector& VelocityToApply) = 0;
 };

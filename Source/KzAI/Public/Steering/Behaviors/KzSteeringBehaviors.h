@@ -219,7 +219,7 @@ private:
 	UPROPERTY(Transient)
 	bool bIsAvoiding = false;
 
-	/** Stores the force applied in the previous frame to interpolate smoothly and prevent sharp turns. */
+	/** Stores the desired velocity applied in the previous frame to interpolate smoothly and prevent sharp turns. */
 	UPROPERTY(Transient)
-	FVector LastSmoothedForce = FVector::ZeroVector;
+	FVector LastSmoothedVelocity = FVector::ZeroVector;
 };

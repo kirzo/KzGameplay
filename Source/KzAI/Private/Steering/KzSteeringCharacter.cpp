@@ -25,20 +25,12 @@ FVector AKzSteeringCharacter::GetAgentVelocity() const
 
 float AKzSteeringCharacter::GetAgentMaxSpeed() const
 {
-	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-	{
-		return MoveComp->GetMaxSpeed();
-	}
-	return 0.0f;
+	return GetCharacterMovement() ? GetCharacterMovement()->GetMaxSpeed() : 0.0f;
 }
 
 float AKzSteeringCharacter::GetAgentMaxAcceleration() const
 {
-	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-	{
-		return MoveComp->GetMaxAcceleration();
-	}
-	return 0.0f;
+	return GetCharacterMovement() ? GetCharacterMovement()->GetMaxAcceleration() : 0.0f;
 }
 
 FVector AKzSteeringCharacter::GetAgentDirection() const
@@ -50,4 +42,9 @@ void AKzSteeringCharacter::ApplySteeringInput(const FVector& InputVector)
 {
 	// Route the steering force directly to Unreal's native movement system
 	AddMovementInput(InputVector);
+}
+
+void AKzSteeringCharacter::ApplySteeringForce(const FVector& VelocityToApply)
+{
+	GetCharacterMovement()->RequestDirectMove(VelocityToApply, false);
 }
