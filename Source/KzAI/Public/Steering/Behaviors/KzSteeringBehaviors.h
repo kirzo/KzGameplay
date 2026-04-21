@@ -173,13 +173,34 @@ public:
 
 	/** How far around the agent to look for potential collisions. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avoidance", meta = (ClampMin = "100.0"))
-	float SearchRadius = 800.0f;
+	float SearchRadius = 500.0f;
 
 	/** The time horizon (in seconds) to predict collisions. E.g., 2.0 means "will I hit something in the next 2 seconds?" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avoidance", meta = (ClampMin = "0.1"))
 	float MaxLookAheadTime = 2.0f;
 
+	/** Multiplier applied to LookAheadTime and AgentRadius while actively avoiding to prevent jitter (hysteresis). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avoidance", meta = (ClampMin = "1.0"))
+	float HysteresisMultiplier = 2.0f;
+
+	/** How quickly the avoidance force decays or adjusts to new obstacles. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avoidance", meta = (ClampMin = "0.0"))
+	float ForceSmoothingSpeed = 1.0f;
+
+	/** If true, draws the sensor radius and lines to detected neighbors. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avoidance|Debug")
+	bool bShowDebug = false;
+
 	virtual FVector ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime) override;
+
+private:
+	/** Tracks if the agent was avoiding an obstacle in the previous frame to apply hysteresis. */
+	UPROPERTY(Transient)
+	bool bIsAvoiding = false;
+
+	/** Stores the desired velocity applied in the previous frame to interpolate smoothly. */
+	UPROPERTY(Transient)
+	FVector LastSmoothedVelocity = FVector::ZeroVector;
 };
 
 UCLASS(DisplayName = "Obstacle Avoidance (Environment)")

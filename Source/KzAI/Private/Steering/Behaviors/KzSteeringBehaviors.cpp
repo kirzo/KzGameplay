@@ -8,6 +8,8 @@
 #include "Sensors/KzSpatialSenseSubsystem.h"
 #include "Sensors/KzSensableComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "Collision/KzRaycast.h"
+#include "Collision/KzHitResult.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 
@@ -203,7 +205,8 @@ FVector UKzSteeringBehavior_CollisionAvoidance::ComputeForce(const UKzSteeringCo
 {
 	if (AgentQuery.IsEmpty()) return FVector::ZeroVector;
 
-	UKzSpatialSenseSubsystem* SenseSubsystem = OwnerComponent->GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>();
+	UWorld* World = OwnerComponent->GetWorld();
+	UKzSpatialSenseSubsystem* SenseSubsystem = World->GetSubsystem<UKzSpatialSenseSubsystem>();
 	if (!SenseSubsystem) return FVector::ZeroVector;
 
 	const FVector AgentPos = Agent->GetAgentLocation();
@@ -211,28 +214,157 @@ FVector UKzSteeringBehavior_CollisionAvoidance::ComputeForce(const UKzSteeringCo
 	const float MaxSpeed = Agent->GetAgentMaxSpeed();
 	const float AgentRadius = Agent->GetAgentRadius();
 
+	// Apply hysteresis
+	const float CurrentLookAhead = bIsAvoiding ? (MaxLookAheadTime * HysteresisMultiplier) : MaxLookAheadTime;
+
 	FKzShapeInstance QuerySphere = FKzShapeInstance::Make<FKzSphere>(SearchRadius);
 	TArray<UKzSensableComponent*> Neighbors = SenseSubsystem->QuerySensables(QuerySphere, AgentPos, FQuat::Identity, AgentQuery);
 
-	TArray<FVector> NeighborLocations;
-	TArray<FVector> NeighborVelocities;
-	NeighborLocations.Reserve(Neighbors.Num());
-	NeighborVelocities.Reserve(Neighbors.Num());
+	if (bShowDebug && World)
+	{
+		DrawDebugSphere(World, AgentPos, SearchRadius, 16, FColor::Green, false, -1.0f, 0, 0.5f);
+	}
+
+	FVector TotalAvoidanceForce = FVector::ZeroVector;
+	bool bImminentCollision = false;
 
 	AActor* OwnerActor = Cast<AActor>(OwnerComponent->GetOwner());
 
+	// Evaluation loop
 	for (UKzSensableComponent* NeighborComp : Neighbors)
 	{
 		AActor* NeighborActor = NeighborComp->GetOwner();
 		if (!NeighborActor || NeighborActor == OwnerActor) continue;
 
-		NeighborLocations.Add(NeighborComp->GetShapeLocation());
-		NeighborVelocities.Add(NeighborActor->GetVelocity());
+		IKzSteeringAgent* NeighborAgent = Cast<IKzSteeringAgent>(NeighborActor);
+		if (!NeighborAgent) continue;
+
+		FVector NeighborLoc = NeighborAgent->GetAgentLocation();
+		FVector NeighborVel = NeighborAgent->GetAgentVelocity();
+
+		FVector MyLoc = AgentPos;
+		FVector MyVel = AgentVel;
+
+		const float CombinedRadius = AgentRadius + NeighborAgent->GetAgentRadius();
+		const float AvoidanceRadiusSq = CombinedRadius * CombinedRadius;
+
+		FVector RelPos = NeighborLoc - MyLoc;
+		const float DistSq = RelPos.SizeSquared();
+
+		// Panic overlap check
+		if (DistSq < AvoidanceRadiusSq && DistSq > UE_KINDA_SMALL_NUMBER)
+		{
+			bImminentCollision = true;
+			FVector RepulsionDir = -RelPos.GetSafeNormal();
+
+			if (RepulsionDir.IsNearlyZero())
+			{
+				float RandomZ = bForce2D ? 0.0f : FMath::RandRange(-1.f, 1.f);
+				RepulsionDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), RandomZ).GetSafeNormal();
+			}
+
+			if (bForce2D)
+			{
+				RepulsionDir.Z = 0.0f;
+				RepulsionDir.Normalize();
+			}
+
+			TotalAvoidanceForce += RepulsionDir * 2.0f;
+
+			if (bShowDebug && World)
+			{
+				DrawDebugLine(World, MyLoc, NeighborLoc, FColor::Red, false, -1.0f, 0, 3.0f);
+				DrawDebugString(World, MyLoc + FVector(0, 0, 50.0f), TEXT("Overlap panic"), nullptr, FColor::Red, 0.0f, true);
+			}
+			continue;
+		}
+
+		// Galilean relativity raycast
+		FVector RelVel = MyVel - NeighborVel;
+		float RelSpeedSq = RelVel.SizeSquared();
+
+		// Quick dot product check to see if we are actually moving towards the neighbor.
+		// If DotProduct <= 0, we are diverging or moving perfectly parallel, so no future collision is possible.
+		if (RelSpeedSq > UE_KINDA_SMALL_NUMBER && FVector::DotProduct(RelVel, RelPos) > 0.0f)
+		{
+			float RelSpeed = FMath::Sqrt(RelSpeedSq);
+			float RayLength = RelSpeed * CurrentLookAhead;
+			FVector RayDir = RelVel / RelSpeed;
+
+			FKzHitResult FakeHit;
+
+			if (Kz::Raycast::Sphere(FakeHit, NeighborLoc, CombinedRadius, MyLoc, RayDir, RayLength))
+			{
+				bImminentCollision = true;
+
+				FVector ImpactNormal = FakeHit.Normal;
+				FVector ParallelDir = FVector::VectorPlaneProject(MyVel.GetSafeNormal(), ImpactNormal).GetSafeNormal();
+
+				// Symmetry breaker
+				if (ParallelDir.IsNearlyZero())
+				{
+					if (bForce2D)
+					{
+						FVector ForwardDir = MyVel.GetSafeNormal();
+						ParallelDir = FVector(-ForwardDir.Y, ForwardDir.X, 0.0f);
+					}
+					else
+					{
+						ParallelDir = FVector::CrossProduct(MyVel.GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+					}
+
+					if (FMath::RandBool())
+					{
+						ParallelDir *= -1.0f;
+					}
+				}
+
+				float DistanceRatio = 1.0f - (FakeHit.Distance / RayLength);
+				FVector Repulsion = FMath::Lerp(ParallelDir, ImpactNormal, DistanceRatio);
+
+				if (bForce2D)
+				{
+					Repulsion.Z = 0.0f;
+				}
+
+				TotalAvoidanceForce += Repulsion.GetSafeNormal() * DistanceRatio;
+
+				if (bShowDebug && World)
+				{
+					FVector RayEnd = MyLoc + (RayDir * RayLength);
+
+					DrawDebugLine(World, MyLoc, RayEnd, FColor::Cyan, false, -1.0f, 0, 1.0f);
+					DrawDebugSphere(World, FakeHit.Location, 10.0f, 8, FColor::Red, false, -1.0f, 0, 1.0f);
+					DrawDebugLine(World, FakeHit.Location, FakeHit.Location + (ImpactNormal * 50.0f), FColor::Orange, false, -1.0f, 0, 2.0f);
+					DrawDebugLine(World, MyLoc, MyLoc + (Repulsion.GetSafeNormal() * 150.0f), FColor::Yellow, false, -1.0f, 0, 3.0f);
+				}
+			}
+		}
 	}
 
-	if (NeighborLocations.IsEmpty()) return FVector::ZeroVector;
+	FVector TargetDesiredVelocity = FVector::ZeroVector;
 
-	return UKzSteeringLibrary::CollisionAvoidance(AgentPos, AgentVel, AgentRadius, NeighborLocations, NeighborVelocities, MaxLookAheadTime, MaxSpeed, bForce2D);
+	// Resolve final force
+	if (bImminentCollision && !TotalAvoidanceForce.IsNearlyZero())
+	{
+		TargetDesiredVelocity = TotalAvoidanceForce.GetSafeNormal() * MaxSpeed;
+	}
+
+	// Update hysteresis state
+	bIsAvoiding = !TargetDesiredVelocity.IsNearlyZero();
+
+	// Apply conditional smoothing
+	if (ForceSmoothingSpeed > 0.0f && DeltaTime > 0.0f)
+	{
+		const float SmoothingSpeed = bIsAvoiding ? 2.0f * ForceSmoothingSpeed : ForceSmoothingSpeed;
+		LastSmoothedVelocity = FMath::VInterpTo(LastSmoothedVelocity, TargetDesiredVelocity, DeltaTime, SmoothingSpeed);
+	}
+	else
+	{
+		LastSmoothedVelocity = TargetDesiredVelocity;
+	}
+
+	return LastSmoothedVelocity;
 }
 
 FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringComponent* OwnerComponent, const IKzSteeringAgent* Agent, float DeltaTime)
