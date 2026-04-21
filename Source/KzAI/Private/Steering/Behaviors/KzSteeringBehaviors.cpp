@@ -7,6 +7,7 @@
 #include "Actors/KzAreaNetwork.h"
 #include "Sensors/KzSpatialSenseSubsystem.h"
 #include "Sensors/KzSensableComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 
@@ -248,6 +249,13 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 	const FVector AgentVel = Agent->GetAgentVelocity();
 	const float MaxSpeed = Agent->GetAgentMaxSpeed();
 
+	// Extract the exact Collision Profile Name from the Agent's Root Component.
+	FName AgentCollisionProfile = UCollisionProfile::Pawn_ProfileName;
+	if (UPrimitiveComponent* PrimitiveComp = Cast<UPrimitiveComponent>(OwnerActor->GetRootComponent()))
+	{
+		AgentCollisionProfile = PrimitiveComp->GetCollisionProfileName();
+	}
+
 	// Use a slightly smaller radius than the actual agent to allow tight navigation without scraping.
 	const float FeelerRadius = FMath::Max(10.0f, Agent->GetAgentRadius() * 0.8f);
 
@@ -262,12 +270,12 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 
 	FVector TargetDesiredVelocity = FVector::ZeroVector;
 
-	// 1. Calculate Hysteresis and Lengths
+	// Calculate Hysteresis and Lengths
 	const float CurrentFeelerLength = bIsAvoiding ? (FeelerLength * HysteresisMultiplier) : FeelerLength;
 	const float SafeAngle = FMath::Clamp(FeelerAngle, 1.0f, 89.0f);
 	const float SideFeelerLength = CurrentFeelerLength / FMath::Cos(FMath::DegreesToRadians(SafeAngle));
 
-	// 2. Define standard horizontal feeler directions (Center, Left, Right)
+	// Define standard horizontal feeler directions (Center, Left, Right)
 	const FVector FeelerCenter = AgentDir;
 	const FVector FeelerLeft = AgentDir.RotateAngleAxis(-SafeAngle, FVector::UpVector);
 	const FVector FeelerRight = AgentDir.RotateAngleAxis(SafeAngle, FVector::UpVector);
@@ -284,7 +292,7 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 			const FVector End = AgentPos + (Direction * Length);
 
 			// Use Sweep instead of LineTrace to give the feeler "thickness" and prevent jitter.
-			if (World->SweepSingleByChannel(Hit, AgentPos, End, FQuat::Identity, TraceChannel, FeelerShape, TraceParams))
+			if (World->SweepSingleByProfile(Hit, AgentPos, End, FQuat::Identity, AgentCollisionProfile, FeelerShape, TraceParams))
 			{
 				bHitThisFrame = true;
 
@@ -347,7 +355,7 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 	TargetDesiredVelocity += ProcessFeeler(FeelerLeft, SideFeelerLength);
 	TargetDesiredVelocity += ProcessFeeler(FeelerRight, SideFeelerLength);
 
-	// 3. 3D Vertical Awareness (Pitch Feelers)
+	// 3D Vertical Awareness (Pitch Feelers)
 	// Only apply if we are not restricted to 2D and there is significant vertical movement.
 	if (!bForce2D && FMath::Abs(AgentVel.Z) > 10.0f)
 	{
@@ -382,17 +390,17 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 		TargetDesiredVelocity += ProcessFeeler(PitchedRight, SideFeelerLength * 0.8f);
 	}
 
-	// 4. Update Hysteresis State for the next frame
+	// Update Hysteresis State for the next frame
 	bIsAvoiding = bHitThisFrame;
 
-	// 5. Scale the target force to match steering agent standards
+	// Scale the target force to match steering agent standards
 	if (!TargetDesiredVelocity.IsNearlyZero())
 	{
 		TargetDesiredVelocity.Normalize();
 		TargetDesiredVelocity *= MaxSpeed;
 	}
 
-	// 6. Apply conditional smoothing (Inertia/Decay)
+	// Apply conditional smoothing (Inertia/Decay)
 	if (ForceSmoothingSpeed > 0.0f && DeltaTime > 0.0f)
 	{
 		const float SmoothingSpeed = bIsAvoiding ? 2.0f * ForceSmoothingSpeed : ForceSmoothingSpeed;

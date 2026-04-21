@@ -204,10 +204,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn, ClampMin = "0.0"))
 	float ForceSmoothingSpeed = 4.0f;
 
-	/** Collision channel to trace against (typically static geometry). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance", meta = (ExposeOnSpawn))
-	TEnumAsByte<ECollisionChannel> TraceChannel = ECC_WorldStatic;
-
 	/** If true, draws debug lines for the feelers in the viewport to visualize hits and repulsive forces. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Obstacle Avoidance|Debug")
 	bool bShowDebug = false;
