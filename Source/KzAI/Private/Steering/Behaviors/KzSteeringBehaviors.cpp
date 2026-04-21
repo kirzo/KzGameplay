@@ -205,12 +205,17 @@ FVector UKzSteeringBehavior_CollisionAvoidance::ComputeForce(const UKzSteeringCo
 {
 	if (AgentQuery.IsEmpty()) return FVector::ZeroVector;
 
+	const FVector AgentPos = Agent->GetAgentLocation();
+	const FVector AgentVel = Agent->GetAgentVelocity();
+	if (AgentVel.IsNearlyZero())
+	{
+		return FVector::ZeroVector;
+	}
+
 	UWorld* World = OwnerComponent->GetWorld();
 	UKzSpatialSenseSubsystem* SenseSubsystem = World->GetSubsystem<UKzSpatialSenseSubsystem>();
 	if (!SenseSubsystem) return FVector::ZeroVector;
 
-	const FVector AgentPos = Agent->GetAgentLocation();
-	const FVector AgentVel = Agent->GetAgentVelocity();
 	const float MaxSpeed = Agent->GetAgentMaxSpeed();
 	const float AgentRadius = Agent->GetAgentRadius();
 
@@ -379,6 +384,11 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 
 	const FVector AgentPos = Agent->GetAgentLocation();
 	const FVector AgentVel = Agent->GetAgentVelocity();
+	if (AgentVel.IsNearlyZero())
+	{
+		return FVector::ZeroVector;
+	}
+
 	const float MaxSpeed = Agent->GetAgentMaxSpeed();
 
 	// Extract the exact Collision Profile Name from the Agent's Root Component.
@@ -392,7 +402,7 @@ FVector UKzSteeringBehavior_ObstacleAvoidance::ComputeForce(const UKzSteeringCom
 	const float FeelerRadius = FMath::Max(10.0f, Agent->GetAgentRadius() * 0.8f);
 
 	// Use velocity direction if moving, otherwise fallback to actor's forward vector.
-	FVector AgentDir = AgentVel.IsNearlyZero() ? OwnerActor->GetActorForwardVector() : AgentVel.GetSafeNormal();
+	FVector AgentDir = AgentVel.GetSafeNormal();
 
 	if (bForce2D)
 	{
