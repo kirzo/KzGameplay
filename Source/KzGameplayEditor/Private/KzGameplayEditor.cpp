@@ -9,7 +9,7 @@
 #include "Equipment/KzEquipmentLayout.h"
 #include "Input/KzInputProfile.h"
 
-#include "Editors/KzItemDefinitionEditor.h"
+#include "Editors/KzArrayAssetEditor.h"
 
 #define LOCTEXT_NAMESPACE "FKzGameplayEditorModule"
 
@@ -17,7 +17,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 {
 	FKzGameplayEditorStyle::Initialize();
 
-	RegisterAssetTypeAction<UKzItemDefinition, FKzItemDefinitionEditor>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), { INVTEXT("Gameplay") });
+	RegisterAssetTypeAction<UKzItemDefinition, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), { INVTEXT("Gameplay") }, GET_MEMBER_NAME_CHECKED(UKzItemDefinition, Fragments), INVTEXT("Fragment"));
 	RegisterAssetTypeAction<UKzEquipmentLayout>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), { INVTEXT("Gameplay") });
 	RegisterAssetTypeAction<UKzInputProfile>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") });
 }
