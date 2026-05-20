@@ -381,33 +381,31 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 						OldPhysicalActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 					}
 
-					// ==========================================
-					// Safe drop
-					AActor* OwnerActor = GetOwner();
+					// Safe drop: push the dropped item clear of the character so it doesn't
+					// spawn inside the capsule. Custom-attachment items manage their own
+					// placement, so we must not relocate them.
+					if (!EquipFrag || !EquipFrag->bUseCustomAttachment)
+					{
+						AActor* OwnerActor = GetOwner();
 
-					// 1. Get Character's capsule radius
-					const float OwnerRadius = OwnerActor->GetSimpleCollisionRadius();
+						const float OwnerRadius = OwnerActor->GetSimpleCollisionRadius();
 
-					// 2. Get Item's bounding box (true = only collidable components)
-					FVector ItemOrigin, ItemExtent;
-					OldPhysicalActor->GetActorBounds(true, ItemOrigin, ItemExtent);
+						FVector ItemOrigin, ItemExtent;
+						OldPhysicalActor->GetActorBounds(true, ItemOrigin, ItemExtent);
 
-					// 3. Calculate safe push distance (Owner radius + Max Item Size + 5cm margin)
-					const float SafeDistance = OwnerRadius + ItemExtent.GetMax() + 5.0f;
+						const float SafeDistance = OwnerRadius + ItemExtent.GetMax() + 5.0f;
 
-					// 4. Calculate the drop location in front of the character
-					FVector OwnerLoc = OwnerActor->GetActorLocation();
-					FVector ForwardDir = OwnerActor->GetActorForwardVector();
+						FVector OwnerLoc = OwnerActor->GetActorLocation();
+						FVector ForwardDir = OwnerActor->GetActorForwardVector();
 
-					// We keep the current Z (height) so it falls naturally from the hand socket, 
-					// but we push it away in the XY plane.
-					FVector DropLocation = OldPhysicalActor->GetActorLocation();
-					DropLocation.X = OwnerLoc.X + (ForwardDir.X * SafeDistance);
-					DropLocation.Y = OwnerLoc.Y + (ForwardDir.Y * SafeDistance);
+						// Keep the current Z so it falls naturally from the hand socket, but
+						// push it away in the XY plane before re-enabling collisions.
+						FVector DropLocation = OldPhysicalActor->GetActorLocation();
+						DropLocation.X = OwnerLoc.X + (ForwardDir.X * SafeDistance);
+						DropLocation.Y = OwnerLoc.Y + (ForwardDir.Y * SafeDistance);
 
-					// Teleport the item to the safe spot BEFORE re-enabling collisions
-					OldPhysicalActor->SetActorLocation(DropLocation, false, nullptr, ETeleportType::TeleportPhysics);
-					// ==========================================
+						OldPhysicalActor->SetActorLocation(DropLocation, false, nullptr, ETeleportType::TeleportPhysics);
+					}
 
 					if (UPrimitiveComponent* OwnerPrim = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
 					{
