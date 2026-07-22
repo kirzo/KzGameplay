@@ -16,11 +16,11 @@ const FKzInputAction* UKzInputProfile::FindActionConfigForTag(const FGameplayTag
 
 const UInputAction* UKzInputProfile::FindNativeInputActionForTag(const FGameplayTag& InputTag, bool bLogNotFound) const
 {
-	for (const FKzInputAction& Action : InputActions)
+	if (const FKzInputAction* Action = FindActionConfigForTag(InputTag))
 	{
-		if (Action.InputAction && Action.InputTag == InputTag)
+		if (Action->InputAction)
 		{
-			return Action.InputAction;
+			return Action->InputAction;
 		}
 	}
 

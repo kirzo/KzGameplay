@@ -5,10 +5,19 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
-#include "InputTriggers.h"
 #include "KzInputProfile.generated.h"
 
 class UInputAction;
+
+/** Defines how the handler routes an input action's events. */
+UENUM(BlueprintType)
+enum class EKzInputRouting : uint8
+{
+	/** Digital: Started/Completed drive GAS input tags, plus optional gameplay events. */
+	Ability,
+	/** Analog: value runs through the modifier stack and broadcasts on OnInputAxis across its lifecycle (Started/Triggered/Completed/Canceled). */
+	Analog
+};
 
 /**
  * Struct used to map an Enhanced Input Action to a Gameplay Tag.
@@ -27,22 +36,22 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Categories = "Input"))
 	FGameplayTag InputTag;
 
-	/** Bitmask to define which trigger states we want to listen to for this action. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Bitmask, BitmaskEnum = "/Script/EnhancedInput.ETriggerEvent"))
-	int32 TriggerEvents = uint8(ETriggerEvent::Started) | uint8(ETriggerEvent::Completed);
+	/** How the handler routes this action: as a digital ability input, or as an analog value. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	EKzInputRouting Routing = EKzInputRouting::Ability;
 
 	/** Gameplay Event sent to the ASC when this action Starts. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events", meta = (EditCondition = "Routing == EKzInputRouting::Ability"))
 	FGameplayTag OnStartedEvent;
 
 	/** Gameplay Event sent to the ASC when this action Completes or Cancels. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events", meta = (EditCondition = "Routing == EKzInputRouting::Ability"))
 	FGameplayTag OnCompletedEvent;
 };
 
 /**
- * Data Asset that contains a collection of Input Actions mapped to Gameplay Tags.
- * Swap these profiles at runtime to completely change the control scheme.
+ * Data Asset mapping Enhanced Input Actions to Gameplay Tags and defining how each is routed.
+ * This is a routing table only; it does not own the key bindings (those live in the Input Mapping Context).
  */
 UCLASS(BlueprintType, Const)
 class KZGAMEPLAY_API UKzInputProfile : public UPrimaryDataAsset

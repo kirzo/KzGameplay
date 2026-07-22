@@ -11,13 +11,6 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 		return CurrentInput;
 	}
 
-	UWorld* World = Avatar->GetWorld();
-	if (!World)
-	{
-		return CurrentInput;
-	}
-
-	const float DeltaTime = Avatar->GetActorTimeDilation() * World->GetDeltaSeconds();
 	const FVector AnchorVelocity = AnchorSource.GetVelocity();
 	const FVector AvatarVelocity = Avatar->GetVelocity();
 

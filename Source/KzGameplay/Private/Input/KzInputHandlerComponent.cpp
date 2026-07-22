@@ -82,35 +82,24 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 	// 2. Bind new actions and store their handles
 	for (const FKzInputAction& Action : ActiveInputProfile->InputActions)
 	{
-		if (Action.InputAction && Action.InputTag.IsValid())
+		if (!Action.InputAction || !Action.InputTag.IsValid())
 		{
-			const ETriggerEvent TiggerMask = static_cast<ETriggerEvent>(Action.TriggerEvents);
+			continue;
+		}
 
-			// Convert our Bitmask into a list of actual Unreal Trigger Events
-			TArray<ETriggerEvent> ActiveTriggers;
-			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Triggered)) ActiveTriggers.Add(ETriggerEvent::Triggered);
-			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Started)) ActiveTriggers.Add(ETriggerEvent::Started);
-			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Ongoing)) ActiveTriggers.Add(ETriggerEvent::Ongoing);
-			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Canceled)) ActiveTriggers.Add(ETriggerEvent::Canceled);
-			if (EnumHasAnyFlags(TiggerMask, ETriggerEvent::Completed)) ActiveTriggers.Add(ETriggerEvent::Completed);
-
-			for (ETriggerEvent Trigger : ActiveTriggers)
+		if (Action.Routing == EKzInputRouting::Ability)
+		{
+			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Started, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag, Action.OnStartedEvent).GetHandle());
+			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Completed, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
+			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Canceled, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
+		}
+		else
+		{
+			// Broadcast across the analog lifecycle so consumers can detect begin (Started),
+			// per-frame updates (Triggered), and end (Completed/Canceled) via the delegate's phase.
+			for (ETriggerEvent Phase : { ETriggerEvent::Started, ETriggerEvent::Triggered, ETriggerEvent::Completed, ETriggerEvent::Canceled })
 			{
-				if (Trigger == ETriggerEvent::Started)
-				{
-					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag, Action.OnStartedEvent);
-					BindHandles.Add(Bind.GetHandle());
-				}
-				else if (Trigger == ETriggerEvent::Completed || Trigger == ETriggerEvent::Canceled)
-				{
-					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent);
-					BindHandles.Add(Bind.GetHandle());
-				}
-				else if (Trigger == ETriggerEvent::Triggered)
-				{
-					FEnhancedInputActionEventBinding& Bind = EnhancedInput->BindAction(Action.InputAction, Trigger, this, &UKzInputHandlerComponent::Input_Axis, Action.InputTag, Trigger);
-					BindHandles.Add(Bind.GetHandle());
-				}
+				BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, Phase, this, &UKzInputHandlerComponent::Input_Axis, Action.InputTag, Phase).GetHandle());
 			}
 		}
 	}
