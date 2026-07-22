@@ -22,9 +22,14 @@ void FKzGameplayEditorModule::OnStartupModule()
 		GET_MEMBER_NAME_CHECKED(UKzItemDefinition, Fragments),
 		INVTEXT("Fragment")));
 
+	TArray<FKzArrayEditorTabConfig> InputTabs;
+	InputTabs.Add(FKzArrayEditorTabConfig(
+		GET_MEMBER_NAME_CHECKED(UKzInputProfile, InputActions),
+		INVTEXT("Action")));
+
 	RegisterAssetTypeAction<UKzItemDefinition, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), { INVTEXT("Gameplay") }, ItemTabs);
 	RegisterAssetTypeAction<UKzEquipmentLayout>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), { INVTEXT("Gameplay") });
-	RegisterAssetTypeAction<UKzInputProfile>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") });
+	RegisterAssetTypeAction<UKzInputProfile, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") }, InputTabs);
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
