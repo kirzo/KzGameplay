@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "Spatial/KzSpatialHashGrid.h"
+#include "Spatial/KzSpatialRegistry.h"
 #include "Sensors/KzSensableComponent.h"
 #include "GameplayTagContainer.h"
 #include "KzSpatialSenseSubsystem.generated.h"
@@ -22,33 +22,7 @@ struct FKzSensableGridSemantics
 	static FVector GetElementPosition(const UKzSensableComponent* E);
 	static FKzShapeInstance GetShape(const UKzSensableComponent* E);
 	static FQuat GetElementRotation(const UKzSensableComponent* E);
-};
-
-/** Tracks the state of a dynamic sensable to detect movements and update the grid efficiently. */
-struct FDynamicSensableTrack
-{
-	UKzSensableComponent* Component = nullptr;
-	FBox LastBounds = FBox(EForceInit::ForceInit);
-
-	FDynamicSensableTrack() {}
-	FDynamicSensableTrack(UKzSensableComponent* InComp)
-		: Component(InComp)
-	{
-		if (InComp)
-		{
-			LastBounds = InComp->GetBounds();
-		}
-	}
-
-	bool operator==(const FDynamicSensableTrack& Other) const
-	{
-		return Component == Other.Component;
-	}
-
-	bool operator!=(const FDynamicSensableTrack& Other) const
-	{
-		return Component != Other.Component;
-	}
+	static bool IsDynamic(const UKzSensableComponent* E);
 };
 
 /**
@@ -64,18 +38,8 @@ private:
 	/** Cell size used for the grid. Can be tuned based on typical sensor ranges. */
 	float GridCellSize = 500.0f;
 
-	/** Grid for objects that never move (e.g. traps, puzzle elements). Zero CPU cost per frame. */
-	Kz::TSpatialHashGrid<UKzSensableComponent*, FKzSensableGridSemantics> StaticGrid;
-
-	/** Grid for objects that move (e.g. NPCs, projectiles, physics items). */
-	Kz::TSpatialHashGrid<UKzSensableComponent*, FKzSensableGridSemantics> DynamicGrid;
-
-	/** Fast O(1) lookup to prevent duplicate registrations and manage state safely. */
-	UPROPERTY(Transient)
-	TSet<TObjectPtr<UKzSensableComponent>> RegisteredComponents;
-
-	/** Dense array tracking dynamic elements to update them automatically when they move. */
-	TArray<FDynamicSensableTrack> DynamicSensables;
+	/** Dual static/dynamic spatial registry of all sensables. */
+	Kz::TSpatialRegistry<UKzSensableComponent*, FKzSensableGridSemantics> Registry;
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -109,8 +73,8 @@ public:
 	TArray<UKzSensableComponent*> QuerySensables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FGameplayTagQuery& TagQuery) const;
 
 	/** Returns all registered sensables in the world. */
-	const TSet<TObjectPtr<UKzSensableComponent>>& GetAllRegisteredSensables() const
+	const TSet<UKzSensableComponent*>& GetAllRegisteredSensables() const
 	{
-		return RegisteredComponents;
+		return Registry.GetRegistered();
 	}
 };

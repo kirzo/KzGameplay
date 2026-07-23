@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "Spatial/KzSpatialHashGrid.h"
+#include "Spatial/KzSpatialRegistry.h"
 #include "Interaction/KzInteractableComponent.h"
 #include "KzInteractionSubsystem.generated.h"
 
@@ -19,30 +19,7 @@ struct FInteractionGridSemantics
 	static FVector GetElementPosition(const UKzInteractableComponent* E);
 	static FKzShapeInstance GetShape(const UKzInteractableComponent* E);
 	static FQuat GetElementRotation(const UKzInteractableComponent* E);
-};
-
-/** Tracks the state of a dynamic interactable to detect movements and update the grid efficiently. */
-struct FDynamicInteractableTrack
-{
-	UKzInteractableComponent* Component = nullptr;
-	FBox LastBounds = FBox(EForceInit::ForceInit);
-
-	FDynamicInteractableTrack() {}
-	FDynamicInteractableTrack(UKzInteractableComponent* InComp)
-		: Component(InComp)
-	{
-		LastBounds = FInteractionGridSemantics::GetBoundingBox(InComp);
-	}
-
-	bool operator==(const FDynamicInteractableTrack& Other) const
-	{
-		return Component == Other.Component;
-	}
-
-	bool operator!=(const FDynamicInteractableTrack& Other) const
-	{
-		return Component != Other.Component;
-	}
+	static bool IsDynamic(const UKzInteractableComponent* E);
 };
 
 /**
@@ -58,18 +35,8 @@ private:
 	/** Cell size used for the grid. Can be tuned based on typical interaction ranges. */
 	float GridCellSize = 200.0f;
 
-	/** Grid for objects that never move (Doors, Chests, Plants). Zero CPU cost per frame. */
-	Kz::TSpatialHashGrid<UKzInteractableComponent*, FInteractionGridSemantics> StaticGrid;
-
-	/** Grid for objects that move (NPCs, Physics Items). */
-	Kz::TSpatialHashGrid<UKzInteractableComponent*, FInteractionGridSemantics> DynamicGrid;
-
-	/** Fast O(1) lookup to prevent duplicate registrations and manage state safely. */
-	UPROPERTY(Transient)
-	TSet<TObjectPtr<UKzInteractableComponent>> RegisteredComponents;
-
-	/** Dense array tracking dynamic elements to update them automatically when they move. */
-	TArray<FDynamicInteractableTrack> DynamicInteractables;
+	/** Dual static/dynamic spatial registry of all interactables. */
+	Kz::TSpatialRegistry<UKzInteractableComponent*, FInteractionGridSemantics> Registry;
 
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -101,8 +68,8 @@ public:
 	TArray<UKzInteractableComponent*> QueryInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const;
 
 	/** Returns all registered interactables in the world. */
-	const TSet<TObjectPtr<UKzInteractableComponent>>& GetAllRegisteredInteractables() const
+	const TSet<UKzInteractableComponent*>& GetAllRegisteredInteractables() const
 	{
-		return RegisteredComponents;
+		return Registry.GetRegistered();
 	}
 };

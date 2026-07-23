@@ -54,7 +54,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 	{
 		if (UKzInteractionSubsystem* Subsystem = World->GetSubsystem<UKzInteractionSubsystem>())
 		{
-			const TSet<TObjectPtr<UKzInteractableComponent>>& AllInteractables = Subsystem->GetAllRegisteredInteractables();
+			const TSet<UKzInteractableComponent*>& AllInteractables = Subsystem->GetAllRegisteredInteractables();
 
 			CanvasContext.Printf(TEXT("{cyan}Global Registered Interactables: {yellow}%d"), AllInteractables.Num());
 
