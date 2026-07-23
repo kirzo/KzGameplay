@@ -21,10 +21,44 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemBlueprintLibrary.h"
 
+// =================================================================
+// FAST ARRAY CALLBACKS (client-side)
+// =================================================================
+
+void FEquippedSlot::PostReplicatedAdd(const FKzEquipmentList& InArraySerializer)
+{
+	if (InArraySerializer.OwnerComponent)
+	{
+		InArraySerializer.OwnerComponent->HandleSlotAdded(*this);
+	}
+}
+
+void FEquippedSlot::PostReplicatedChange(const FKzEquipmentList& InArraySerializer)
+{
+	if (InArraySerializer.OwnerComponent)
+	{
+		InArraySerializer.OwnerComponent->HandleSlotUpdated(*this);
+	}
+}
+
+void FEquippedSlot::PreReplicatedRemove(const FKzEquipmentList& InArraySerializer)
+{
+	if (InArraySerializer.OwnerComponent)
+	{
+		InArraySerializer.OwnerComponent->ClearVisualForSlot(*this);
+	}
+}
+
+// =================================================================
+// COMPONENT
+// =================================================================
+
 UKzEquipmentComponent::UKzEquipmentComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+
+	EquipmentList.OwnerComponent = this;
 
 	OnItemEquippedAction.AddContextProperty<AActor*>(TEXT("Instigator"));
 	OnItemEquippedAction.AddContextProperty<UKzEquipmentComponent*>(TEXT("Equipment"));
@@ -42,7 +76,7 @@ void UKzEquipmentComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	// Unlike the Inventory, equipment is usually visible to everyone (COND_None).
-	DOREPLIFETIME(UKzEquipmentComponent, EquippedSlots);
+	DOREPLIFETIME(UKzEquipmentComponent, EquipmentList);
 }
 
 void UKzEquipmentComponent::BeginPlay()
@@ -59,54 +93,129 @@ void UKzEquipmentComponent::InitializeEquipment(const UKzEquipmentLayout* Layout
 {
 	if (!Layout) return;
 
-	EquippedSlots.Empty();
+	EquipmentList.Slots.Empty();
 
 	TArray<FKzEquipmentSlotDefinition> AllSlots;
 	Layout->GetAllSlotDefinitions(AllSlots);
 
 	for (const FKzEquipmentSlotDefinition& SlotDef : AllSlots)
 	{
-		EquippedSlots.Add(FEquippedSlot(SlotDef.SlotID));
+		EquipmentList.Slots.Add(FEquippedSlot(SlotDef.SlotID));
+	}
+
+	EquipmentList.MarkArrayDirty();
+}
+
+void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
+{
+	// Drop any existing local visual first, so swaps recreate cleanly.
+	ClearVisualForSlot(Slot);
+
+	// Dedicated servers render nothing, so skip the cosmetic mesh there.
+	if (GetWorld() && GetWorld()->GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+
+	if (!Slot.Instance.IsValid())
+	{
+		return;
+	}
+
+	const UKzItemFragment_Equippable* EquipFrag = Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+	if (!EquipFrag || EquipFrag->EquipmentSpawnMode != EKzEquipmentSpawnMode::SpawnMesh)
+	{
+		return;
+	}
+
+	USkeletalMeshComponent* OwnerMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
+	if (!OwnerMesh)
+	{
+		return;
+	}
+
+	FName AttachmentSocket = EquipFrag->SocketOverride;
+	if (AttachmentSocket.IsNone() && DefaultLayout)
+	{
+		AttachmentSocket = DefaultLayout->GetSocketForSlot(Slot.SlotID);
+	}
+
+	UMeshComponent* NewMesh = nullptr;
+	if (UStreamableRenderAsset* LoadedMesh = EquipFrag->EquipmentMesh.LoadSynchronous())
+	{
+		if (UStaticMesh* AsStaticMesh = Cast<UStaticMesh>(LoadedMesh))
+		{
+			UStaticMeshComponent* NewSMC = NewObject<UStaticMeshComponent>(GetOwner());
+			NewSMC->SetStaticMesh(AsStaticMesh);
+			NewMesh = NewSMC;
+		}
+		else if (USkeletalMesh* AsSkeletalMesh = Cast<USkeletalMesh>(LoadedMesh))
+		{
+			USkeletalMeshComponent* NewSKMC = NewObject<USkeletalMeshComponent>(GetOwner());
+			NewSKMC->SetSkeletalMesh(AsSkeletalMesh);
+			NewMesh = NewSKMC;
+		}
+	}
+
+	if (NewMesh)
+	{
+		NewMesh->RegisterComponent();
+		NewMesh->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
+		NewMesh->SetRelativeTransform(EquipFrag->AttachmentOffset);
+
+		if (EquipFrag->bDisableCollisionOnEquip)
+		{
+			NewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+
+		Slot.Instance.SpawnedComponent = NewMesh;
 	}
 }
 
-void UKzEquipmentComponent::OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEquippedSlots)
+void UKzEquipmentComponent::ClearVisualForSlot(FEquippedSlot& Slot)
 {
-	for (const FEquippedSlot& NewSlot : EquippedSlots)
+	if (Slot.Instance.SpawnedComponent)
 	{
-		const FEquippedSlot* OldSlotPtr = OldEquippedSlots.FindByPredicate([&NewSlot](const FEquippedSlot& OldSlot)
-			{
-				return OldSlot.SlotID == NewSlot.SlotID;
-			});
+		Slot.Instance.SpawnedComponent->DestroyComponent();
+		Slot.Instance.SpawnedComponent = nullptr;
+	}
+}
 
-		// If it's a completely new slot (rare) or the item inside has changed
-		if (!OldSlotPtr || OldSlotPtr->Instance.SpawnedActor != NewSlot.Instance.SpawnedActor || OldSlotPtr->Instance.ItemDef != NewSlot.Instance.ItemDef)
-		{
-			// 1. If there was an old item, it means we dropped or replaced it
-			if (OldSlotPtr && OldSlotPtr->Instance.IsValid())
-			{
-				OnItemUnequipped.Broadcast(NewSlot.SlotID, OldSlotPtr->Instance);
-			}
+void UKzEquipmentComponent::HandleSlotAdded(FEquippedSlot& Slot)
+{
+	RefreshVisualForSlot(Slot);
 
-			// 2. If there is a new item in the slot, we just equipped it
-			if (NewSlot.Instance.IsValid())
-			{
-				OnItemEquipped.Broadcast(NewSlot.SlotID, NewSlot.Instance);
-			}
-		}
+	// Only announce non-empty slots on initial replication (late joiners); empty slots stay silent.
+	if (Slot.Instance.IsValid())
+	{
+		OnItemEquipped.Broadcast(Slot.SlotID, Slot.Instance);
+	}
+}
+
+void UKzEquipmentComponent::HandleSlotUpdated(FEquippedSlot& Slot)
+{
+	RefreshVisualForSlot(Slot);
+
+	if (Slot.Instance.IsValid())
+	{
+		OnItemEquipped.Broadcast(Slot.SlotID, Slot.Instance);
+	}
+	else
+	{
+		OnItemUnequipped.Broadcast(Slot.SlotID, Slot.Instance);
 	}
 }
 
 bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid()) return false;
+	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid() || !DefaultLayout) return false;
 
 	const UKzItemFragment_Equippable* EquipFrag = ItemToEquip.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
 	if (!EquipFrag) return false; // Not equippable!
 
 	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(EquipFrag->TargetSlot);
 
-	for (FEquippedSlot& Slot : EquippedSlots)
+	for (FEquippedSlot& Slot : EquipmentList.Slots)
 	{
 		if (Slot.SlotID == TargetSlot)
 		{
@@ -114,7 +223,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			{
 				UnequipItem(TargetSlot, OutUnequippedItem);
 			}
-			
+
 			// Assign the new item to the slot
 			Slot.Instance = ItemToEquip;
 
@@ -128,44 +237,15 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 
 			UKzItemComponent* ItemComp = nullptr;
 
-			// MeshComponent (Cosmetics, simple items)
+			// MeshComponent (Cosmetics, simple items): the visual is a local component
+			// created per-machine by RefreshVisualForSlot, not a replicated actor.
 			if (EquipFrag->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
 			{
-				// 1. Destroy the world actor if the item came from the ground
+				// Destroy the world actor if the item came from the ground.
 				if (AActor* PhysicalActor = Slot.Instance.SpawnedActor)
 				{
 					PhysicalActor->Destroy();
 					Slot.Instance.SpawnedActor = nullptr;
-				}
-
-				// 2. Create the proper Mesh Component
-				if (UStreamableRenderAsset* LoadedMesh = EquipFrag->EquipmentMesh.LoadSynchronous())
-				{
-					if (UStaticMesh* AsStaticMesh = Cast<UStaticMesh>(LoadedMesh))
-					{
-						UStaticMeshComponent* NewSMC = NewObject<UStaticMeshComponent>(GetOwner());
-						NewSMC->SetStaticMesh(AsStaticMesh);
-						Slot.Instance.SpawnedComponent = NewSMC;
-					}
-					else if (USkeletalMesh* AsSkeletalMesh = Cast<USkeletalMesh>(LoadedMesh))
-					{
-						USkeletalMeshComponent* NewSKMC = NewObject<USkeletalMeshComponent>(GetOwner());
-						NewSKMC->SetSkeletalMesh(AsSkeletalMesh);
-						Slot.Instance.SpawnedComponent = NewSKMC;
-					}
-
-					// 3. Attach the new component to the character
-					if (Slot.Instance.SpawnedComponent && OwnerMesh)
-					{
-						Slot.Instance.SpawnedComponent->RegisterComponent();
-						Slot.Instance.SpawnedComponent->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
-						Slot.Instance.SpawnedComponent->SetRelativeTransform(EquipFrag->AttachmentOffset);
-
-						if (EquipFrag->bDisableCollisionOnEquip)
-						{
-							Slot.Instance.SpawnedComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-						}
-					}
 				}
 			}
 			// Full Actor (Weapons, complex logic)
@@ -259,7 +339,11 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			OnItemEquippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
 			OnItemEquippedAction.Run(this);
 
-			// 5. Notify server listeners
+			// Create the authority machine's local visual and replicate the slot.
+			RefreshVisualForSlot(Slot);
+			EquipmentList.MarkItemDirty(Slot);
+
+			// Notify server listeners
 			OnItemEquipped.Broadcast(TargetSlot, ItemToEquip);
 
 			return true;
@@ -294,14 +378,14 @@ bool UKzEquipmentComponent::EquipItemFromWorld(UKzItemComponent* ItemComp, FKzIt
 
 bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority())
+	if (!GetOwner()->HasAuthority() || !DefaultLayout)
 	{
 		return false;
 	}
 
 	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
 
-	for (FEquippedSlot& Slot : EquippedSlots)
+	for (FEquippedSlot& Slot : EquipmentList.Slots)
 	{
 		if (Slot.SlotID == TargetSlot && Slot.Instance.IsValid())
 		{
@@ -313,13 +397,21 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			OutUnequippedItem.ActiveEquippedAction.Reset();
 			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
 
-			Slot.Instance = FKzItemInstance(); // Clear the slot
+			// Destroy the authority machine's local cosmetic mesh; clients drop theirs via the callback.
+			ClearVisualForSlot(Slot);
+			OutUnequippedItem.SpawnedComponent = nullptr;
 
-			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+			Slot.Instance = FKzItemInstance(); // Clear the slot
+			EquipmentList.MarkItemDirty(Slot);
+
+			if (EquipFrag)
 			{
-				for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
+				if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
 				{
-					ASC->RemoveLooseGameplayTag(Tag);
+					for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
+					{
+						ASC->RemoveLooseGameplayTag(Tag);
+					}
 				}
 			}
 
@@ -340,16 +432,9 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			// 2. If it couldn't go to the inventory (EquipmentOnly, or inventory full) -> Drop it to the ground
 			if (!bSentToInventory)
 			{
-				// Handle Component cleanup if it was a Mesh Spawn
-				if (EquipFrag->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
+				// SpawnMesh items have no world actor yet: spawn one to represent the drop.
+				if (EquipFrag && EquipFrag->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
 				{
-					if (OutUnequippedItem.SpawnedComponent)
-					{
-						OutUnequippedItem.SpawnedComponent->DestroyComponent();
-						OutUnequippedItem.SpawnedComponent = nullptr;
-					}
-
-					// Spawn the World Actor representation to drop on the ground
 					TSubclassOf<AActor> WorldClass = OutUnequippedItem.ItemDef->WorldActorClass.LoadSynchronous();
 					if (WorldClass)
 					{
@@ -412,7 +497,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 						OwnerPrim->IgnoreActorWhenMoving(OldPhysicalActor, false);
 					}
 
-					if (EquipFrag->bDisableCollisionOnEquip)
+					if (EquipFrag && EquipFrag->bDisableCollisionOnEquip)
 					{
 						OldPhysicalActor->SetActorEnableCollision(true);
 					}
@@ -466,7 +551,7 @@ const FKzItemInstance* UKzEquipmentComponent::FindItemInSlot(FGameplayTag SlotID
 
 	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
 
-	if (const FEquippedSlot* FoundSlot = EquippedSlots.FindByKey(TargetSlot))
+	if (const FEquippedSlot* FoundSlot = EquipmentList.Slots.FindByKey(TargetSlot))
 	{
 		return &FoundSlot->Instance;
 	}

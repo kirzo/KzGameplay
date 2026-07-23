@@ -5,18 +5,24 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
+#include "Net/Serialization/FastArraySerializer.h"
 #include "Items/KzItemInstance.h"
 #include "Equipment/KzEquipmentLayout.h"
 #include "ScriptableTasks/ScriptableAction.h"
 #include "KzEquipmentComponent.generated.h"
 
+class UKzEquipmentComponent;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, Item);
+
+struct FKzEquipmentList;
 
 /**
  * Represents a specific slot in the equipment system and the item currently in it.
+ * A FastArray item, so equipment replicates per-slot deltas and drives local visuals on each machine.
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FEquippedSlot
+struct KZGAMEPLAY_API FEquippedSlot : public FFastArraySerializerItem
 {
 	GENERATED_BODY()
 
@@ -43,6 +49,43 @@ public:
 	{
 		return SlotID == OtherTag;
 	}
+
+	// FastArray client-side callbacks.
+	void PostReplicatedAdd(const FKzEquipmentList& InArraySerializer);
+	void PostReplicatedChange(const FKzEquipmentList& InArraySerializer);
+	void PreReplicatedRemove(const FKzEquipmentList& InArraySerializer);
+};
+
+/**
+ * FastArray of equipment slots, giving per-slot delta replication and client callbacks.
+ */
+USTRUCT()
+struct KZGAMEPLAY_API FKzEquipmentList : public FFastArraySerializer
+{
+	GENERATED_BODY()
+
+	/** The replicated slots. */
+	UPROPERTY()
+	TArray<FEquippedSlot> Slots;
+
+	/** Owning component, used by slot callbacks. Set on construction; not replicated. */
+	UPROPERTY(NotReplicated)
+	TObjectPtr<UKzEquipmentComponent> OwnerComponent = nullptr;
+
+	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
+	{
+		return FFastArraySerializer::FastArrayDeltaSerialize<FEquippedSlot, FKzEquipmentList>(Slots, DeltaParms, *this);
+	}
+};
+
+/** Boilerplate required to tell the engine this struct has a custom net delta serializer. */
+template<>
+struct TStructOpsTypeTraits<FKzEquipmentList> : public TStructOpsTypeTraitsBase2<FKzEquipmentList>
+{
+	enum
+	{
+		WithNetDeltaSerializer = true,
+	};
 };
 
 /**
@@ -53,6 +96,8 @@ UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzEquipmentComponent : public UActorComponent
 {
 	GENERATED_BODY()
+
+	friend struct FEquippedSlot;
 
 public:
 	UKzEquipmentComponent();
@@ -125,10 +170,19 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
 
-	/** Replicated array holding the current state of all equipment slots. */
-	UPROPERTY(ReplicatedUsing = OnRep_EquippedSlots)
-	TArray<FEquippedSlot> EquippedSlots;
+	/** Replicated FastArray holding the current state of all equipment slots. */
+	UPROPERTY(Replicated)
+	FKzEquipmentList EquipmentList;
 
-	UFUNCTION()
-	void OnRep_EquippedSlots(const TArray<FEquippedSlot>& OldEquippedSlots);
+	/** Creates the local cosmetic mesh (SpawnMesh mode) for a slot on the current machine, replacing any existing one. */
+	void RefreshVisualForSlot(FEquippedSlot& Slot);
+
+	/** Destroys the local cosmetic mesh for a slot on the current machine. */
+	void ClearVisualForSlot(FEquippedSlot& Slot);
+
+	/** Called on clients when a slot first replicates in: refresh the visual and broadcast if it holds an item. */
+	void HandleSlotAdded(FEquippedSlot& Slot);
+
+	/** Called on clients when a slot's item changes: refresh the visual and broadcast equip/unequip. */
+	void HandleSlotUpdated(FEquippedSlot& Slot);
 };

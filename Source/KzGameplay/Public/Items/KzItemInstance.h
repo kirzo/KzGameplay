@@ -119,8 +119,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Item Instance")
 	TObjectPtr<AActor> SpawnedActor = nullptr;
 
-	/** The mesh component representing this item when equipped (Valid if SpawnMode is SpawnMesh). */
-	UPROPERTY(BlueprintReadOnly, Category = "Item Instance")
+	/** Local cosmetic mesh when equipped (SpawnMesh mode). Not replicated: each machine spawns its own. */
+	UPROPERTY(BlueprintReadOnly, NotReplicated, Transient, Category = "Item Instance")
 	TObjectPtr<UMeshComponent> SpawnedComponent = nullptr;
 
 	/** Runtime instance of the Acquired action. Holds state while in the inventory. Server-only. */

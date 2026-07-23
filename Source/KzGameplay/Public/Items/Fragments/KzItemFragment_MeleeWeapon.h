@@ -65,7 +65,7 @@ class KZGAMEPLAY_API UKzItemFragment_MeleeWeapon : public UKzItemFragment
 public:
 
 	/** The base damage applied per hit before any multipliers. */
-	UPROPERTY(EditDefaultsOnly, BLueprintReadOnly, Category = "Melee")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee")
 	float BaseDamage = 25.0f;
 
 	/** The sequence of attacks that make up the combo. */
