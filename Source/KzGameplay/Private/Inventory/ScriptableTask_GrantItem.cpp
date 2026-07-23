@@ -3,7 +3,6 @@
 #include "Inventory/ScriptableTask_GrantItem.h"
 #include "Inventory/KzInventoryComponent.h"
 #include "Items/KzItemDefinition.h"
-#include "Items/KzItemInstance.h"
 #include "GameFramework/Actor.h"
 
 void UScriptableTask_GrantItem::BeginTask()
@@ -14,11 +13,6 @@ void UScriptableTask_GrantItem::BeginTask()
 		{
 			if (const UKzItemDefinition* LoadedItemDef = ItemToGrant.LoadSynchronous())
 			{
-				// Create the instance and add it
-				FKzItemInstance NewInstance;
-				NewInstance.ItemDef = LoadedItemDef;
-				NewInstance.Quantity = Quantity;
-
 				InventoryComp->TryAddItem(LoadedItemDef, Quantity);
 			}
 		}

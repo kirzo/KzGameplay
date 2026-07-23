@@ -73,7 +73,7 @@ public:
 	/** Searches fragments array and returns first encountered fragment that implements the given interface. */
 	const UKzItemFragment* FindFragmentByInterface(const TSubclassOf<UInterface> Interface) const;
 
-	/** Gets all the fragments that implements the given interface. */
+	/** Returns the first fragment that implements the given interface. */
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	const UKzItemFragment* GetFragmentByInterface(TSubclassOf<UInterface> Interface) const;
 

@@ -142,12 +142,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Item Instance")
 	TObjectPtr<UMeshComponent> SpawnedComponent = nullptr;
 
-	/** Runtime instance of the Acquired action. Holds state while in the inventory. */
-	UPROPERTY()
+	/** Runtime instance of the Acquired action. Holds state while in the inventory. Server-only. */
+	UPROPERTY(NotReplicated)
 	FScriptableAction ActiveAcquiredAction;
 
-	/** Runtime instance of the Equip action. Holds state while in the equipment. */
-	UPROPERTY()
+	/** Runtime instance of the Equip action. Holds state while in the equipment. Server-only. */
+	UPROPERTY(NotReplicated)
 	FScriptableAction ActiveEquippedAction;
 
 	FKzItemInstance() = default;
