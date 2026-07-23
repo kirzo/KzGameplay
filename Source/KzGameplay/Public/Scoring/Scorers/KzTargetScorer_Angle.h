@@ -29,5 +29,5 @@ public:
 	float MaxAngle = 90.0f;
 
 protected:
-	virtual float CalculateScore_Implementation(const FKzTransformSource& Origin, const FKzTransformSource& Target) const override;
+	virtual float CalculateScore(const FKzTransformSource& Origin, const FKzTransformSource& Target) const override;
 };

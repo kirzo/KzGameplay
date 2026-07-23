@@ -3,7 +3,7 @@
 #include "Scoring/Scorers/KzTargetScorer_Distance.h"
 #include "GameFramework/Actor.h"
 
-float UKzTargetScorer_Distance::CalculateScore_Implementation(const FKzTransformSource& Origin, const FKzTransformSource& Target) const
+float UKzTargetScorer_Distance::CalculateScore(const FKzTransformSource& Origin, const FKzTransformSource& Target) const
 {
 	if (!Origin.IsValid() || !Target.IsValid()) return 0.0f;
 
