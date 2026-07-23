@@ -14,7 +14,7 @@ UAbilityTask_MoveToLocationUsingInput::UAbilityTask_MoveToLocationUsingInput(con
 	: Super(ObjectInitializer)
 {
 	bTickingTask = true;
-	bSimulatedTask = true;
+	bSimulatedTask = false;
 	bIsFinished = false;
 	bIsInterpolatingPhase = false;
 }
@@ -33,72 +33,7 @@ UAbilityTask_MoveToLocationUsingInput* UAbilityTask_MoveToLocationUsingInput::Mo
 {
 	UAbilityTask_MoveToLocationUsingInput* MyObj = NewAbilityTask<UAbilityTask_MoveToLocationUsingInput>(OwningAbility, TaskInstanceName);
 
-	AActor* Avatar = MyObj->GetAvatarActor();
-	if (Avatar)
-	{
-		FVector FinalTargetLocation = Location;
-		const float HalfHeight = Avatar->GetSimpleCollisionHalfHeight();
-		const FVector UpDir = Avatar->GetActorUpVector();
-
-		switch (VerticalAlignment)
-		{
-		case EKzTargetVerticalAlignment::KeepStartZ:
-		{
-			FinalTargetLocation.Z = Avatar->GetActorLocation().Z;
-			break;
-		}
-		case EKzTargetVerticalAlignment::AlignFeetToTarget:
-		{
-			// Offset the target upwards by half-height
-			FinalTargetLocation += (UpDir * HalfHeight);
-			break;
-		}
-		case EKzTargetVerticalAlignment::AlignFeetToFloor:
-		{
-			if (UWorld* World = Avatar->GetWorld())
-			{
-				FHitResult HitResult;
-
-				FVector TraceStart = Location + (UpDir * 10.0f);
-				FVector TraceEnd = Location - (UpDir * HalfHeight * 2.0f);
-
-				FCollisionQueryParams QueryParams;
-				QueryParams.AddIgnoredActor(Avatar);
-
-				ECollisionChannel ObjectType = ECC_Visibility;
-				FCollisionResponseParams ResponseParams;
-
-				if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Avatar->GetRootComponent()))
-				{
-					ObjectType = Primitive->GetCollisionObjectType();
-					ResponseParams = FCollisionResponseParams(Primitive->GetCollisionResponseToChannels());
-				}
-
-				if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ObjectType, QueryParams, ResponseParams))
-				{
-					FinalTargetLocation = HitResult.ImpactPoint + (UpDir * HalfHeight);
-				}
-				else
-				{
-					// Fallback to AlignFeetToTarget if no floor was found in range
-					FinalTargetLocation += (UpDir * HalfHeight);
-				}
-			}
-			break;
-		}
-		case EKzTargetVerticalAlignment::UseTargetZ:
-		default:
-			// Use the raw location provided
-			break;
-		}
-
-		MyObj->TargetLocation = FinalTargetLocation;
-	}
-	else
-	{
-		// Fallback if avatar is not ready
-		MyObj->TargetLocation = Location;
-	}
+	MyObj->TargetLocation = Kz::ResolveVerticalAlignedLocation(MyObj->GetAvatarActor(), Location, VerticalAlignment);
 
 	MyObj->bUseTargetRotation = bUseTargetRotation;
 	MyObj->TargetRotation = FRotator(0.0f, TargetRotation.Yaw, 0.0f);

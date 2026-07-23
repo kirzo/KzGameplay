@@ -96,6 +96,8 @@ void UAbilityTask_MatchRotation::TickTask(float DeltaTime)
 
 void UAbilityTask_MatchRotation::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
 	DOREPLIFETIME(UAbilityTask_MatchRotation, StartRotation);
 	DOREPLIFETIME(UAbilityTask_MatchRotation, TargetRotation);
 	DOREPLIFETIME(UAbilityTask_MatchRotation, DurationOfMovement);

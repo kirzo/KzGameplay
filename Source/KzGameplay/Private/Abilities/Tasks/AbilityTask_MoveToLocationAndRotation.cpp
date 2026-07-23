@@ -36,70 +36,9 @@ UAbilityTask_MoveToLocationAndRotation* UAbilityTask_MoveToLocationAndRotation::
 	{
 		MyObj->StartLocation = Avatar->GetActorLocation();
 		MyObj->StartRotation = Avatar->GetActorQuat();
-
-		FVector FinalTargetLocation = Location;
-		const float HalfHeight = Avatar->GetSimpleCollisionHalfHeight();
-		const FVector UpDir = Avatar->GetActorUpVector();
-
-		switch (VerticalAlignment)
-		{
-		case EKzTargetVerticalAlignment::KeepStartZ:
-		{
-			FinalTargetLocation.Z = Avatar->GetActorLocation().Z;
-			break;
-		}
-		case EKzTargetVerticalAlignment::AlignFeetToTarget:
-		{
-			// Offset the target upwards by half-height
-			FinalTargetLocation += (UpDir * HalfHeight);
-			break;
-		}
-		case EKzTargetVerticalAlignment::AlignFeetToFloor:
-		{
-			if (UWorld* World = Avatar->GetWorld())
-			{
-				FHitResult HitResult;
-
-				FVector TraceStart = Location + (UpDir * 10.0f);
-				FVector TraceEnd = Location - (UpDir * HalfHeight * 2.0f);
-
-				FCollisionQueryParams QueryParams;
-				QueryParams.AddIgnoredActor(Avatar);
-
-				ECollisionChannel ObjectType = ECC_Visibility;
-				FCollisionResponseParams ResponseParams;
-
-				if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Avatar->GetRootComponent()))
-				{
-					ObjectType = Primitive->GetCollisionObjectType();
-					ResponseParams = FCollisionResponseParams(Primitive->GetCollisionResponseToChannels());
-				}
-
-				if (World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ObjectType, QueryParams, ResponseParams))
-				{
-					FinalTargetLocation = HitResult.ImpactPoint + (UpDir * HalfHeight);
-				}
-				else
-				{
-					// Fallback to AlignFeetToTarget if no floor was found in range
-					FinalTargetLocation += (UpDir * HalfHeight);
-				}
-			}
-			break;
-		}
-		case EKzTargetVerticalAlignment::UseTargetZ:
-		default:
-			// Use the raw location provided
-			break;
-		}
-
-		MyObj->TargetLocation = FinalTargetLocation;
 	}
-	else
-	{
-		// Fallback if avatar is not ready
-		MyObj->TargetLocation = Location;
-	}
+
+	MyObj->TargetLocation = Kz::ResolveVerticalAlignedLocation(Avatar, Location, VerticalAlignment);
 
 	MyObj->TargetRotation = Rotation.Quaternion();
 	MyObj->DurationOfMovement = FMath::Max(Duration, 0.001f); // Avoid divide-by-zero
@@ -223,19 +162,15 @@ void UAbilityTask_MoveToLocationAndRotation::GetLifetimeReplicatedProps(TArray<F
 
 void UAbilityTask_MoveToLocationAndRotation::OnDestroy(bool AbilityIsEnding)
 {
-	if (!bIsFinished)
+	// Restore movement whether the move completed or was interrupted; otherwise a finished
+	// move leaves the character stuck in MOVE_None (set on Activate).
+	if (ACharacter* MyCharacter = Cast<ACharacter>(GetAvatarActor()))
 	{
-		AActor* MyActor = GetAvatarActor();
-		if (MyActor)
+		if (UCharacterMovementComponent* CharMoveComp = Cast<UCharacterMovementComponent>(MyCharacter->GetMovementComponent()))
 		{
-			ACharacter* MyCharacter = Cast<ACharacter>(MyActor);
-			if (MyCharacter)
+			if (CharMoveComp->MovementMode == MOVE_None)
 			{
-				UCharacterMovementComponent* CharMoveComp = Cast<UCharacterMovementComponent>(MyCharacter->GetMovementComponent());
-				if (CharMoveComp && CharMoveComp->MovementMode == MOVE_None)
-				{
-					CharMoveComp->SetMovementMode(MOVE_Falling);
-				}
+				CharMoveComp->SetMovementMode(MOVE_Falling);
 			}
 		}
 	}
