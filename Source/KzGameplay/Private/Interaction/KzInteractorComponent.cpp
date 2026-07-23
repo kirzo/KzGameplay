@@ -222,20 +222,3 @@ void UKzInteractorComponent::StopCurrentInteraction()
 		StartScanning();
 	}
 }
-
-void UKzInteractorComponent::Server_TryInteract_Implementation(UKzInteractableComponent* Target)
-{
-	InteractWith(Target);
-}
-
-void UKzInteractorComponent::Server_StopCurrentInteraction_Implementation()
-{
-	if (ActiveInteractable)
-	{
-		ActiveInteractable->StopInteraction(this);
-		ActiveInteractable = nullptr;
-
-		// Resume scanning on the server (important if it's an AI)
-		StartScanning();
-	}
-}

@@ -92,13 +92,6 @@ public:
 	void UnregisterInteractable(UKzInteractableComponent* Component);
 
 	/**
-	 * Updates a component's position in the grid.
-	 * @param Component The component that moved.
-	 * @param OldBounds The previous bounding box before the movement, needed to clear old cells.
-	 */
-	void UpdateInteractable(UKzInteractableComponent* Component, const FBox& OldBounds);
-
-	/**
 	 * Performs a spatial query to find all interactables overlapping the given shape.
 	 * @param QueryShape The volumetric shape to test against.
 	 * @param ShapePosition World location of the query shape.

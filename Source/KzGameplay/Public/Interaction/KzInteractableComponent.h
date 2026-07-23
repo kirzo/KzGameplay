@@ -107,7 +107,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableFocusDelegate OnEndFocus;
 
-	/** Fired when the interaction has been successfully triggered and validated by the Server. */
+	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableActionDelegate OnInteract;
 

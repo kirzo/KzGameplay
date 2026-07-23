@@ -123,19 +123,4 @@ protected:
 
 	/** Timer handle for the scanning loop. */
 	FTimerHandle ScanTimerHandle;
-
-	// ==========================================
-	// NETWORKING
-	// ==========================================
-
-	/**
-	 * RPC sent to the server to request interaction with a specific target.
-	 * The server should ideally validate the interaction before executing it.
-	 */
-	UFUNCTION(Server, Reliable)
-	void Server_TryInteract(UKzInteractableComponent* Target);
-
-	/** RPC sent to the server to manually abort the current continuous interaction. */
-	UFUNCTION(Server, Reliable)
-	void Server_StopCurrentInteraction();
 };

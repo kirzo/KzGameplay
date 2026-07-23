@@ -117,9 +117,10 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 	}
 
 	// 3. Query all sibling components that implement the interface
-	for (UActorComponent* Comp : OwnerActor->GetComponents())
+	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
+	for (UActorComponent* Comp : SiblingComponents)
 	{
-		if (Comp && Comp->Implements<UKzInteractableInterface>())
+		if (Comp != this)
 		{
 			if (!IKzInteractableInterface::Execute_CanInteract(Comp, Interactor, MutableThis))
 			{

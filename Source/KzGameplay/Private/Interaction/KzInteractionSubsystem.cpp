@@ -111,14 +111,6 @@ void UKzInteractionSubsystem::UnregisterInteractable(UKzInteractableComponent* C
 	}
 }
 
-void UKzInteractionSubsystem::UpdateInteractable(UKzInteractableComponent* Component, const FBox& OldBounds)
-{
-	if (!Component || Component->bIsDynamicInteraction) return;
-
-	StaticGrid.Remove(Component, OldBounds);
-	StaticGrid.Insert(Component);
-}
-
 TArray<UKzInteractableComponent*> UKzInteractionSubsystem::QueryInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const
 {
 	TArray<UKzInteractableComponent*> Results;
