@@ -15,25 +15,21 @@ UKzInventoryComponent::UKzInventoryComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
 	Capacity = 20; // Default slots
+
+	InventoryList.OwnerComponent = this;
 }
 
 void UKzInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	// COND_OwnerOnly to save bandwidth,
-	DOREPLIFETIME_CONDITION(UKzInventoryComponent, Items, COND_OwnerOnly);
-}
-
-void UKzInventoryComponent::OnRep_Items()
-{
-	// Notify the UI or other systems on the client that the inventory has updated
-	OnInventoryChanged.Broadcast();
+	// COND_OwnerOnly to save bandwidth.
+	DOREPLIFETIME_CONDITION(UKzInventoryComponent, InventoryList, COND_OwnerOnly);
 }
 
 bool UKzInventoryComponent::HasSpace() const
 {
-	return Items.Num() < Capacity;
+	return InventoryList.Items.Num() < Capacity;
 }
 
 int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef) const
@@ -43,9 +39,9 @@ int32 UKzInventoryComponent::FindStackableSlot(const UKzItemDefinition* ItemDef)
 	const UKzItemFragment_Storable* StoreFrag = ItemDef->FindFragmentByClass<UKzItemFragment_Storable>();
 	if (!StoreFrag) return INDEX_NONE;
 
-	for (int32 i = 0; i < Items.Num(); ++i)
+	for (int32 i = 0; i < InventoryList.Items.Num(); ++i)
 	{
-		if (Items[i].ItemDef == ItemDef && Items[i].Quantity < StoreFrag->MaxStackSize)
+		if (InventoryList.Items[i].ItemDef == ItemDef && InventoryList.Items[i].Quantity < StoreFrag->MaxStackSize)
 		{
 			return i;
 		}
@@ -61,8 +57,6 @@ bool UKzInventoryComponent::TryAddItem(const UKzItemDefinition* ItemDef, int32 Q
 	}
 
 	// Create a fresh instance and route it through the master function.
-	// We pass nullptr for SpawnedActor internally because the item is going into the backpack,
-	// but we still pass PhysicalActor to the function to handle the world cleanup.
 	FKzItemInstance FreshInstance(ItemDef, Quantity, nullptr);
 
 	return TryAddInstance(FreshInstance, PhysicalActor);
@@ -83,28 +77,29 @@ bool UKzInventoryComponent::TryAddInstance(const FKzItemInstance& Instance, AAct
 
 	int32 RemainingQuantity = Instance.Quantity;
 
-	// 1. Try to fill existing stacks first
-	// Note: If items are stackable, their unique stats (if any) will be absorbed by the existing stack.
-	// It is highly recommended that items with dynamic stats have a MaxStackSize of 1.
+	// 1. Try to fill existing stacks first.
+	// Note: stackable items absorb the new instance's stats into the existing stack.
+	// Items with dynamic stats should have a MaxStackSize of 1.
 	while (RemainingQuantity > 0)
 	{
 		int32 StackIndex = FindStackableSlot(Instance.ItemDef);
 		if (StackIndex == INDEX_NONE) break;
 
-		int32 AvailableSpaceInStack = StoreFrag->MaxStackSize - Items[StackIndex].Quantity;
+		int32 AvailableSpaceInStack = StoreFrag->MaxStackSize - InventoryList.Items[StackIndex].Quantity;
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, AvailableSpaceInStack);
 
-		Items[StackIndex].Quantity += AmountToAdd;
+		InventoryList.Items[StackIndex].Quantity += AmountToAdd;
+		InventoryList.MarkItemDirty(InventoryList.Items[StackIndex]);
 		RemainingQuantity -= AmountToAdd;
 	}
 
-	// 2. Create new slots for the remaining quantity
+	// 2. Create new slots for the remaining quantity.
 	while (RemainingQuantity > 0 && HasSpace())
 	{
 		int32 AmountToAdd = FMath::Min(RemainingQuantity, StoreFrag->MaxStackSize);
 
-		// Add a copy of the live instance to preserve dynamic stats
-		FKzItemInstance& NewInstance = Items.Add_GetRef(Instance);
+		// Add a copy of the live instance to preserve dynamic stats.
+		FKzItemInstance& NewInstance = InventoryList.Items.Add_GetRef(Instance);
 		NewInstance.Quantity = AmountToAdd;
 		NewInstance.SpawnedActor = nullptr; // Erase physical references since it's now stored
 		NewInstance.SpawnedComponent = nullptr;
@@ -113,13 +108,13 @@ bool UKzInventoryComponent::TryAddInstance(const FKzItemInstance& Instance, AAct
 		NewInstance.ActiveAcquiredAction = StoreFrag->OnAcquiredAction.Clone(this);
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 		NewInstance.ActiveAcquiredAction.SetContextProperty(TEXT("Inventory"), this);
-
 		NewInstance.ActiveAcquiredAction.Run(this);
 
+		InventoryList.MarkItemDirty(NewInstance);
 		RemainingQuantity -= AmountToAdd;
 	}
 
-	// 3. Process results
+	// 3. Process results.
 	if (RemainingQuantity < Instance.Quantity)
 	{
 		int32 TotalAdded = Instance.Quantity - RemainingQuantity;
@@ -164,19 +159,24 @@ bool UKzInventoryComponent::RemoveItem(const UKzItemDefinition* ItemDef, int32 Q
 
 	int32 RemainingToRemove = Quantity;
 
-	// Iterate backwards so we can safely remove empty slots
-	for (int32 i = Items.Num() - 1; i >= 0; --i)
+	// Iterate backwards so we can safely remove empty slots.
+	for (int32 i = InventoryList.Items.Num() - 1; i >= 0; --i)
 	{
-		if (Items[i].ItemDef == ItemDef)
+		if (InventoryList.Items[i].ItemDef == ItemDef)
 		{
-			int32 AmountToRemove = FMath::Min(RemainingToRemove, Items[i].Quantity);
-			Items[i].Quantity -= AmountToRemove;
+			int32 AmountToRemove = FMath::Min(RemainingToRemove, InventoryList.Items[i].Quantity);
+			InventoryList.Items[i].Quantity -= AmountToRemove;
 			RemainingToRemove -= AmountToRemove;
 
-			if (Items[i].Quantity <= 0)
+			if (InventoryList.Items[i].Quantity <= 0)
 			{
-				Items[i].ActiveAcquiredAction.Reset();
-				Items.RemoveAt(i);
+				InventoryList.Items[i].ActiveAcquiredAction.Reset();
+				InventoryList.Items.RemoveAt(i);
+				InventoryList.MarkArrayDirty();
+			}
+			else
+			{
+				InventoryList.MarkItemDirty(InventoryList.Items[i]);
 			}
 
 			if (RemainingToRemove <= 0)

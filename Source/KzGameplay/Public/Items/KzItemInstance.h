@@ -9,6 +9,7 @@
 #include "KzItemInstance.generated.h"
 
 class UKzItemDefinition;
+class UKzInventoryComponent;
 class AActor;
 class UMeshComponent;
 
@@ -16,7 +17,7 @@ class UMeshComponent;
  * A single statistic entry for an item instance.
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FItemStatEntry : public FFastArraySerializerItem
+struct KZGAMEPLAY_API FItemStatEntry
 {
 	GENERATED_BODY()
 
@@ -37,7 +38,6 @@ struct KZGAMEPLAY_API FItemStatEntry : public FFastArraySerializerItem
 		return FMath::IsNearlyZero(Value);
 	}
 
-	/** Equality operator against another entry. */
 	bool operator==(const FItemStatEntry& Other) const
 	{
 		return StatTag == Other.StatTag && FMath::IsNearlyEqual(Value, Other.Value);
@@ -48,7 +48,7 @@ struct KZGAMEPLAY_API FItemStatEntry : public FFastArraySerializerItem
 		return !(*this == Other);
 	}
 
-	/** Equality operator against a GameplayTag (Allows using TArray::FindByKey). */
+	/** Equality against a GameplayTag (allows using TArray::FindByKey). */
 	bool operator==(FGameplayTag OtherTag) const
 	{
 		return StatTag == OtherTag;
@@ -56,20 +56,15 @@ struct KZGAMEPLAY_API FItemStatEntry : public FFastArraySerializerItem
 };
 
 /**
- * Container for item stats that handles efficient network replication.
+ * Container for an item instance's dynamic stats.
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FItemStatContainer : public FFastArraySerializer
+struct KZGAMEPLAY_API FItemStatContainer
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item Stats")
 	TArray<FItemStatEntry> Items;
-
-	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
-	{
-		return FFastArraySerializer::FastArrayDeltaSerialize<FItemStatEntry, FItemStatContainer>(Items, DeltaParms, *this);
-	}
 
 	/** Returns the value of a stat, or DefaultValue if not found. */
 	float GetStat(FGameplayTag StatTag, float DefaultValue = 0.0f) const
@@ -81,43 +76,29 @@ struct KZGAMEPLAY_API FItemStatContainer : public FFastArraySerializer
 		return DefaultValue;
 	}
 
-	/** Adds or updates a stat, marking it for replication if changed. */
+	/** Adds or updates a stat. */
 	void SetStat(FGameplayTag StatTag, float Value)
 	{
 		if (FItemStatEntry* FoundEntry = Items.FindByKey(StatTag))
 		{
-			// Only update and mark dirty if the value actually changed
-			if (!FMath::IsNearlyEqual(FoundEntry->Value, Value))
-			{
-				FoundEntry->Value = Value;
-				MarkItemDirty(*FoundEntry);
-			}
+			FoundEntry->Value = Value;
 		}
 		else
 		{
-			// Stat not found, add a new one and mark it dirty
-			FItemStatEntry& NewEntry = Items.Add_GetRef(FItemStatEntry(StatTag, Value));
-			MarkItemDirty(NewEntry);
+			Items.Add(FItemStatEntry(StatTag, Value));
 		}
 	}
 };
 
-/** Boilerplate required to tell the engine this struct has a custom net serializer. */
-template<>
-struct TStructOpsTypeTraits<FItemStatContainer> : public TStructOpsTypeTraitsBase2<FItemStatContainer>
-{
-	enum
-	{
-		WithNetDeltaSerializer = true,
-	};
-};
+struct FKzInventoryList;
 
 /**
  * Represents a live instance of an item in an inventory or equipment slot.
  * Bridges the static data (Definition) with the runtime state (Quantity, Physical Actor, Stats).
+ * A FastArray item, so inventories replicate per-entry deltas.
  */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzItemInstance
+struct KZGAMEPLAY_API FKzItemInstance : public FFastArraySerializerItem
 {
 	GENERATED_BODY()
 
@@ -173,4 +154,41 @@ public:
 
 	/** Initializes a newly created item instance by running all fragment initialization logic. */
 	void Initialize(const UKzItemDefinition* ItemDefinition);
+
+	// FastArray client-side callbacks: notify the owning component so UI can refresh.
+	void PostReplicatedAdd(const FKzInventoryList& InArraySerializer);
+	void PostReplicatedChange(const FKzInventoryList& InArraySerializer);
+	void PreReplicatedRemove(const FKzInventoryList& InArraySerializer);
+};
+
+/**
+ * FastArray of item instances, giving delta replication and per-item client callbacks.
+ */
+USTRUCT()
+struct KZGAMEPLAY_API FKzInventoryList : public FFastArraySerializer
+{
+	GENERATED_BODY()
+
+	/** The replicated item entries. */
+	UPROPERTY()
+	TArray<FKzItemInstance> Items;
+
+	/** Owning component, used by item callbacks to broadcast changes. Set on construction; not replicated. */
+	UPROPERTY(NotReplicated)
+	TObjectPtr<UKzInventoryComponent> OwnerComponent = nullptr;
+
+	bool NetDeltaSerialize(FNetDeltaSerializeInfo& DeltaParms)
+	{
+		return FFastArraySerializer::FastArrayDeltaSerialize<FKzItemInstance, FKzInventoryList>(Items, DeltaParms, *this);
+	}
+};
+
+/** Boilerplate required to tell the engine this struct has a custom net delta serializer. */
+template<>
+struct TStructOpsTypeTraits<FKzInventoryList> : public TStructOpsTypeTraitsBase2<FKzInventoryList>
+{
+	enum
+	{
+		WithNetDeltaSerializer = true,
+	};
 };

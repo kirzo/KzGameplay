@@ -56,18 +56,14 @@ public:
 
 	/** Returns the current list of items. */
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	const TArray<FKzItemInstance>& GetItems() const { return Items; }
+	const TArray<FKzItemInstance>& GetItems() const { return InventoryList.Items; }
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	/** The replicated list of items currently held in this inventory. */
-	UPROPERTY(ReplicatedUsing = OnRep_Items)
-	TArray<FKzItemInstance> Items;
-
-	/** Called on clients whenever the Server updates the Items array. */
-	UFUNCTION()
-	virtual void OnRep_Items();
+	/** The replicated FastArray of items currently held in this inventory. */
+	UPROPERTY(Replicated)
+	FKzInventoryList InventoryList;
 
 	/** Internal helper to find an existing stack that isn't full. */
 	int32 FindStackableSlot(const UKzItemDefinition* ItemDef) const;
