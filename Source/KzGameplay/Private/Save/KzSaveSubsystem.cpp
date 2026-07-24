@@ -4,24 +4,9 @@
 #include "Save/KzSaveGame.h"
 #include "Save/KzSaveComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Engine/Level.h"
 #include "Engine/World.h"
 
 #include "Algo/Transform.h"
-
-void UKzSaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{
-	Super::Initialize(Collection);
-
-	// Bind to level loading events to catch actors before their BeginPlay logic fires
-	FWorldDelegates::LevelAddedToWorld.AddUObject(this, &UKzSaveSubsystem::OnLevelAddedToWorld);
-}
-
-void UKzSaveSubsystem::Deinitialize()
-{
-	FWorldDelegates::LevelAddedToWorld.RemoveAll(this);
-	Super::Deinitialize();
-}
 
 void UKzSaveSubsystem::LoadOrCreateSaveGame(const FString& SlotName)
 {
@@ -40,27 +25,6 @@ void UKzSaveSubsystem::SaveGameToDisk(const FString& SlotName)
 	if (CurrentSaveData)
 	{
 		UGameplayStatics::SaveGameToSlot(CurrentSaveData, SlotName, 0);
-	}
-}
-
-void UKzSaveSubsystem::OnLevelAddedToWorld(ULevel* InLevel, UWorld* InWorld)
-{
-	if (!CurrentSaveData || !InLevel)
-	{
-		return;
-	}
-
-	// Iterate through all actors belonging to the newly loaded level
-	for (AActor* Actor : InLevel->Actors)
-	{
-		if (Actor)
-		{
-			// Check if the actor opted-in to the save system
-			if (UKzSaveComponent* SaveComp = Actor->FindComponentByClass<UKzSaveComponent>())
-			{
-				RestoreSingleActor(Actor, SaveComp);
-			}
-		}
 	}
 }
 

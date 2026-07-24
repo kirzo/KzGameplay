@@ -35,7 +35,7 @@ public:
 	UKzSaveComponent();
 
 protected:
-	virtual void BeginPlay() override;
+	virtual void InitializeComponent() override;
 
 public:
 	/** Unique identifier for this specific instance in the world. */

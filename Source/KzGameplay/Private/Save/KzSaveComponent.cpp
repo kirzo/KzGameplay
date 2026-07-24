@@ -8,22 +8,27 @@
 UKzSaveComponent::UKzSaveComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	bWantsInitializeComponent = true;
 }
 
-void UKzSaveComponent::BeginPlay()
+void UKzSaveComponent::InitializeComponent()
 {
-	Super::BeginPlay();
+	Super::InitializeComponent();
 
-	// If the actor is spawned mid-game, it wasn't caught by the Subsystem's LevelAddedToWorld event.
+	// InitializeComponent can run in non-game (editor preview) worlds; only restore during actual play.
+	UWorld* World = GetWorld();
+	if (!World || !World->IsGameWorld())
+	{
+		return;
+	}
+
+	// Runs in the actor Initialize phase, before any actor in the level (or this actor, if spawned at runtime) begins play.
 	if (!bHasBeenRestored && UniqueSaveID.IsValid())
 	{
-		if (UWorld* World = GetWorld())
+		UGameInstance* GameInstance = World->GetGameInstance();
+		if (UKzSaveSubsystem* SaveSubsystem = GameInstance ? GameInstance->GetSubsystem<UKzSaveSubsystem>() : nullptr)
 		{
-			UGameInstance* GameInstance = World->GetGameInstance();
-			if (UKzSaveSubsystem* SaveSubsystem = GameInstance ? GameInstance->GetSubsystem<UKzSaveSubsystem>() : nullptr)
-			{
-				SaveSubsystem->RestoreSingleActor(GetOwner(), this);
-			}
+			SaveSubsystem->RestoreSingleActor(GetOwner(), this);
 		}
 	}
 }

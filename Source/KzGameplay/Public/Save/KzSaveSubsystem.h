@@ -17,9 +17,6 @@ class KZGAMEPLAY_API UKzSaveSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void Deinitialize() override;
-
 	/** Creates a new save game object or loads an existing one from disk. */
 	UFUNCTION(BlueprintCallable, Category = "KzGameplay|SaveSystem")
 	void LoadOrCreateSaveGame(const FString& SlotName);
@@ -42,7 +39,7 @@ public:
 
 	/** Saves arbitrary binary data into the save file using a unique identifier. */
 	UFUNCTION(BlueprintCallable, Category = "KzGameplay|SaveSystem")
-	void SaveCustomData(const FGuid& DataID, UPARAM(ref) const FKzSerializedData& Data);
+	void SaveCustomData(const FGuid& DataID, const FKzSerializedData& Data);
 
 	/**
 	 * Retrieves arbitrary binary data from the save file using a unique identifier.
@@ -54,7 +51,4 @@ public:
 private:
 	UPROPERTY()
 	UKzSaveGame* CurrentSaveData;
-
-	/** Callback fired when a new streaming level or map is fully loaded into the world. */
-	void OnLevelAddedToWorld(ULevel* InLevel, UWorld* InWorld);
 };
