@@ -10,6 +10,9 @@
 /** Delegate to notify Blueprints and other components that data has been loaded. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKzOnSaveStateRestoredSignature);
 
+/** Delegate fired right before serialization, so the actor can sync live engine state into its SaveGame variables. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKzOnSaveStateSavingSignature);
+
 /** Defines what parts of the owner Actor should be serialized into the save file. */
 UENUM(BlueprintType)
 enum class EKzSaveTarget : uint8
@@ -46,6 +49,10 @@ public:
 	/** List of specific components to save if SaveTarget is set to SpecificComponents. Pure reference via meta tags. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save System", meta = (EditCondition = "SaveTarget == EKzSaveTarget::SpecificComponents"))
 	TSet<FKzComponentReference> ComponentsToSave;
+
+	/** Event fired right before the actor is serialized, so it can copy live engine state (transform, velocity, ...) into its SaveGame-marked variables. */
+	UPROPERTY(BlueprintAssignable, Category = "Save System")
+	FKzOnSaveStateSavingSignature OnStateSaving;
 
 	/** Event fired when the actor's state has been successfully loaded from the save file. */
 	UPROPERTY(BlueprintAssignable, Category = "Save System")

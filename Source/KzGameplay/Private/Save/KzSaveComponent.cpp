@@ -8,7 +8,6 @@
 UKzSaveComponent::UKzSaveComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	bWantsInitializeComponent = true;
 }
 
 void UKzSaveComponent::BeginPlay()
@@ -20,7 +19,8 @@ void UKzSaveComponent::BeginPlay()
 	{
 		if (UWorld* World = GetWorld())
 		{
-			if (UKzSaveSubsystem* SaveSubsystem = World->GetGameInstance()->GetSubsystem<UKzSaveSubsystem>())
+			UGameInstance* GameInstance = World->GetGameInstance();
+			if (UKzSaveSubsystem* SaveSubsystem = GameInstance ? GameInstance->GetSubsystem<UKzSaveSubsystem>() : nullptr)
 			{
 				SaveSubsystem->RestoreSingleActor(GetOwner(), this);
 			}

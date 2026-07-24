@@ -141,6 +141,9 @@ void UKzSaveSubsystem::SaveSingleActor(AActor* SaveableActor)
 		return;
 	}
 
+	// Let the actor sync any live engine state (transform, velocity, ...) into its SaveGame variables first.
+	SaveComp->OnStateSaving.Broadcast();
+
 	FKzActorSaveRecord NewRecord;
 
 	// Serialize Main Actor properties
