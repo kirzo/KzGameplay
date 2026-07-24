@@ -62,6 +62,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Save System")
 	bool bHasBeenRestored = false;
 
+	/** Captures this actor's state into the in-memory save buffer, to be persisted on the next SaveGameToDisk. */
+	UFUNCTION(BlueprintCallable, Category = "Save System")
+	void CaptureState();
+
 	/** Manually triggers the restoration event and updates the flag. */
 	void NotifyStateRestored();
 

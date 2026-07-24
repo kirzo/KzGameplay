@@ -28,6 +28,18 @@ void UKzSaveComponent::BeginPlay()
 	}
 }
 
+void UKzSaveComponent::CaptureState()
+{
+	if (UWorld* World = GetWorld())
+	{
+		UGameInstance* GameInstance = World->GetGameInstance();
+		if (UKzSaveSubsystem* SaveSubsystem = GameInstance ? GameInstance->GetSubsystem<UKzSaveSubsystem>() : nullptr)
+		{
+			SaveSubsystem->SaveSingleActor(GetOwner());
+		}
+	}
+}
+
 void UKzSaveComponent::NotifyStateRestored()
 {
 	bHasBeenRestored = true;
