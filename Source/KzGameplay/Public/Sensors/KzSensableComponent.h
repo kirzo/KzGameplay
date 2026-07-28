@@ -21,7 +21,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kz Sensable")
 	FGameplayTagContainer SenseTags;
 
-	/** Should this object update its position in the grid every frame? (False for static objects) */
+	/** Whether this object can move and must be re-indexed when it does. Set to FALSE for props that never move: static sensables pay zero per-frame cost. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kz Sensable")
 	bool bIsDynamic = true;
 

@@ -147,7 +147,8 @@ FVector UKzSteeringBehavior_Flocking::ComputeForce(const UKzSteeringComponent* O
 	const float AgentRadius = Agent->GetAgentRadius();
 
 	FKzShapeInstance QuerySphere = FKzShapeInstance::Make<FKzSphere>(SearchRadius);
-	TArray<UKzSensableComponent*> Neighbors = SenseSubsystem->QuerySensables(QuerySphere, AgentPos, FQuat::Identity, FlockMateQuery);
+	TArray<UKzSensableComponent*> Neighbors;
+	SenseSubsystem->QuerySensables(Neighbors, QuerySphere, AgentPos, FQuat::Identity, FlockMateQuery);
 
 	TArray<FVector> NeighborLocations;
 	TArray<FVector> NeighborVelocities;
@@ -223,7 +224,8 @@ FVector UKzSteeringBehavior_CollisionAvoidance::ComputeForce(const UKzSteeringCo
 	const float CurrentLookAhead = bIsAvoiding ? (MaxLookAheadTime * HysteresisMultiplier) : MaxLookAheadTime;
 
 	FKzShapeInstance QuerySphere = FKzShapeInstance::Make<FKzSphere>(SearchRadius);
-	TArray<UKzSensableComponent*> Neighbors = SenseSubsystem->QuerySensables(QuerySphere, AgentPos, FQuat::Identity, AgentQuery);
+	TArray<UKzSensableComponent*> Neighbors;
+	SenseSubsystem->QuerySensables(Neighbors, QuerySphere, AgentPos, FQuat::Identity, AgentQuery);
 
 	if (bShowDebug && World)
 	{

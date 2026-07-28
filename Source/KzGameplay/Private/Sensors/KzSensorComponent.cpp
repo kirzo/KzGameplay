@@ -63,18 +63,22 @@ void UKzSensorComponent::PerformScan()
 	if (!Subsystem) return;
 
 	// 1. Broadphase: O(1) Spatial Query + O(N) Tag Filter natively
-	TArray<UKzSensableComponent*> DetectedSensables = Subsystem->QuerySensables(
+	Subsystem->QuerySensables(
+		ScratchSensables,
 		Shape * GetComponentScale(),
 		GetComponentLocation(),
 		GetComponentQuat(),
 		SearchTagQuery
 	);
 
-	TArray<FKzOverlapResult> NewOverlaps;
+	TArray<FKzOverlapResult>& NewOverlaps = ScratchOverlaps;
+	NewOverlaps.Reset();
+
 	AActor* InstigatorActor = GetOwner();
+	const bool bHasRequirement = !DetectionRequirement.IsEmpty();
 
 	// 2. Narrowphase: Evaluate Scriptable Requirements (The logical filter)
-	for (UKzSensableComponent* Candidate : DetectedSensables)
+	for (UKzSensableComponent* Candidate : ScratchSensables)
 	{
 		if (!Candidate) continue;
 
@@ -83,26 +87,31 @@ void UKzSensorComponent::PerformScan()
 		// Prevent the sensor from detecting itself, its own owner, or null actors
 		if (!TargetActor || TargetActor == InstigatorActor) continue;
 
-		// Set context for the requirement evaluator
-		DetectionRequirement.ResetContext();
-		DetectionRequirement.SetContextProperty(TEXT("Instigator"), InstigatorActor);
-		DetectionRequirement.SetContextProperty(TEXT("Target"), TargetActor);
-
-		if (FScriptableRequirement::EvaluateRequirement(this, DetectionRequirement))
+		// Requirement-less sensors skip the whole per-candidate context setup
+		if (bHasRequirement)
 		{
-			// Ensure we don't add duplicates if multiple Sensables exist on the same Actor
-			bool bAlreadyAdded = NewOverlaps.ContainsByPredicate([TargetActor](const FKzOverlapResult& Item)
-				{
-					return Item.Actor.Get() == TargetActor;
-				});
+			DetectionRequirement.ResetContext();
+			DetectionRequirement.SetContextProperty(TEXT("Instigator"), InstigatorActor);
+			DetectionRequirement.SetContextProperty(TEXT("Target"), TargetActor);
 
-			if (!bAlreadyAdded)
+			if (!FScriptableRequirement::EvaluateRequirement(this, DetectionRequirement))
 			{
-				FKzOverlapResult NewResult;
-				NewResult.Actor = TargetActor;
-				NewResult.SensableComponent = Candidate;
-				NewOverlaps.Add(NewResult);
+				continue;
 			}
+		}
+
+		// Ensure we don't add duplicates if multiple Sensables exist on the same Actor
+		bool bAlreadyAdded = NewOverlaps.ContainsByPredicate([TargetActor](const FKzOverlapResult& Item)
+			{
+				return Item.Actor.Get() == TargetActor;
+			});
+
+		if (!bAlreadyAdded)
+		{
+			FKzOverlapResult NewResult;
+			NewResult.Actor = TargetActor;
+			NewResult.SensableComponent = Candidate;
+			NewOverlaps.Add(NewResult);
 		}
 	}
 
@@ -129,11 +138,11 @@ void UKzSensorComponent::PerformScan()
 		}
 	}
 
-	// 4. Process End Overlaps (Exits)
-	TArray<FKzOverlapResult> OldCache = CachedOverlaps;
-	CachedOverlaps = NewOverlaps; // Swap state with the new valid frame data
+	// 4. Process End Overlaps (Exits). Swap: Cached becomes the new frame and
+	// Scratch keeps the previous one for the exit diff -- no copy.
+	Swap(CachedOverlaps, ScratchOverlaps);
 
-	for (const FKzOverlapResult& OldResult : OldCache)
+	for (const FKzOverlapResult& OldResult : ScratchOverlaps)
 	{
 		AActor* OldActor = OldResult.Actor.Get();
 

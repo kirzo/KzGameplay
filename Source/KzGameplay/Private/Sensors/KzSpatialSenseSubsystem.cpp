@@ -74,29 +74,19 @@ void UKzSpatialSenseSubsystem::UnregisterSensable(UKzSensableComponent* Componen
 	Registry.Unregister(Component);
 }
 
-TArray<UKzSensableComponent*> UKzSpatialSenseSubsystem::QuerySensables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FGameplayTagQuery& TagQuery) const
+void UKzSpatialSenseSubsystem::QuerySensables(TArray<UKzSensableComponent*>& OutResults, const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FGameplayTagQuery& TagQuery) const
 {
-	TArray<UKzSensableComponent*> RawResults;
-	Registry.Query(RawResults, QueryShape, ShapePosition, ShapeRotation);
+	OutResults.Reset();
+	Registry.Query(OutResults, QueryShape, ShapePosition, ShapeRotation);
 
-	// Filter natively by Tags
-	if (TagQuery.IsEmpty())
+	// Filter natively by Tags, in place
+	if (!TagQuery.IsEmpty())
 	{
-		return RawResults;
-	}
-
-	TArray<UKzSensableComponent*> FilteredResults;
-	FilteredResults.Reserve(RawResults.Num());
-
-	for (UKzSensableComponent* Sensable : RawResults)
-	{
-		if (TagQuery.Matches(Sensable->SenseTags))
+		OutResults.RemoveAllSwap([&TagQuery](const UKzSensableComponent* Sensable)
 		{
-			FilteredResults.Add(Sensable);
-		}
+			return !TagQuery.Matches(Sensable->SenseTags);
+		});
 	}
-
-	return FilteredResults;
 }
 
 void UKzSpatialSenseSubsystem::Tick(float DeltaTime)

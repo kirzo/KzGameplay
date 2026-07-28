@@ -108,5 +108,12 @@ private:
 	UPROPERTY(Transient)
 	TArray<FKzOverlapResult> CachedOverlaps;
 
+	/** Per-scan scratch, swapped with CachedOverlaps each scan to avoid copies. */
+	UPROPERTY(Transient)
+	TArray<FKzOverlapResult> ScratchOverlaps;
+
+	/** Per-scan scratch for the spatial query candidates. */
+	TArray<UKzSensableComponent*> ScratchSensables;
+
 	FTimerHandle ScanTimerHandle;
 };

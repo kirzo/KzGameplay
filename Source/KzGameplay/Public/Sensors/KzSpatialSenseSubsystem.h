@@ -64,13 +64,13 @@ public:
 
 	/**
 	 * Performs a spatial query to find all sensables overlapping the given shape.
+	 * @param OutResults Receives the candidate sensables (reset first). Pass a reused scratch array for alloc-free queries.
 	 * @param QueryShape The volumetric shape to test against (e.g. Sensor's shape).
 	 * @param ShapePosition World location of the query shape.
 	 * @param ShapeRotation World rotation of the query shape.
 	 * @param TagQuery Optional tag query to filter the results (e.g. "Creature AND NOT Dead").
-	 * @return A list of candidate sensables.
 	 */
-	TArray<UKzSensableComponent*> QuerySensables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FGameplayTagQuery& TagQuery) const;
+	void QuerySensables(TArray<UKzSensableComponent*>& OutResults, const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation, const FGameplayTagQuery& TagQuery) const;
 
 	/** Returns all registered sensables in the world. */
 	const TSet<UKzSensableComponent*>& GetAllRegisteredSensables() const
