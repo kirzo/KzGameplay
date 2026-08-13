@@ -24,6 +24,12 @@ UKzInteractableComponent::UKzInteractableComponent()
 
 void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// The world tearing down takes the interactors with it; only release them when this object alone goes away
+	if (EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld)
+	{
+		StopAllInteractions();
+	}
+
 	if (UKzInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzInteractionSubsystem>())
 	{
 		Subsystem->UnregisterInteractable(this);
@@ -47,6 +53,8 @@ void UKzInteractableComponent::Activate(bool bReset)
 
 void UKzInteractableComponent::Deactivate()
 {
+	StopAllInteractions();
+
 	if (GetWorld() && GetWorld()->IsGameWorld())
 	{
 		if (UKzInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzInteractionSubsystem>())
@@ -229,6 +237,21 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 	}
 
 	return FinalResult;
+}
+
+void UKzInteractableComponent::StopAllInteractions()
+{
+	// StopCurrentInteraction() routes back into StopInteraction(), which mutates CurrentInteractors
+	TArray<TObjectPtr<UKzInteractorComponent>> Interactors = MoveTemp(CurrentInteractors);
+	CurrentInteractors.Reset();
+
+	for (UKzInteractorComponent* Interactor : Interactors)
+	{
+		if (IsValid(Interactor))
+		{
+			Interactor->StopCurrentInteraction();
+		}
+	}
 }
 
 void UKzInteractableComponent::StopInteraction(UKzInteractorComponent* Interactor)

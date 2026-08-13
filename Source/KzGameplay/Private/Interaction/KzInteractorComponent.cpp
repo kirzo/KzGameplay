@@ -55,6 +55,12 @@ void UKzInteractorComponent::StopScanning()
 
 void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Release the interactable, otherwise a continuous interaction keeps its slot taken forever
+	if (EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld)
+	{
+		StopCurrentInteraction();
+	}
+
 	GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
 	Super::EndPlay(EndPlayReason);
 }

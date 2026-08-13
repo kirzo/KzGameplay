@@ -159,6 +159,10 @@ public:
 	 */
 	virtual void StopInteraction(UKzInteractorComponent* Interactor);
 
+	/** Force-stops every continuous interaction in progress, releasing the interactors. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void StopAllInteractions();
+
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
