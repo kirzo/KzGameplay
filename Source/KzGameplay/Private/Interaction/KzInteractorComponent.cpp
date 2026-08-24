@@ -186,6 +186,34 @@ void UKzInteractorComponent::PerformScan()
 	{
 		Interact();
 	}
+
+	// Polled every scan rather than only on focus change: what blocks an interaction can appear or clear
+	// while the player stands still, and the prompt has to follow
+	UpdateFocusAvailability();
+}
+
+void UKzInteractorComponent::UpdateFocusAvailability()
+{
+	UKzInteractableComponent* Focus = CurrentFocus.Get();
+
+	bool bAvailable = true;
+	FGameplayTag Reason;
+
+	if (Focus)
+	{
+		bAvailable = Focus->GetAvailability(this, Reason);
+	}
+
+	// Only the focus is polled, so this costs one evaluation per scan no matter how crowded the room is
+	if (bAvailable == bFocusAvailable && Reason == FocusUnavailableReason)
+	{
+		return;
+	}
+
+	bFocusAvailable = bAvailable;
+	FocusUnavailableReason = Reason;
+
+	OnFocusAvailabilityChanged.Broadcast(Focus, bAvailable, Reason);
 }
 
 EKzInteractionResult UKzInteractorComponent::Interact()

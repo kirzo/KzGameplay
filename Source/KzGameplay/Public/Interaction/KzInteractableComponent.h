@@ -78,11 +78,22 @@ public:
 	EKzInteractionResult DefaultInteractionResult = EKzInteractionResult::Ignored;
 
 	/**
-	 * Logic requirement.
-	 * e.g., "Does the player have the Key?", "Is the power On?"
+	 * Hard requirement: failing it removes this from the scan entirely, so there is no prompt and no UI.
+	 * Use it for what the player should not even see, like a capability they do not have.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	mutable FScriptableRequirement InteractionRequirement;
+
+	/**
+	 * Soft requirement: failing it keeps this visible and focusable but blocks the interaction, reporting
+	 * UnavailableReason. Use it for what the player should see and understand, like a missing key.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	mutable FScriptableRequirement AvailabilityRequirement;
+
+	/** Reported when AvailabilityRequirement fails, for the UI to turn into words. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FGameplayTag UnavailableReason;
 
 	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -133,6 +144,13 @@ public:
 
 	/** Evaluates if the given interactor can interact with this component. */
 	virtual bool CanInteract(class UKzInteractorComponent* Interactor) const;
+
+	/**
+	 * Evaluates whether the interaction could run right now, and why not.
+	 * Cheap enough to poll for the focused interactable, which is what feeds the prompt.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	bool GetAvailability(UKzInteractorComponent* Interactor, FGameplayTag& OutReason) const;
 
 	/** Returns true if the interactable has reached its maximum allowed interactors. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")

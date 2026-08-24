@@ -12,6 +12,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentInteractableChangedDelegate, UKzInteractableComponent*, NewInteractable, UKzInteractableComponent*, OldInteractable);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractorInteractionEndedDelegate, UKzInteractableComponent*, Interactable, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnFocusAvailabilityChangedDelegate, UKzInteractableComponent*, Interactable, bool, bAvailable, FGameplayTag, Reason);
 
 /**
  * What the server tells everyone about this interactor's engagement. Interaction handles are local to each
@@ -108,6 +109,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractorInteractionEndedDelegate OnInteractionEnded;
 
+	/**
+	 * Fired when the focused interactable becomes usable or stops being usable, with the reason.
+	 * This is what a prompt listens to in order to grey itself out and say why.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnFocusAvailabilityChangedDelegate OnFocusAvailabilityChanged;
+
 	// ==========================================
 	// RUNTIME LOGIC
 	// ==========================================
@@ -153,6 +161,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UKzInteractableComponent* GetActiveInteractable() const;
 
+	/** Whether the focused interactable can be used right now. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsFocusAvailable() const { return bFocusAvailable; }
+
+	/** Why the focused interactable cannot be used, if it cannot. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	FGameplayTag GetFocusUnavailableReason() const { return FocusUnavailableReason; }
+
 	/** Handle of our live interaction, for code that needs to talk to the subsystem about it. */
 	FKzInteractionHandle GetCurrentInteraction() const { return CurrentInteraction; }
 
@@ -172,6 +188,13 @@ protected:
 
 	/** The currently focused best candidate. */
 	TWeakObjectPtr<UKzInteractableComponent> CurrentFocus;
+
+	/** Cached availability of the focus, so the delegate only fires on change. */
+	bool bFocusAvailable = true;
+	FGameplayTag FocusUnavailableReason;
+
+	/** Re-evaluates the focus availability and reports it if it changed. */
+	void UpdateFocusAvailability();
 
 	/** Our live interaction, owned by the subsystem. We keep the handle, never the state. */
 	FKzInteractionHandle CurrentInteraction;

@@ -17,6 +17,10 @@ UKzInteractableComponent::UKzInteractableComponent()
 	InteractionRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	InteractionRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 
+	AvailabilityRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
+	AvailabilityRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+	AvailabilityRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+
 	InteractionAction.AddContextProperty<AActor*>(TEXT("Instigator"));
 	InteractionAction.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	InteractionAction.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
@@ -113,6 +117,57 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 		if (Comp != this)
 		{
 			if (!IKzInteractableInterface::Execute_CanInteract(Comp, Interactor, MutableThis))
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interactor, FGameplayTag& OutReason) const
+{
+	OutReason = FGameplayTag();
+
+	if (!Interactor)
+	{
+		return false;
+	}
+
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	AvailabilityRequirement.ResetContext();
+	AvailabilityRequirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+	AvailabilityRequirement.SetContextProperty(TEXT("Interactor"), Interactor);
+	AvailabilityRequirement.SetContextProperty(TEXT("Interactable"), MutableThis);
+
+	if (!FScriptableRequirement::EvaluateRequirement(Interactor, AvailabilityRequirement))
+	{
+		OutReason = UnavailableReason;
+		return false;
+	}
+
+	AActor* OwnerActor = GetOwner();
+	if (!OwnerActor)
+	{
+		return false;
+	}
+
+	if (OwnerActor->Implements<UKzInteractableInterface>())
+	{
+		if (!IKzInteractableInterface::Execute_GetInteractionAvailability(OwnerActor, Interactor, MutableThis, OutReason))
+		{
+			return false;
+		}
+	}
+
+	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
+	for (UActorComponent* Component : SiblingComponents)
+	{
+		if (Component != MutableThis)
+		{
+			if (!IKzInteractableInterface::Execute_GetInteractionAvailability(Component, Interactor, MutableThis, OutReason))
 			{
 				return false;
 			}

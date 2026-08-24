@@ -49,6 +49,13 @@ public:
 	void OnInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
 
 	/**
+	 * Called while this is focused, to report whether the interaction could run right now.
+	 * Return false with a reason to stay visible but blocked, so the UI can explain itself.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	bool GetInteractionAvailability(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason);
+
+	/**
 	 * Called periodically while the interaction runs. Return false to end it, filling in why.
 	 * Plain range is already covered by KeepAliveRange, so this is for rules only you know.
 	 */
@@ -58,5 +65,6 @@ public:
 protected:
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
 	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) {}
+	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) { return true; }
 	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) { return true; }
 };

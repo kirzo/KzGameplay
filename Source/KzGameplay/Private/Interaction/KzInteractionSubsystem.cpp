@@ -80,9 +80,13 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 
 	// Checked here rather than inside the target, so no path can skip it. A client mirroring what the
 	// server already decided does not get to second-guess it.
-	if (HasInteractionAuthority() && !Interactable->CanInteract(Interactor))
+	if (HasInteractionAuthority())
 	{
-		return EKzInteractionResult::Ignored;
+		FGameplayTag UnavailableReason;
+		if (!Interactable->CanInteract(Interactor) || !Interactable->GetAvailability(Interactor, UnavailableReason))
+		{
+			return EKzInteractionResult::Ignored;
+		}
 	}
 
 	FKzInteraction Interaction;
