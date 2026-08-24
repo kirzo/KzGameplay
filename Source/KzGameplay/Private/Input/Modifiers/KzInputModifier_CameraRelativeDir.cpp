@@ -2,7 +2,8 @@
 
 #include "Input/Modifiers/KzInputModifier_CameraRelativeDir.h"
 #include "GameFramework/Pawn.h"
-#include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 FVector UKzInputModifier_CameraRelativeDir::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
 {
@@ -12,9 +13,17 @@ FVector UKzInputModifier_CameraRelativeDir::ModifyInput_Implementation(const AAc
 		return CurrentInput;
 	}
 
-	// Get the current view target (usually the camera)
-	AActor* ViewTarget = Pawn->GetController()->GetViewTarget();
-	const float ViewTargetYaw = ViewTarget ? ViewTarget->GetActorRotation().Yaw : 0.0f;
+	// The real view rotation comes from the camera manager POV: it includes the
+	// camera component / spring arm, which the view target's ACTOR rotation does not.
+	float ViewTargetYaw = 0.0f;
+	if (const APlayerController* PC = Cast<APlayerController>(Pawn->GetController()))
+	{
+		ViewTargetYaw = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation().Yaw : PC->GetControlRotation().Yaw;
+	}
+	else if (const AActor* ViewTarget = Pawn->GetController()->GetViewTarget())
+	{
+		ViewTargetYaw = ViewTarget->GetActorRotation().Yaw;
+	}
 
 	// Map the raw input to a local 3D direction vector.
 	// We swap X and Y here because standard gamepad mapping puts Y as forward/up and X as right.

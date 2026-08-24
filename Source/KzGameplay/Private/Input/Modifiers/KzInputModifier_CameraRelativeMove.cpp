@@ -2,11 +2,12 @@
 
 #include "Input/Modifiers/KzInputModifier_CameraRelativeMove.h"
 #include "GameFramework/Pawn.h"
-#include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 FVector UKzInputModifier_CameraRelativeMove::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
 {
-	// We need a Pawn to get the Controller and its View Target.
+	// We need a Pawn to get the Controller and its view.
 	const APawn* Pawn = Cast<APawn>(Avatar);
 	if (!Pawn || !Pawn->GetController())
 	{
@@ -14,11 +15,18 @@ FVector UKzInputModifier_CameraRelativeMove::ModifyInput_Implementation(const AA
 		return CurrentInput;
 	}
 
-	// Get the current view target (usually the camera associated with the player controller).
-	AActor* ViewTarget = Pawn->GetController()->GetViewTarget();
+	// The real view rotation comes from the camera manager POV: it includes the
+	// camera component / spring arm, which the view target's ACTOR rotation does not.
+	FRotator Rotation = FRotator::ZeroRotator;
+	if (const APlayerController* PC = Cast<APlayerController>(Pawn->GetController()))
+	{
+		Rotation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : PC->GetControlRotation();
+	}
+	else if (const AActor* ViewTarget = Pawn->GetController()->GetViewTarget())
+	{
+		Rotation = ViewTarget->GetActorRotation();
+	}
 
-	// Find out which way is forward based on the camera's rotation.
-	const FRotator Rotation = ViewTarget ? ViewTarget->GetActorRotation() : FRotator::ZeroRotator;
 	const FRotator YawRotation(0.0f, Rotation.Yaw, 0.0f);
 
 	// Get relative direction vectors from the pure Yaw rotation.
