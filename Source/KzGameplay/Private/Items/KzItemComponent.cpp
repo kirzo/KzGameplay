@@ -49,7 +49,7 @@ bool UKzItemComponent::CanInteract_Implementation(UKzInteractorComponent* Intera
 	return !EquipperActor.IsValid();
 }
 
-EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction)
 {
 	if (!GetOwner()->HasAuthority() || !ItemInstance.IsValid() || !Interactor)
 	{

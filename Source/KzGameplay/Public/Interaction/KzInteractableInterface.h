@@ -16,7 +16,14 @@ class UKzInteractableInterface : public UInterface
 	GENERATED_BODY()
 };
 
-/** Interface for actors and components that can be interacted with. */
+/**
+ * Interface for actors and components that can be interacted with.
+ *
+ * Networking: the server decides, every machine mirrors, so HandleInteraction and OnInteractionEnded run on
+ * server, owning client and simulated proxies alike. Guard authoritative work (spawning, scoring, damage)
+ * with HasAuthority and leave local work (input, effects, audio) unguarded.
+ * ShouldKeepInteractionAlive is only asked on the authority.
+ */
 class KZGAMEPLAY_API IKzInteractableInterface
 {
 	GENERATED_BODY()
@@ -28,21 +35,28 @@ public:
 
 	/**
 	 * Called when an interactor successfully executes an interaction on this target.
-	 * @param Interactor The component that initiated the interaction.
-	 * @param Interactable The specific interactable component that was targeted.
-	 * @return The result of the interaction (Ignored, Completed, or Continuous).
+	 * Register undo work on the Interaction: it runs when the interaction ends, however it ends.
+	 * Keep its Handle to end the interaction yourself later.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
-	EKzInteractionResult HandleInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+	EKzInteractionResult HandleInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction);
 
 	/**
-	 * Called to manually abort an ongoing continuous interaction.
-	 * @param Interactor The component that is stopping the interaction.
-	 * @param Interactable The specific interactable component that was targeted.
+	 * Called once an interaction has ended, whoever ended it, with its components possibly already gone.
+	 * Registered cleanup has run by now, so this is for reacting to the outcome, not for undoing things.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
-	void StopInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+	void OnInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
+
+	/**
+	 * Called periodically while the interaction runs. Return false to end it, filling in why.
+	 * Plain range is already covered by KeepAliveRange, so this is for rules only you know.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	bool ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason);
 
 protected:
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
+	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) {}
+	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) { return true; }
 };

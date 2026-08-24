@@ -46,6 +46,13 @@ public:
 	int32 MaxInteractors = 1;
 
 	/**
+	 * How far an interactor may get from this component before a continuous interaction breaks by itself.
+	 * 0 means no limit. Every continuous interaction wants this, so it lives here instead of in each actor.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0"))
+	float KeepAliveRange = 0.0f;
+
+	/**
 	 * If true, this interactable requires the interactor to be at a specific spot.
 	 * Useful for AI pathfinding or Motion Warping (e.g., walking to the exact handle of a door).
 	 */
@@ -111,11 +118,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableActionDelegate OnInteract;
 
-protected:
-	/** Tracks the interactors currently locked into a continuous interaction with this component. */
-	UPROPERTY(Transient, BlueprintReadOnly, Category = "Interaction")
-	TArray<TObjectPtr<UKzInteractorComponent>> CurrentInteractors;
-
 public:
 	// ==========================================
 	// RUNTIME LOGIC
@@ -136,6 +138,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	bool IsInteractionFull() const;
 
+	/** Returns the number of interactions currently running on this component. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	int32 GetInteractionCount() const;
+
 	/** Returns true if the specified Interactor Component is currently interacting with this object. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	bool HasInteractor(const UKzInteractorComponent* Interactor) const;
@@ -144,24 +150,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	bool IsActorInteracting(const AActor* Actor) const;
 
-	/** Returns the list of components currently interacting with this object. */
-	UFUNCTION(BlueprintPure, Category = "Interaction")
-	const TArray<UKzInteractorComponent*>& GetInteractors() const { return CurrentInteractors; }
-
 	/**
-	 * Called to execute the interaction.
-	 * @return The aggregated result of the interaction from all listeners.
+	 * Runs the interaction against the owner and any sibling handlers, aggregating their answers.
+	 * Called by the subsystem, which owns the interaction: do not call this directly, start one instead.
 	 */
-	virtual EKzInteractionResult ExecuteInteraction(UKzInteractorComponent* Interactor);
+	virtual EKzInteractionResult ExecuteInteraction(UKzInteractorComponent* Interactor, const FKzInteraction& Interaction);
 
-	/**
-	 * Called to stop a continuous interaction.
-	 */
-	virtual void StopInteraction(UKzInteractorComponent* Interactor);
+	/** Tells the owner and sibling handlers that an interaction ended. Called by the subsystem. */
+	virtual void NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
 
-	/** Force-stops every continuous interaction in progress, releasing the interactors. */
+	/** Asks the range rule and the handlers whether a running interaction still holds. Called by the subsystem. */
+	virtual bool ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) const;
+
+	/** Ends every interaction running on this component. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void StopAllInteractions();
+	void StopAllInteractions(EKzInteractionEndReason Reason = EKzInteractionEndReason::Interrupted);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

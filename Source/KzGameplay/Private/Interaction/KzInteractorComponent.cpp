@@ -3,6 +3,8 @@
 #include "Interaction/KzInteractorComponent.h"
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Scoring/KzTargetScoringLibrary.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -12,6 +14,9 @@ UKzInteractorComponent::UKzInteractorComponent()
 	PrimaryComponentTick.bCanEverTick = false; // We use timers
 	ScanRate = 0.1f;
 
+	// Standalone ignores this, so local play pays nothing for it
+	SetIsReplicatedByDefault(true);
+
 	FilterRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
 	FilterRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	FilterRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
@@ -20,6 +25,12 @@ UKzInteractorComponent::UKzInteractorComponent()
 void UKzInteractorComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// The end of our interaction comes from the subsystem, never from whoever caused it
+	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
+	{
+		Subsystem->OnInteractionEnded.AddDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
+	}
 
 	StartScanning();
 }
@@ -55,10 +66,15 @@ void UKzInteractorComponent::StopScanning()
 
 void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Release the interactable, otherwise a continuous interaction keeps its slot taken forever
-	if (EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld)
+	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 	{
-		StopCurrentInteraction();
+		Subsystem->OnInteractionEnded.RemoveDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
+
+		// Otherwise whatever we were holding waits for an avatar that no longer exists
+		if (EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld)
+		{
+			Subsystem->EndInteractionsFor(this, EKzInteractionEndReason::InstigatorLost);
+		}
 	}
 
 	GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
@@ -74,7 +90,7 @@ void UKzInteractorComponent::PerformScan()
 	LastDebugCandidates.Empty();
 #endif
 
-	// 1. Query the Grid (Broad + Narrow phase done internally!)
+	// Query the grid (broad and narrow phase are done internally)
 	FTransform WorldTransform = GetComponentTransform();
 	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
 
@@ -83,7 +99,6 @@ void UKzInteractorComponent::PerformScan()
 
 	const FKzTransformSource AsTransformSource = FKzTransformSource(this);
 
-	// 2. Evaluate Candidates
 	for (UKzInteractableComponent* Candidate : Candidates)
 	{
 #if WITH_GAMEPLAY_DEBUGGER
@@ -94,7 +109,6 @@ void UKzInteractorComponent::PerformScan()
 		DebugInfo.bIsBest = false;
 #endif
 
-		// 2A. Filter
 		FilterRequirement.ResetContext();
 		FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
 		FilterRequirement.SetContextProperty(TEXT("Interactor"), this);
@@ -117,7 +131,6 @@ void UKzInteractorComponent::PerformScan()
 
 		const FKzTransformSource CandidateTransformSource = Candidate->bRequiresInteractionSpot ? Candidate->InteractionSpot.ToTransformSource(Candidate) : FKzTransformSource(Candidate);
 
-		// 2B. Soft Scoring
 		float Score = UKzTargetScoringLibrary::EvaluateTarget(AsTransformSource, CandidateTransformSource, ScoringProfile);
 
 #if WITH_GAMEPLAY_DEBUGGER
@@ -126,7 +139,6 @@ void UKzInteractorComponent::PerformScan()
 		LastDebugCandidates.Add(DebugInfo);
 #endif
 
-		// Keep the highest scorer
 		if (Score > BestScore)
 		{
 			BestScore = Score;
@@ -148,18 +160,15 @@ void UKzInteractorComponent::PerformScan()
 	}
 #endif
 
-	// 3. Handle State Changes
 	UKzInteractableComponent* OldInteractable = CurrentFocus.Get();
 
 	if (OldInteractable != BestCandidate)
 	{
-		// Unfocus the old one
 		if (OldInteractable)
 		{
 			OldInteractable->OnEndFocus.Broadcast(this);
 		}
 
-		// CurrentFocus the new one
 		if (BestCandidate)
 		{
 			BestCandidate->OnBeginFocus.Broadcast(this);
@@ -168,7 +177,6 @@ void UKzInteractorComponent::PerformScan()
 		CurrentFocus = BestCandidate;
 		OnCurrentInteractableChanged.Broadcast(BestCandidate, OldInteractable);
 
-		// Automatic Trigger
 		if (BestCandidate && BestCandidate->bIsAutomaticInteraction && !BestCandidate->bTriggerRepeatedly)
 		{
 			Interact();
@@ -176,7 +184,6 @@ void UKzInteractorComponent::PerformScan()
 	}
 	else if (BestCandidate && BestCandidate->bIsAutomaticInteraction && BestCandidate->bTriggerRepeatedly)
 	{
-		// Trigger Repeatedly while focused
 		Interact();
 	}
 }
@@ -188,22 +195,44 @@ EKzInteractionResult UKzInteractorComponent::Interact()
 
 EKzInteractionResult UKzInteractorComponent::InteractWith(UKzInteractableComponent* Target)
 {
-	if (!Target)
+	UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
+	if (!Target || !Subsystem)
 	{
 		return EKzInteractionResult::Ignored;
 	}
 
-	EKzInteractionResult Result = Target->ExecuteInteraction(this);
-
-	if (Result == EKzInteractionResult::Continuous)
+	if (!HasInteractionAuthority())
 	{
-		ActiveInteractable = Target;
+		// Ask and wait: a wrong guess is worse than a late answer for something the player gets locked into
+		ServerInteractWith(Target);
+		return EKzInteractionResult::Pending;
+	}
+
+	FKzInteractionHandle Handle;
+	const EKzInteractionResult Result = Subsystem->BeginInteraction(this, Target, Handle);
+
+	if (Handle.IsValid())
+	{
+		CurrentInteraction = Handle;
 
 		// Fully stop scanning and clear UI focus since we are now locked in
 		StopScanning();
+
+		UpdateReplicatedInteraction(Target, EKzInteractionEndReason::Released);
 	}
 
 	return Result;
+}
+
+void UKzInteractorComponent::ServerInteractWith_Implementation(UKzInteractableComponent* Target)
+{
+	// Runs the authoritative path, which validates it like any other request
+	InteractWith(Target);
+}
+
+void UKzInteractorComponent::ServerEndInteraction_Implementation(EKzInteractionEndReason Reason)
+{
+	EndCurrentInteraction(Reason);
 }
 
 void UKzInteractorComponent::PauseScanning()
@@ -219,12 +248,125 @@ void UKzInteractorComponent::ResumeScanning()
 
 void UKzInteractorComponent::StopCurrentInteraction()
 {
-	if (ActiveInteractable)
-	{
-		ActiveInteractable->StopInteraction(this);
-		ActiveInteractable = nullptr;
+	EndCurrentInteraction(EKzInteractionEndReason::Released);
+}
 
-		// The interaction is over, resume scanning the environment
-		StartScanning();
+void UKzInteractorComponent::EndCurrentInteraction(EKzInteractionEndReason Reason)
+{
+	if (!HasInteractionAuthority())
+	{
+		ServerEndInteraction(Reason);
+		return;
+	}
+
+	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
+	{
+		// The rest happens in HandleInteractionEnded, which also runs when somebody else ends it
+		Subsystem->EndInteraction(CurrentInteraction, Reason);
+	}
+}
+
+UKzInteractableComponent* UKzInteractorComponent::GetActiveInteractable() const
+{
+	const UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
+	const FKzInteraction* Interaction = Subsystem ? Subsystem->FindInteraction(CurrentInteraction) : nullptr;
+
+	return Interaction ? Interaction->Interactable.Get() : nullptr;
+}
+
+bool UKzInteractorComponent::HasInteractionAuthority() const
+{
+	const UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
+	return Subsystem ? Subsystem->HasInteractionAuthority() : true;
+}
+
+void UKzInteractorComponent::UpdateReplicatedInteraction(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority())
+	{
+		return;
+	}
+
+	ReplicatedInteraction.Interactable = Interactable;
+	ReplicatedInteraction.LastEndReason = Reason;
+	ReplicatedInteraction.Sequence++;
+}
+
+void UKzInteractorComponent::MirrorServerInteraction(UKzInteractableComponent* Target)
+{
+	UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
+	if (!Subsystem || !Target)
+	{
+		return;
+	}
+
+	FKzInteractionHandle Handle;
+	Subsystem->BeginInteraction(this, Target, Handle);
+
+	if (Handle.IsValid())
+	{
+		CurrentInteraction = Handle;
+		StopScanning();
+	}
+}
+
+void UKzInteractorComponent::OnRep_ReplicatedInteraction(const FKzReplicatedInteraction& OldValue)
+{
+	UKzInteractableComponent* ServerTarget = ReplicatedInteraction.Interactable;
+	UKzInteractableComponent* LocalTarget = GetActiveInteractable();
+
+	// A new sequence on the same target means the old interaction ended and another began
+	const bool bSameInteraction = LocalTarget == ServerTarget && OldValue.Sequence == ReplicatedInteraction.Sequence;
+	if (bSameInteraction)
+	{
+		return;
+	}
+
+	if (LocalTarget)
+	{
+		if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
+		{
+			Subsystem->EndInteraction(CurrentInteraction, ReplicatedInteraction.LastEndReason);
+		}
+	}
+
+	if (ServerTarget)
+	{
+		MirrorServerInteraction(ServerTarget);
+	}
+}
+
+void UKzInteractorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	// Simulated proxies need it too, to play the cosmetic side of somebody else's interaction
+	DOREPLIFETIME(UKzInteractorComponent, ReplicatedInteraction);
+}
+
+void UKzInteractorComponent::HandleInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)
+{
+	if (Interaction.Handle != CurrentInteraction)
+	{
+		return;
+	}
+
+	CurrentInteraction.Invalidate();
+
+	// Back to looking around, whatever ended it
+	StartScanning();
+
+	UpdateReplicatedInteraction(nullptr, Reason);
+
+	OnInteractionEnded.Broadcast(Interaction.Interactable.Get(), Reason);
+
+	if (InteractionEndedEventTag.IsValid())
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = GetOwner();
+		Payload.Target = Interaction.Target.Get();
+		Payload.EventTag = InteractionEndedEventTag;
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(GetOwner(), InteractionEndedEventTag, Payload);
 	}
 }
