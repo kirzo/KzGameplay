@@ -56,13 +56,13 @@ public:
 	 * @param RawInput The original input vector from the controller.
 	 * @return The final modified input vector.
 	 */
-	FVector Process(const AActor* Avatar, const FVector& RawInput) const
+	FVector Process(const AActor* Avatar, const FVector& RawInput)
 	{
 		FVector CurrentInput = RawInput;
 
 		// Iterate through the stack sequentially.
 		// Pipeline: Raw -> Mod[0] -> Mod[1] -> ... -> Result
-		for (const UKzInputModifier* Mod : Modifiers)
+		for (UKzInputModifier* Mod : Modifiers)
 		{
 			if (Mod)
 			{

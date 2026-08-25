@@ -18,5 +18,5 @@ class KZGAMEPLAY_API UKzInputModifier_CameraRelativeMove : public UKzInputModifi
 {
 	GENERATED_BODY()
 
-	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const override;
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 };

@@ -27,5 +27,5 @@ public:
 	float MaxDistance = 150.0f;
 
 protected:
-	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const override;
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 };

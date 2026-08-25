@@ -6,6 +6,17 @@
 #include "UObject/NoExportTypes.h"
 #include "KzInputModifier.generated.h"
 
+/** How many copies of a modifier exist, and therefore whether it can hold state. */
+UENUM(BlueprintType)
+enum class EKzInputModifierInstancing : uint8
+{
+	/** One copy shared by everyone using it. Cheap, but it must stay stateless. */
+	Shared,
+
+	/** One copy per owner, created when it is pushed. Needed by anything that remembers between frames. */
+	PerOwner
+};
+
 class UKzInputModifier;
 
 /** A container for a collection of input modifiers. */
@@ -92,10 +103,17 @@ public:
 	 * @return The new input vector.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Input Modifier")
-	FVector ModifyInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const;
+	FVector ModifyInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput);
+
+	/**
+	 * Whether this modifier is shared or copied per owner. A modifier that remembers anything between
+	 * frames must be PerOwner, or every avatar using it would be writing over the same memory.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Modifier")
+	EKzInputModifierInstancing InstancingPolicy = EKzInputModifierInstancing::Shared;
 
 private:
-	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 	{
 		return CurrentInput;
 	}

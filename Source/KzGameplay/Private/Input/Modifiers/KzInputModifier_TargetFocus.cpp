@@ -3,7 +3,7 @@
 #include "Input/Modifiers/KzInputModifier_TargetFocus.h"
 #include "GameFramework/Actor.h"
 
-FVector UKzInputModifier_TargetFocus::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
+FVector UKzInputModifier_TargetFocus::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
 	if (!Avatar || !TargetSource.IsValid())
 	{

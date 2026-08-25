@@ -5,7 +5,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 
-FVector UKzInputModifier_CameraRelativeMove::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
+FVector UKzInputModifier_CameraRelativeMove::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
 	// We need a Pawn to get the Controller and its view.
 	const APawn* Pawn = Cast<APawn>(Avatar);

@@ -5,7 +5,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 
-FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
+FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
 	if (!Avatar || !SweepPrimitive || CurrentInput.IsNearlyZero())
 	{

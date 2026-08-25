@@ -13,7 +13,7 @@ class KZGAMEPLAY_API UKzInputModifier_BlockMovement : public UKzInputModifier
 	GENERATED_BODY()
 
 protected:
-	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const override
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override
 	{
 		return FVector::ZeroVector;
 	}
