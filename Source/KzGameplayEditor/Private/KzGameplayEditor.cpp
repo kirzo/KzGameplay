@@ -8,6 +8,7 @@
 #include "Items/KzItemDefinition.h"
 #include "Equipment/KzEquipmentLayout.h"
 #include "Input/KzInputProfile.h"
+#include "Capabilities/KzCapabilitySet.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -91,6 +92,9 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzItemDefinition, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Item"), FColor::FromHex("#F4A261"), { INVTEXT("Gameplay") }, ItemTabs);
 	RegisterAssetTypeAction<UKzEquipmentLayout, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), { INVTEXT("Gameplay") }, LayoutTabs);
 	RegisterAssetTypeAction<UKzInputProfile, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") }, InputTabs);
+
+	// Keyed by tag rather than an array, so the plain details editor fits it better than the array editor
+	RegisterAssetTypeAction<UKzCapabilitySet>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") });
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
