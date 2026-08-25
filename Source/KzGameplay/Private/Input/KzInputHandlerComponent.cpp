@@ -25,7 +25,9 @@ void UKzInputHandlerComponent::BeginPlay()
 		{
 			if (Modifier)
 			{
-				PushInputModifier(InputTag, Modifier);
+				// Defaults live on the component template, so a per-owner modifier has to be copied
+				// or every character of this class would be sharing one
+				PushInputModifier(InputTag, ResolveModifierInstance(Modifier));
 			}
 		}
 	}
@@ -158,6 +160,10 @@ void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGamep
 {
 	FVector RawVector = Value.Get<FVector>();
 	FVector ModifiedVector = ProcessInput(InputTag, RawVector); // This checks ignores
+
+	RawInputs.Add(InputTag, RawVector);
+	ProcessedInputs.Add(InputTag, ModifiedVector);
+
 	OnInputAxis.Broadcast(InputTag, FInputActionValue(ModifiedVector), TriggerEvent);
 }
 
@@ -230,14 +236,53 @@ void UKzInputHandlerComponent::RemoveInputModifier(FGameplayTag InputTag, UKzInp
 	}
 }
 
-FVector UKzInputHandlerComponent::ProcessInput(FGameplayTag InputTag, const FVector& RawInput) const
+UKzInputModifier* UKzInputHandlerComponent::ResolveModifierInstance(UKzInputModifier* Modifier)
+{
+	if (!Modifier || Modifier->InstancingPolicy == EKzInputModifierInstancing::Shared)
+	{
+		return Modifier;
+	}
+
+	return DuplicateObject<UKzInputModifier>(Modifier, this);
+}
+
+UKzInputModifier* UKzInputHandlerComponent::PushInputModifierOfClass(FGameplayTag InputTag, TSubclassOf<UKzInputModifier> ModifierClass)
+{
+	if (!InputTag.IsValid() || !ModifierClass)
+	{
+		return nullptr;
+	}
+
+	UKzInputModifier* Instance = ModifierClass->GetDefaultObject<UKzInputModifier>();
+	if (Instance->InstancingPolicy == EKzInputModifierInstancing::PerOwner)
+	{
+		Instance = NewObject<UKzInputModifier>(this, ModifierClass);
+	}
+
+	PushInputModifier(InputTag, Instance);
+	return Instance;
+}
+
+FVector UKzInputHandlerComponent::GetRawInput(FGameplayTag InputTag) const
+{
+	const FVector* Found = RawInputs.Find(InputTag);
+	return Found ? *Found : FVector::ZeroVector;
+}
+
+FVector UKzInputHandlerComponent::GetProcessedInput(FGameplayTag InputTag) const
+{
+	const FVector* Found = ProcessedInputs.Find(InputTag);
+	return Found ? *Found : FVector::ZeroVector;
+}
+
+FVector UKzInputHandlerComponent::ProcessInput(FGameplayTag InputTag, const FVector& RawInput)
 {
 	if (IsInputIgnored(InputTag))
 	{
 		return FVector::ZeroVector;
 	}
 
-	if (const FKzInputModifierStack* Stack = ModifierStacks.Find(InputTag))
+	if (FKzInputModifierStack* Stack = ModifierStacks.Find(InputTag))
 	{
 		return Stack->Process(GetOwner(), RawInput);
 	}

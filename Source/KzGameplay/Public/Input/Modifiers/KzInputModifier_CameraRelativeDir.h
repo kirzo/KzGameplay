@@ -17,5 +17,5 @@ class KZGAMEPLAY_API UKzInputModifier_CameraRelativeDir : public UKzInputModifie
 	GENERATED_BODY()
 
 public:
-	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const override;
+	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 };

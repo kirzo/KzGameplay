@@ -5,7 +5,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/PlayerCameraManager.h"
 
-FVector UKzInputModifier_CameraRelativeDir::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) const
+FVector UKzInputModifier_CameraRelativeDir::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
 	const APawn* Pawn = Cast<APawn>(Avatar);
 	if (!Pawn || !Pawn->GetController())

@@ -1,6 +1,8 @@
 // Copyright 2026 kirzo
 
 #include "Abilities/Tasks/AbilityTask_MoveToLocationUsingInput.h"
+#include "Input/KzInputHandlerComponent.h"
+#include "Input/KzInputTags.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/MovementComponent.h"
@@ -45,6 +47,18 @@ UAbilityTask_MoveToLocationUsingInput* UAbilityTask_MoveToLocationUsingInput::Mo
 	return MyObj;
 }
 
+UKzInputHandlerComponent* UAbilityTask_MoveToLocationUsingInput::GetInputHandler() const
+{
+	AActor* Avatar = GetAvatarActor();
+	return Avatar ? Avatar->FindComponentByClass<UKzInputHandlerComponent>() : nullptr;
+}
+
+FName UAbilityTask_MoveToLocationUsingInput::GetBlockSourceID() const
+{
+	// Unique per task, so two of these running at once cannot release each other's block
+	return FName(*FString::Printf(TEXT("MoveToLocation_%u"), GetUniqueID()));
+}
+
 void UAbilityTask_MoveToLocationUsingInput::Activate()
 {
 	Super::Activate();
@@ -59,13 +73,9 @@ void UAbilityTask_MoveToLocationUsingInput::Activate()
 	// Safely block player movement input if requested
 	if (bBlockInput)
 	{
-		if (APawn* AvatarPawn = Cast<APawn>(GetAvatarActor()))
+		if (UKzInputHandlerComponent* Handler = GetInputHandler())
 		{
-			if (APlayerController* PC = Cast<APlayerController>(AvatarPawn->GetController()))
-			{
-				PC->SetIgnoreMoveInput(true);
-				PC->SetIgnoreLookInput(true);
-			}
+			Handler->PushInputIgnore(KzTags::Input::Move, GetBlockSourceID(), true, 0);
 		}
 	}
 }
@@ -202,13 +212,9 @@ void UAbilityTask_MoveToLocationUsingInput::OnDestroy(bool AbilityIsEnding)
 	// Guarantee that input is restored regardless of how the task ends (Timeout, Cancelled, Completed)
 	if (bBlockInput)
 	{
-		if (APawn* AvatarPawn = Cast<APawn>(GetAvatarActor()))
+		if (UKzInputHandlerComponent* Handler = GetInputHandler())
 		{
-			if (APlayerController* PC = Cast<APlayerController>(AvatarPawn->GetController()))
-			{
-				PC->SetIgnoreMoveInput(false);
-				PC->SetIgnoreLookInput(false);
-			}
+			Handler->RemoveInputIgnore(KzTags::Input::Move, GetBlockSourceID());
 		}
 	}
 

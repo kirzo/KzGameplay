@@ -56,6 +56,10 @@ private:
 	UPROPERTY(Transient)
 	TMap<FGameplayTag, FKzInputModifierStack> ModifierStacks;
 
+	/** Last value seen per input, before and after the stack. */
+	TMap<FGameplayTag, FVector> RawInputs;
+	TMap<FGameplayTag, FVector> ProcessedInputs;
+
 public:
 	UKzInputHandlerComponent();
 
@@ -85,13 +89,32 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
 	void PushInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier);
 
+	/**
+	 * Adds a modifier from its class, honouring its instancing policy: shared modifiers are pushed as they
+	 * are, per-owner ones are copied first so their state belongs to this handler alone.
+	 *  The instance that ended up on the stack, to hand back to RemoveInputModifier later.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
+	UKzInputModifier* PushInputModifierOfClass(FGameplayTag InputTag, TSubclassOf<UKzInputModifier> ModifierClass);
+
 	/** Removes a specific modifier instance from a specific input tag's stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Modifiers")
 	void RemoveInputModifier(FGameplayTag InputTag, UKzInputModifier* Modifier);
 
 	/** Processes a raw input vector through the specific tag's modifier stack. */
 	UFUNCTION(BlueprintCallable, Category = "Input|Processing")
-	FVector ProcessInput(FGameplayTag InputTag, const FVector& RawInput) const;
+	FVector ProcessInput(FGameplayTag InputTag, const FVector& RawInput);
+
+	/** What the player asked for, before any modifier touched it. */
+	UFUNCTION(BlueprintPure, Category = "Input|Processing")
+	FVector GetRawInput(FGameplayTag InputTag) const;
+
+	/**
+	 * What came out of the modifier stack, which is what actually drove the avatar.
+	 * Kept so anything needing the player's intent can ask here instead of digging it out of the pawn.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Input|Processing")
+	FVector GetProcessedInput(FGameplayTag InputTag) const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -115,4 +138,7 @@ private:
 
 	/** Internal callback to handle analog values with custom payload. */
 	void Input_Axis(const FInputActionValue& Value, FGameplayTag InputTag, ETriggerEvent TriggerEvent);
+
+	/** Returns the instance to push: the modifier itself when shared, a copy of it when per-owner. */
+	UKzInputModifier* ResolveModifierInstance(UKzInputModifier* Modifier);
 };

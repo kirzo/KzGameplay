@@ -51,6 +51,15 @@ public:
 	);
 
 	virtual void Activate() override;
+
+private:
+	/** The handler that owns the input we block, if the avatar has one. */
+	class UKzInputHandlerComponent* GetInputHandler() const;
+
+	/** Identifies our block on the ignore stack. */
+	FName GetBlockSourceID() const;
+
+public:
 	virtual void TickTask(float DeltaTime) override;
 	virtual void OnDestroy(bool AbilityIsEnding) override;
 
