@@ -6,6 +6,7 @@
 #include "Components/KzShapeComponent.h"
 #include "Components/KzComponentReference.h"
 #include "Interaction/KzInteractionTypes.h"
+#include "Interaction/KzInteractionAction.h"
 #include "ScriptableConditions/ScriptableRequirement.h" 
 #include "ScriptableTasks/ScriptableAction.h" 
 #include "KzInteractableComponent.generated.h"
@@ -100,6 +101,13 @@ public:
 	FScriptableAction InteractionAction;
 
 	/**
+	 * What the instigator can do repeatedly while the interaction runs, keyed by the input that fires it.
+	 * Lives here rather than in a bespoke component so anything interactable can offer actions.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Actions", meta = (TitleProperty = "InputTag"))
+	TArray<FKzInteractionAction> Actions;
+
+	/**
 	 * If true, the Interactor will trigger the interaction event automatically
 	 * as soon as this object becomes the Best Candidate, without waiting for input.
 	 */
@@ -152,6 +160,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	bool GetAvailability(UKzInteractorComponent* Interactor, FGameplayTag& OutReason) const;
 
+	/** The action fired by an input, or null if this interactable offers none for it. */
+	const FKzInteractionAction* FindAction(FGameplayTag InputTag) const;
+
+	/** Copies out the action fired by an input, for Blueprint. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions", meta = (DisplayName = "Find Action"))
+	bool GetAction(FGameplayTag InputTag, FKzInteractionAction& OutAction) const;
+
+	/** Whether an action can run right now: its own rules and its cooldown. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions")
+	bool CanRunAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor) const;
+
+	/**
+	 * Runs an action's effect and starts its cooldown. Call it when the animation notify lands, or right
+	 * away for an action with no animation. Re-checks the rules, so the wait cannot let a stale press through.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions")
+	bool RunAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor);
+
 	/** Returns true if the interactable has reached its maximum allowed interactors. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	bool IsInteractionFull() const;
@@ -183,6 +209,15 @@ public:
 	/** Ends every interaction running on this component. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void StopAllInteractions(EKzInteractionEndReason Reason = EKzInteractionEndReason::Interrupted);
+
+private:
+	/**
+	 * When each action last ran, for cooldowns.
+	 * ponytail: keyed by action alone, which is enough while an interactable is used by one instigator at a
+	 * time. Key it by instigator too if something ever offers shared actions to several at once.
+	 */
+	UPROPERTY(Transient)
+	TMap<FGameplayTag, double> LastActionTime;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

@@ -177,6 +177,103 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 	return true;
 }
 
+namespace
+{
+	/**
+	 * Actions arrive from serialized data, long after the constructor, so their context is declared on
+	 * first use. ContextDefinitions is a set, so saying it again costs nothing and changes nothing.
+	 */
+	template<typename TContainer>
+	void DeclareActionContext(TContainer& Container)
+	{
+		Container.template AddContextProperty<AActor*>(TEXT("Instigator"));
+		Container.template AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+		Container.template AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+		Container.template AddContextProperty<AActor*>(TEXT("Target"));
+	}
+}
+
+const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const
+{
+	if (!InputTag.IsValid())
+	{
+		return nullptr;
+	}
+
+	return Actions.FindByPredicate([InputTag](const FKzInteractionAction& Action) { return Action.InputTag == InputTag; });
+}
+
+bool UKzInteractableComponent::GetAction(FGameplayTag InputTag, FKzInteractionAction& OutAction) const
+{
+	if (const FKzInteractionAction* Action = FindAction(InputTag))
+	{
+		OutAction = *Action;
+		return true;
+	}
+
+	return false;
+}
+
+bool UKzInteractableComponent::CanRunAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor) const
+{
+	const FKzInteractionAction* Action = FindAction(InputTag);
+	if (!Action || !Interactor)
+	{
+		return false;
+	}
+
+	if (Action->Cooldown > 0.0f)
+	{
+		const double* LastUse = LastActionTime.Find(InputTag);
+		const UWorld* World = GetWorld();
+
+		if (LastUse && World && World->GetTimeSeconds() - *LastUse < Action->Cooldown)
+		{
+			return false;
+		}
+	}
+
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	DeclareActionContext(Action->Requirement);
+	Action->Requirement.ResetContext();
+	Action->Requirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+	Action->Requirement.SetContextProperty(TEXT("Interactor"), Interactor);
+	Action->Requirement.SetContextProperty(TEXT("Interactable"), MutableThis);
+	Action->Requirement.SetContextProperty(TEXT("Target"), GetOwner());
+
+	return FScriptableRequirement::EvaluateRequirement(Interactor, Action->Requirement);
+}
+
+bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor)
+{
+	// Re-checked here because the animation put time between the press and this call
+	if (!CanRunAction(InputTag, Interactor))
+	{
+		return false;
+	}
+
+	FKzInteractionAction* Action = Actions.FindByPredicate([InputTag](const FKzInteractionAction& Candidate) { return Candidate.InputTag == InputTag; });
+	if (!Action)
+	{
+		return false;
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		LastActionTime.Add(InputTag, World->GetTimeSeconds());
+	}
+
+	DeclareActionContext(Action->Effect);
+	Action->Effect.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+	Action->Effect.SetContextProperty(TEXT("Interactor"), Interactor);
+	Action->Effect.SetContextProperty(TEXT("Interactable"), this);
+	Action->Effect.SetContextProperty(TEXT("Target"), GetOwner());
+	Action->Effect.Run(this);
+
+	return true;
+}
+
 int32 UKzInteractableComponent::GetInteractionCount() const
 {
 	const UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
