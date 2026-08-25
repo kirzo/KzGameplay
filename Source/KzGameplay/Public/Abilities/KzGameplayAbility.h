@@ -6,7 +6,7 @@
 #include "Abilities/GameplayAbility.h"
 #include "KzGameplayAbility.generated.h"
 
-/** Defines how an ability interacts with the input system. */
+/** Defines how an ability reacts to one input tag. */
 UENUM(BlueprintType)
 enum class EKzAbilityInputPolicy : uint8
 {
@@ -17,7 +17,28 @@ enum class EKzAbilityInputPolicy : uint8
 	ListenOnly,
 
 	/** The ability can be activated by the input, and will also listen to it while active. */
-	ActivateAndListen
+	ActivateAndListen,
+
+	/**
+	 * The input is turned into a gameplay event carrying its own tag, for abilities that would rather
+	 * activate through their AbilityTriggers, with the payload and conditions that brings.
+	 */
+	TriggerEvent
+};
+
+/** Binds one input tag to how this ability reacts to it. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzAbilityInput
+{
+	GENERATED_BODY()
+
+	/** The input this entry is about. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Categories = "Input"))
+	FGameplayTag InputTag;
+
+	/** What the ability does when that input arrives. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	EKzAbilityInputPolicy Policy = EKzAbilityInputPolicy::None;
 };
 
 /**
@@ -32,21 +53,12 @@ class KZGAMEPLAY_API UKzGameplayAbility : public UGameplayAbility
 public:
 	UKzGameplayAbility();
 
-	// ==========================================
-	// INPUT
-	// ==========================================
-
-	/** How this ability handles the specified InputTag. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-	EKzAbilityInputPolicy InputPolicy;
-
-	/** The input tag associated with this ability (for activation or listening). */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (Categories = "Input", EditCondition = "InputPolicy != EKzAbilityInputPolicy::None"))
-	FGameplayTag InputTag;
-
-	// ==========================================
-	// INITIALIZATION & TRIGGERS
-	// ==========================================
+	/**
+	 * Inputs this ability reacts to, and how. An ability may bind several: one to activate it, others to
+	 * drive it while it runs, which is what lets a single ability offer more than one action.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (TitleProperty = "InputTag"))
+	TArray<FKzAbilityInput> InputBindings;
 
 	/** Tells an ability to activate immediately when it's granted. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Ability")
@@ -57,12 +69,32 @@ public:
 	TArray<FAbilityTriggerData> AbilityCancelTriggers;
 
 	virtual void OnAvatarSet(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
+	virtual void PostLoad() override;
+
+	/** How this ability reacts to an input, or None if it does not bind it. */
+	UFUNCTION(BlueprintPure, Category = "Ability|Input")
+	EKzAbilityInputPolicy GetInputPolicy(FGameplayTag QueryTag) const;
+
+	/** Every input this ability binds, whatever the policy. */
+	UFUNCTION(BlueprintPure, Category = "Ability|Input")
+	FGameplayTagContainer GetBoundInputTags() const;
 
 	/**
-	 * Returns true if the input action associated with this ability is currently being held down.
-	 * Useful for abilities that need to check the continuous input state (e.g., auto-firing, charging)
-	 * without relying on asynchronous input tasks.
+	 * Whether an input is being held right now, for abilities that poll instead of waiting on a task.
+	 * Takes a tag because an ability may bind several, and reports the input itself: it answers the same
+	 * whether or not this ability binds it.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Ability|Input")
-	bool IsInputPressed() const;
+	bool IsInputPressed(FGameplayTag QueryTag) const;
+
+private:
+	/**
+	 * Single binding from before InputBindings existed. Names kept so old assets still load, and migrated
+	 * into the array on PostLoad. Hidden rather than removed for that one reason.
+	 */
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use InputBindings instead."))
+	EKzAbilityInputPolicy InputPolicy = EKzAbilityInputPolicy::None;
+
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use InputBindings instead."))
+	FGameplayTag InputTag;
 };

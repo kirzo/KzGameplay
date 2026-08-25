@@ -19,17 +19,28 @@ void UKzAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 		return;
 	}
 
-	bool bInputConsumed = false;
+	PressedInputTags.Add(InputTag);
+
+	// Announce it before any routing, so tasks hear their input whether or not a spec consumes it
+	OnAbilityInputTag.Broadcast(InputTag, true);
+
+	bool bWantsEvent = false;
 
 	ABILITYLIST_SCOPE_LOCK();
 	for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
 	{
 		if (const UKzGameplayAbility* KzAbility = Cast<UKzGameplayAbility>(Spec.Ability))
 		{
-			// Check if this ability cares about THIS specific input tag
-			if (KzAbility->InputPolicy != EKzAbilityInputPolicy::None && KzAbility->InputTag == InputTag)
+			const EKzAbilityInputPolicy Policy = KzAbility->GetInputPolicy(InputTag);
+			if (Policy != EKzAbilityInputPolicy::None)
 			{
-				const bool bActivatesFromInput = (KzAbility->InputPolicy == EKzAbilityInputPolicy::ActivateAndListen);
+				const bool bActivatesFromInput = (Policy == EKzAbilityInputPolicy::ActivateAndListen);
+
+				if (Policy == EKzAbilityInputPolicy::TriggerEvent)
+				{
+					bWantsEvent = true;
+					continue;
+				}
 
 				// If it reaches here, it inherently has listening permissions (ListenOnly or ActivateAndListen)
 				Spec.InputPressed = true;
@@ -50,20 +61,19 @@ void UKzAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 
 					InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, ActivationInfo.GetActivationPredictionKey());
 
-					bInputConsumed = true;
 				}
 				else if (bActivatesFromInput)
 				{
 					// It's inactive, but it has permission to activate!
 					TryActivateAbility(Spec.Handle);
-					bInputConsumed = true;
 				}
 			}
 		}
 	}
 
-	// Fallback for Abilities listening directly via their 'Ability Triggers'
-	if (!bInputConsumed)
+	// Declared, not leftover: an ability asks for the event with TriggerEvent rather than getting it
+	// only when nobody else happened to consume the input
+	if (bWantsEvent)
 	{
 		FGameplayEventData Payload;
 		Payload.Instigator = GetOwnerActor();
@@ -79,13 +89,16 @@ void UKzAbilitySystemComponent::AbilityInputTagReleased(const FGameplayTag& Inpu
 	if (!InputTag.IsValid() || !AbilityActorInfo.IsValid()) return;
 	if (!AbilityActorInfo->IsLocallyControlled() && !AbilityActorInfo->IsNetAuthority()) return;
 
+	PressedInputTags.Remove(InputTag);
+	OnAbilityInputTag.Broadcast(InputTag, false);
+
 	ABILITYLIST_SCOPE_LOCK();
 	for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
 	{
 		if (const UKzGameplayAbility* KzAbility = Cast<UKzGameplayAbility>(Spec.Ability))
 		{
-			// For release, we only care if it's listening
-			if (KzAbility->InputPolicy != EKzAbilityInputPolicy::None && KzAbility->InputTag == InputTag)
+			const EKzAbilityInputPolicy Policy = KzAbility->GetInputPolicy(InputTag);
+			if (Policy != EKzAbilityInputPolicy::None && Policy != EKzAbilityInputPolicy::TriggerEvent)
 			{
 				Spec.InputPressed = false;
 
