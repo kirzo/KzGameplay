@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "KzAbilitySystemComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKzAbilityInputTagSignature, FGameplayTag, InputTag, bool, bPressed);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKzGameplayEventSignature, const FGameplayTag&, Tag, FGameplayEventData, EventData);
 
 /**
@@ -24,6 +25,17 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "GAS|Events")
 	FKzGameplayEventSignature OnGameplayEvent;
 
+	/**
+	 * Fired for every bound input, carrying which one it was. Ability tasks listen here instead of the
+	 * engine's generic InputPressed event, which has no room for a tag and so cannot tell them apart.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Abilities|Input")
+	FKzAbilityInputTagSignature OnAbilityInputTag;
+
+	/** Whether an input is being held right now. Answers per tag, which a spec's single flag cannot. */
+	UFUNCTION(BlueprintPure, Category = "Abilities|Input")
+	bool IsInputTagPressed(FGameplayTag InputTag) const { return PressedInputTags.Contains(InputTag); }
+
 	/** Routes a pressed input tag to the relevant abilities. */
 	UFUNCTION(BlueprintCallable, Category = "GAS|Input")
 	void AbilityInputTagPressed(const FGameplayTag& InputTag);
@@ -36,6 +48,9 @@ protected:
 	virtual void OnGiveAbility(FGameplayAbilitySpec& AbilitySpec) override;
 	virtual void OnRemoveAbility(FGameplayAbilitySpec& AbilitySpec) override;
 	virtual int32 HandleGameplayEvent(FGameplayTag EventTag, const FGameplayEventData* Payload) override;
+
+	/** Inputs currently held, tracked here because it is where both press and release arrive. */
+	TSet<FGameplayTag> PressedInputTags;
 
 	/** Abilities that should be cancelled when a specific gameplay event is fired. */
 	TMap<FGameplayTag, TArray<FGameplayAbilitySpecHandle>> GameplayEventCancelledAbilities;
