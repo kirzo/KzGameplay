@@ -8,6 +8,7 @@
 #include "KzInputProfile.generated.h"
 
 class UInputAction;
+class UInputMappingContext;
 
 /** Defines how the handler routes an input action's events. */
 UENUM(BlueprintType)
@@ -50,8 +51,9 @@ public:
 };
 
 /**
- * Data Asset mapping Enhanced Input Actions to Gameplay Tags and defining how each is routed.
- * This is a routing table only; it does not own the key bindings (those live in the Input Mapping Context).
+ * Everything about the inputs one thing has: which keys, which tags, how each is routed and what it
+ * announces. A character has one; so does anything that hands the player controls it did not have before,
+ * like a nozzle, and pushing that profile brings its keys along instead of asking a second asset to agree.
  */
 UCLASS(BlueprintType, Const)
 class KZGAMEPLAY_API UKzInputProfile : public UPrimaryDataAsset
@@ -59,6 +61,17 @@ class KZGAMEPLAY_API UKzInputProfile : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Keys for these actions, applied while the profile is active. Without one the actions are declared
+	 * but nothing can trigger them, which is a valid way to describe inputs another profile provides keys for.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputMappingContext> MappingContext;
+
+	/** Enhanced Input priority for the context above. Higher wins when two contexts map the same key. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	int32 ContextPriority = 0;
+
 	/** List of input actions used by this profile and their corresponding tags. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (TitleProperty = "InputTag"))
 	TArray<FKzInputAction> InputActions;

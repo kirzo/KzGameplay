@@ -42,12 +42,22 @@ public:
 	FKzInputAxisDelegate OnInputAxis;
 
 private:
-	/** The currently active input profile. */
-	UPROPERTY(Transient)
-	TObjectPtr<UKzInputProfile> ActiveInputProfile;
+	/**
+	 * One layer of input: a profile, whatever it bound, and whether its context went on.
+	 * Kept so removing a layer takes away exactly what it brought and nothing else.
+	 */
+	struct FActiveProfile
+	{
+		TObjectPtr<UKzInputProfile> Profile;
+		TArray<uint32> BindHandles;
+		bool bAppliedContext = false;
+	};
 
-	/** Stores the handles of current bindings so we can cleanly remove them on profile swaps. */
-	TArray<uint32> BindHandles;
+	/**
+	 * Active profiles, base first. Anything the player picks up can add its own on top, so the character
+	 * never has to declare inputs that belong to something it might be holding.
+	 */
+	TArray<FActiveProfile> ActiveProfiles;
 
 	/** Map of ignore stacks, keyed by the specific Gameplay Tag of the input. */
 	TMap<FGameplayTag, Kz::TPriorityStack<bool, false, FName, false>> IgnoreInputStacks;
@@ -66,6 +76,21 @@ public:
 	/** Manually re-initializes input with a new profile (e.g., when swapping control schemes). */
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void InitializeInput(UKzInputProfile* OverrideProfile);
+
+	/**
+	 * Adds a profile on top of the current ones: binds its actions and applies its keys.
+	 * Made for things that grant controls while held, so an item ships its own inputs and takes them with
+	 * it. A tag declared here shadows the same tag lower down, which is how an item retunes what exists.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void PushInputProfile(UKzInputProfile* Profile);
+
+	/** Takes a profile back off, unbinding exactly what it brought. */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void RemoveInputProfile(UKzInputProfile* Profile);
+
+	/** The action config for a tag, searched from the topmost profile down. */
+	const struct FKzInputAction* FindActionConfig(const FGameplayTag& InputTag) const;
 
 	/**
 	 * Pushes a new input ignore state to the stack for a specific Gameplay Tag.
@@ -126,6 +151,15 @@ private:
 
 	/** Internal helper to perform the actual binding. */
 	void TryBindInput(APawn* Pawn, UKzInputProfile* ProfileToUse = nullptr);
+
+	/** Binds one profile's actions and applies its context, recording both so they can be undone. */
+	void BindProfileLayer(APawn* Pawn, UKzInputProfile* Profile);
+
+	/** Undoes exactly what BindProfileLayer did for this layer. */
+	void UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer);
+
+	/** The subsystem that owns the key mappings, or null for anything without a local player. */
+	class UEnhancedInputLocalPlayerSubsystem* GetLocalPlayerInput(const APawn* Pawn) const;
 
 	/** Internal callback for when an input action is pressed. */
 	void Input_ActionPressed(FGameplayTag InputTag, FGameplayTag EventTag);
