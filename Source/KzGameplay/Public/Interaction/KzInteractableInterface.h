@@ -19,10 +19,10 @@ class UKzInteractableInterface : public UInterface
 /**
  * Interface for actors and components that can be interacted with.
  *
- * Networking: the server decides, every machine mirrors, so HandleInteraction and OnInteractionEnded run on
- * server, owning client and simulated proxies alike. Guard authoritative work (spawning, scoring, damage)
- * with HasAuthority and leave local work (input, effects, audio) unguarded.
- * ShouldKeepInteractionAlive is only asked on the authority.
+ * Networking: the server decides, every machine mirrors, so OnInteractionBegun and OnInteractionEnded run
+ * on server, owning client and simulated proxies alike. Guard authoritative work (spawning, scoring,
+ * damage) with HasAuthority and leave local work (input, effects, audio) unguarded.
+ * GetInteractionResult and ShouldKeepInteractionAlive are only ever asked on the authority.
  */
 class KZGAMEPLAY_API IKzInteractableInterface
 {
@@ -34,12 +34,20 @@ public:
 	bool CanInteract(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
 
 	/**
-	 * Called when an interactor successfully executes an interaction on this target.
+	 * Asked before anything runs: is this interaction instant, ongoing, or not happening at all?
+	 * A pure question, with no side effects, because the answers of every handler are still being weighed.
+	 * Return Ignored to abstain and let the interactable's DefaultInteractionResult stand.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	EKzInteractionResult GetInteractionResult(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
+	/**
+	 * Called once the interaction exists and is confirmed. This is where the work goes.
 	 * Register undo work on the Interaction: it runs when the interaction ends, however it ends.
 	 * Keep its Handle to end the interaction yourself later.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
-	EKzInteractionResult HandleInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction);
+	void OnInteractionBegun(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction);
 
 	/**
 	 * Called once an interaction has ended, whoever ended it, with its components possibly already gone.
@@ -71,6 +79,8 @@ public:
 
 protected:
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
+	virtual EKzInteractionResult GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return EKzInteractionResult::Ignored; }
+	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) {}
 	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) {}
 	virtual void OnInteractionAction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) {}
 	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) { return true; }

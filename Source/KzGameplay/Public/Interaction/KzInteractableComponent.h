@@ -163,6 +163,10 @@ public:
 	/** The action fired by an input, or null if this interactable offers none for it. */
 	const FKzInteractionAction* FindAction(FGameplayTag InputTag) const;
 
+	/** Every input this interactable's actions listen to. */
+	UFUNCTION(BlueprintPure, Category = "Interaction|Actions")
+	FGameplayTagContainer GetActionInputTags() const;
+
 	/** Copies out the action fired by an input, for Blueprint. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions", meta = (DisplayName = "Find Action"))
 	bool GetAction(FGameplayTag InputTag, FKzInteractionAction& OutAction) const;
@@ -195,10 +199,14 @@ public:
 	bool IsActorInteracting(const AActor* Actor) const;
 
 	/**
-	 * Runs the interaction against the owner and any sibling handlers, aggregating their answers.
-	 * Called by the subsystem, which owns the interaction: do not call this directly, start one instead.
+	 * Asks the owner and sibling handlers what kind of interaction this would be, without running any of
+	 * it. Called by the subsystem before the interaction exists: deciding and acting are separate passes,
+	 * so no handler can act on an answer that the others have not agreed to yet.
 	 */
-	virtual EKzInteractionResult ExecuteInteraction(UKzInteractorComponent* Interactor, const FKzInteraction& Interaction);
+	virtual EKzInteractionResult EvaluateInteractionResult(UKzInteractorComponent* Interactor);
+
+	/** Tells the owner and sibling handlers that the interaction is live. Called by the subsystem. */
+	virtual void NotifyInteractionBegun(UKzInteractorComponent* Interactor, const FKzInteraction& Interaction);
 
 	/** Tells the owner and sibling handlers that an interaction ended. Called by the subsystem. */
 	virtual void NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
