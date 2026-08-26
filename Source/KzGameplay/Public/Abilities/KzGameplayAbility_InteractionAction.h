@@ -42,7 +42,7 @@ private:
 	FGameplayTag RunningAction;
 
 	UFUNCTION()
-	void OnInputPressed(FGameplayTag InputTag);
+	void OnInputPressed(FGameplayTag PressedTag);
 
 	UFUNCTION()
 	void OnInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);

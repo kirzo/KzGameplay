@@ -8,22 +8,30 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
+UE_DISABLE_OPTIMIZATION
+
+void KzInteraction::DeclareContext(FScriptableContainer& Container)
+{
+	Container.AddContextProperty<AActor*>(TEXT("Instigator"));
+	Container.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
+	Container.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+	Container.AddContextProperty<AActor*>(TEXT("Target"));
+}
+
+FKzInteractionAction::FKzInteractionAction()
+{
+	KzInteraction::DeclareContext(Requirement);
+	KzInteraction::DeclareContext(Effect);
+}
+
 UKzInteractableComponent::UKzInteractableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	InteractionTime = 0.0f;
 
-	InteractionRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
-	InteractionRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-	InteractionRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
-
-	AvailabilityRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
-	AvailabilityRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-	AvailabilityRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
-
-	InteractionAction.AddContextProperty<AActor*>(TEXT("Instigator"));
-	InteractionAction.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-	InteractionAction.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+	KzInteraction::DeclareContext(InteractionRequirement);
+	KzInteraction::DeclareContext(AvailabilityRequirement);
+	KzInteraction::DeclareContext(InteractionAction);
 }
 
 void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -177,22 +185,6 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 	return true;
 }
 
-namespace
-{
-	/**
-	 * Actions arrive from serialized data, long after the constructor, so their context is declared on
-	 * first use. ContextDefinitions is a set, so saying it again costs nothing and changes nothing.
-	 */
-	template<typename TContainer>
-	void DeclareActionContext(TContainer& Container)
-	{
-		Container.template AddContextProperty<AActor*>(TEXT("Instigator"));
-		Container.template AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-		Container.template AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
-		Container.template AddContextProperty<AActor*>(TEXT("Target"));
-	}
-}
-
 const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const
 {
 	if (!InputTag.IsValid())
@@ -201,6 +193,17 @@ const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag In
 	}
 
 	return Actions.FindByPredicate([InputTag](const FKzInteractionAction& Action) { return Action.InputTag == InputTag; });
+}
+
+FGameplayTagContainer UKzInteractableComponent::GetActionInputTags() const
+{
+	FGameplayTagContainer Tags;
+	for (const FKzInteractionAction& Action : Actions)
+	{
+		Tags.AddTag(Action.InputTag);
+	}
+
+	return Tags;
 }
 
 bool UKzInteractableComponent::GetAction(FGameplayTag InputTag, FKzInteractionAction& OutAction) const
@@ -235,7 +238,6 @@ bool UKzInteractableComponent::CanRunAction(FGameplayTag InputTag, UKzInteractor
 
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
-	DeclareActionContext(Action->Requirement);
 	Action->Requirement.ResetContext();
 	Action->Requirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
 	Action->Requirement.SetContextProperty(TEXT("Interactor"), Interactor);
@@ -264,7 +266,6 @@ bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorCom
 		LastActionTime.Add(InputTag, World->GetTimeSeconds());
 	}
 
-	DeclareActionContext(Action->Effect);
 	Action->Effect.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
 	Action->Effect.SetContextProperty(TEXT("Interactor"), Interactor);
 	Action->Effect.SetContextProperty(TEXT("Interactable"), this);
@@ -325,7 +326,7 @@ bool UKzInteractableComponent::IsActorInteracting(const AActor* Actor) const
 	return Subsystem && Subsystem->IsActorInteractingWith(Actor, this);
 }
 
-EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorComponent* Interactor, const FKzInteraction& Interaction)
+EKzInteractionResult UKzInteractableComponent::EvaluateInteractionResult(UKzInteractorComponent* Interactor)
 {
 	if (!Interactor) return EKzInteractionResult::Ignored;
 
@@ -334,13 +335,16 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 
 	if (OwnerActor)
 	{
+		auto Escalate = [&FinalResult](EKzInteractionResult Result)
+			{
+				// Continuous > Completed > Ignored: a handler can raise the answer, never lower it
+				if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
+				else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
+			};
+
 		if (OwnerActor->Implements<UKzInteractableInterface>())
 		{
-			EKzInteractionResult Result = IKzInteractableInterface::Execute_HandleInteraction(OwnerActor, Interactor, this, Interaction);
-
-			// Escalate priority: Continuous > Completed > Ignored
-			if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
-			else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
+			Escalate(IKzInteractableInterface::Execute_GetInteractionResult(OwnerActor, Interactor, this));
 		}
 
 		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
@@ -348,26 +352,42 @@ EKzInteractionResult UKzInteractableComponent::ExecuteInteraction(UKzInteractorC
 		{
 			if (Component != this)
 			{
-				EKzInteractionResult Result = IKzInteractableInterface::Execute_HandleInteraction(Component, Interactor, this, Interaction);
-
-				if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
-				else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
+				Escalate(IKzInteractableInterface::Execute_GetInteractionResult(Component, Interactor, this));
 			}
 		}
 	}
 
-	// Only broadcast if the interaction actually did something
-	if (FinalResult != EKzInteractionResult::Ignored)
-	{
-		OnInteract.Broadcast(Interactor);
+	return FinalResult;
+}
 
-		InteractionAction.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-		InteractionAction.SetContextProperty(TEXT("Interactor"), Interactor);
-		InteractionAction.SetContextProperty(TEXT("Interactable"), this);
-		InteractionAction.Run(this);
+void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* Interactor, const FKzInteraction& Interaction)
+{
+	if (!Interactor) return;
+
+	if (AActor* OwnerActor = GetOwner())
+	{
+		if (OwnerActor->Implements<UKzInteractableInterface>())
+		{
+			IKzInteractableInterface::Execute_OnInteractionBegun(OwnerActor, Interactor, this, Interaction);
+		}
+
+		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
+		for (UActorComponent* Component : SiblingComponents)
+		{
+			if (Component != this)
+			{
+				IKzInteractableInterface::Execute_OnInteractionBegun(Component, Interactor, this, Interaction);
+			}
+		}
 	}
 
-	return FinalResult;
+	OnInteract.Broadcast(Interactor);
+
+	InteractionAction.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
+	InteractionAction.SetContextProperty(TEXT("Interactor"), Interactor);
+	InteractionAction.SetContextProperty(TEXT("Interactable"), this);
+	InteractionAction.SetContextProperty(TEXT("Target"), GetOwner());
+	InteractionAction.Run(this);
 }
 
 void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)
@@ -445,3 +465,5 @@ void UKzInteractableComponent::StopAllInteractions(EKzInteractionEndReason Reaso
 		Subsystem->EndInteractionsOn(this, Reason);
 	}
 }
+
+UE_ENABLE_OPTIMIZATION

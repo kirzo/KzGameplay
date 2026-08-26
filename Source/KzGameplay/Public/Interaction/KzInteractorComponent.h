@@ -87,11 +87,19 @@ public:
 	FKzTargetScoringProfile ScoringProfile;
 
 	/**
+	 * Gameplay event sent to the owner when an interaction of ours begins, carrying the interactable as
+	 * OptionalObject. An ability that should run for the duration triggers on this rather than on input.
+	 * Leave empty to send nothing.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Settings", meta = (Categories = "Interaction"))
+	FGameplayTag InteractionBegunEventTag;
+
+	/**
 	 * Gameplay event sent to the owner whenever an interaction of ours ends, whatever ended it.
 	 * List it in an ability's AbilityCancelTriggers to have that ability cancel with the interaction.
 	 * Leave empty to send nothing.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Settings", meta = (Categories = "Action"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Settings", meta = (Categories = "Interaction"))
 	FGameplayTag InteractionEndedEventTag;
 
 	// ==========================================
@@ -223,6 +231,10 @@ protected:
 
 	/** True where interactions are decided rather than mirrored. */
 	bool HasInteractionAuthority() const;
+
+	/** Announces an interaction of ours that just began. */
+	UFUNCTION()
+	void HandleInteractionBegun(const FKzInteraction& Interaction);
 
 	/** Routes the subsystem's end-of-interaction notification to our own listeners. */
 	UFUNCTION()

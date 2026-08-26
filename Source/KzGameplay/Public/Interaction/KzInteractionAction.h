@@ -8,6 +8,16 @@
 #include "ScriptableTasks/ScriptableAction.h"
 #include "KzInteractionAction.generated.h"
 
+namespace KzInteraction
+{
+	/**
+	 * Declares the context an interaction container is authored against.
+	 * Writes ContextDefinitions, which is the persisted shape. Filling only the transient bag is not
+	 * enough: it is rebuilt from the definitions, so the editor would find nothing to bind against.
+	 */
+	KZGAMEPLAY_API void DeclareContext(FScriptableContainer& Container);
+}
+
 /**
  * Something the instigator can do repeatedly while an interaction is running: press a button, play an
  * animation, and have an effect land on one of its notifies.
@@ -19,6 +29,12 @@ USTRUCT(BlueprintType)
 struct KZGAMEPLAY_API FKzInteractionAction
 {
 	GENERATED_BODY()
+
+	/**
+	 * Declares the context of both containers. An array element has no owning constructor to do it for
+	 * it, and the shape must exist before runtime for the bindings to be authorable at all.
+	 */
+	FKzInteractionAction();
 
 	/** Input that fires it while the interaction is running. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action", meta = (Categories = "Input"))

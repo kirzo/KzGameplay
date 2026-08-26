@@ -94,5 +94,6 @@ protected:
 
 	/** Native implementation of the interaction interface */
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
-	virtual EKzInteractionResult HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) override;
+	virtual EKzInteractionResult GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
+	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) override;
 };

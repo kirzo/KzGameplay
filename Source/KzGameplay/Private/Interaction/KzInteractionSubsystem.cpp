@@ -89,6 +89,13 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 		}
 	}
 
+	// Decided before anything exists, so a refusal leaves no trace and no handler has acted yet
+	const EKzInteractionResult Result = Interactable->EvaluateInteractionResult(Interactor);
+	if (Result == EKzInteractionResult::Ignored)
+	{
+		return EKzInteractionResult::Ignored;
+	}
+
 	FKzInteraction Interaction;
 	Interaction.Handle = FKzInteractionHandle(NextHandleId++);
 	Interaction.Interactor = Interactor;
@@ -98,19 +105,11 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 	Interaction.StartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	Interaction.Scope = MakeShared<FKzInteractionScope>();
 
-	// Registered first, so anything the target does during the call already sees the interaction
+	// Registered first, so anything the handlers do already sees the interaction
 	const FKzInteractionHandle Handle = Interaction.Handle;
 	Interactions.Add(Handle, Interaction);
 
-	const EKzInteractionResult Result = Interactable->ExecuteInteraction(Interactor, Interactions[Handle]);
-
-	if (Result == EKzInteractionResult::Ignored)
-	{
-		// Never really started, so no begun/ended pair
-		Interactions.Remove(Handle);
-		return Result;
-	}
-
+	Interactable->NotifyInteractionBegun(Interactor, Interactions[Handle]);
 	OnInteractionBegun.Broadcast(Interactions[Handle]);
 
 	if (Result == EKzInteractionResult::Completed)

@@ -49,14 +49,22 @@ bool UKzItemComponent::CanInteract_Implementation(UKzInteractorComponent* Intera
 	return !EquipperActor.IsValid();
 }
 
-EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction)
+EKzInteractionResult UKzItemComponent::GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+{
+	// Picking up is instant. Whether it fits is not predicted here: that is what the interactable's
+	// availability rules are for, and they can say so on the prompt instead of failing silently
+	const bool bCanPickUp = Interactor && ItemInstance.IsValid() && GetOwner() && GetOwner()->HasAuthority();
+	return bCanPickUp ? EKzInteractionResult::Completed : EKzInteractionResult::Ignored;
+}
+
+void UKzItemComponent::OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction)
 {
 	if (!GetOwner()->HasAuthority() || !ItemInstance.IsValid() || !Interactor)
 	{
-		return EKzInteractionResult::Ignored;
+		return;
 	}
 
-	EKzInteractionResult Result = EKzInteractionResult::Ignored;
+	bool bHandled = false;
 	AActor* InteractorActor = Interactor->GetOwner();
 
 	const UKzItemFragment_Equippable* EquipFrag = ItemInstance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
@@ -73,26 +81,20 @@ EKzInteractionResult UKzItemComponent::HandleInteraction_Implementation(UKzInter
 			if (bEquipped)
 			{
 				OnPickedUp.Broadcast(InteractorActor);
-				Result = EKzInteractionResult::Completed;
+				bHandled = true;
 			}
 		}
 	}
 
 	// 2. If it wasn't equipped (not auto-equip, or equipment full/failed), send to Backpack
-	if (Result == EKzInteractionResult::Ignored && StoreFrag)
+	if (!bHandled && StoreFrag)
 	{
 		if (UKzInventoryComponent* InvComp = InteractorActor->FindComponentByClass<UKzInventoryComponent>())
 		{
 			// TryAddItem will automatically destroy GetOwner() if it fits in the backpack
-			bool bItemAdded = InvComp->TryAddInstance(ItemInstance, GetOwner());
-			if (bItemAdded)
-			{
-				Result = EKzInteractionResult::Completed;
-			}
+			InvComp->TryAddInstance(ItemInstance, GetOwner());
 		}
 	}
-
-	return Result;
 }
 
 void UKzItemComponent::SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlotID)

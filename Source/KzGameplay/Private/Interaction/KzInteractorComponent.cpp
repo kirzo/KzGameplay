@@ -2,6 +2,7 @@
 
 #include "Interaction/KzInteractorComponent.h"
 #include "Interaction/KzInteractionSubsystem.h"
+#include "Interaction/KzInteractionTags.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Net/UnrealNetwork.h"
@@ -17,6 +18,10 @@ UKzInteractorComponent::UKzInteractorComponent()
 	// Standalone ignores this, so local play pays nothing for it
 	SetIsReplicatedByDefault(true);
 
+	// Defaults, not hardcoding: the plugin's own pieces find each other, and a game can still repoint them
+	InteractionBegunEventTag = KzTags::Interaction::Begun;
+	InteractionEndedEventTag = KzTags::Interaction::Ended;
+
 	FilterRequirement.AddContextProperty<AActor*>(TEXT("Instigator"));
 	FilterRequirement.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	FilterRequirement.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
@@ -29,6 +34,7 @@ void UKzInteractorComponent::BeginPlay()
 	// The end of our interaction comes from the subsystem, never from whoever caused it
 	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 	{
+		Subsystem->OnInteractionBegun.AddDynamic(this, &UKzInteractorComponent::HandleInteractionBegun);
 		Subsystem->OnInteractionEnded.AddDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
 	}
 
@@ -68,6 +74,7 @@ void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 	{
+		Subsystem->OnInteractionBegun.RemoveDynamic(this, &UKzInteractorComponent::HandleInteractionBegun);
 		Subsystem->OnInteractionEnded.RemoveDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
 
 		// Otherwise whatever we were holding waits for an avatar that no longer exists
@@ -239,13 +246,9 @@ EKzInteractionResult UKzInteractorComponent::InteractWith(UKzInteractableCompone
 	FKzInteractionHandle Handle;
 	const EKzInteractionResult Result = Subsystem->BeginInteraction(this, Target, Handle);
 
+	// CurrentInteraction and scanning are already handled by HandleInteractionBegun
 	if (Handle.IsValid())
 	{
-		CurrentInteraction = Handle;
-
-		// Fully stop scanning and clear UI focus since we are now locked in
-		StopScanning();
-
 		UpdateReplicatedInteraction(Target, EKzInteractionEndReason::Released);
 	}
 
@@ -330,12 +333,6 @@ void UKzInteractorComponent::MirrorServerInteraction(UKzInteractableComponent* T
 
 	FKzInteractionHandle Handle;
 	Subsystem->BeginInteraction(this, Target, Handle);
-
-	if (Handle.IsValid())
-	{
-		CurrentInteraction = Handle;
-		StopScanning();
-	}
 }
 
 void UKzInteractorComponent::OnRep_ReplicatedInteraction(const FKzReplicatedInteraction& OldValue)
@@ -370,6 +367,34 @@ void UKzInteractorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 
 	// Simulated proxies need it too, to play the cosmetic side of somebody else's interaction
 	DOREPLIFETIME(UKzInteractorComponent, ReplicatedInteraction);
+}
+
+void UKzInteractorComponent::HandleInteractionBegun(const FKzInteraction& Interaction)
+{
+	if (Interaction.Interactor.Get() != this)
+	{
+		return;
+	}
+
+	// Learned here rather than from BeginInteraction's return value: this runs while that call is still
+	// on the stack, and whoever reacts to the event below must already see us as engaged
+	CurrentInteraction = Interaction.Handle;
+
+	// Fully stop scanning and clear UI focus since we are now locked in
+	StopScanning();
+
+	if (!InteractionBegunEventTag.IsValid())
+	{
+		return;
+	}
+
+	FGameplayEventData Payload;
+	Payload.Instigator = GetOwner();
+	Payload.Target = Interaction.Target.Get();
+	Payload.EventTag = InteractionBegunEventTag;
+	Payload.OptionalObject = Interaction.Interactable.Get();
+
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(GetOwner(), InteractionBegunEventTag, Payload);
 }
 
 void UKzInteractorComponent::HandleInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)

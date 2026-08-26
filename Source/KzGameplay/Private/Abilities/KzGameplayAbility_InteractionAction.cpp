@@ -4,15 +4,25 @@
 #include "Abilities/Tasks/AbilityTask_WaitInputTag.h"
 #include "Abilities/Tasks/AbilityTask_WaitInteractionEnded.h"
 #include "Interaction/KzInteractorComponent.h"
+#include "Interaction/KzInteractionTags.h"
 #include "Interaction/KzInteractableComponent.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "GameFramework/Actor.h"
 
+UE_DISABLE_OPTIMIZATION
+
 UKzGameplayAbility_InteractionAction::UKzGameplayAbility_InteractionAction()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
+
+	// Granting this ability is the whole setup: it arms itself on the channel the interactor announces on
+	FAbilityTriggerData Trigger;
+	Trigger.TriggerTag = KzTags::Interaction::Begun;
+	Trigger.TriggerSource = EGameplayAbilityTriggerSource::GameplayEvent;
+
+	AbilityTriggers.Add(Trigger);
 }
 
 UAnimMontage* UKzGameplayAbility_InteractionAction::ResolveMontage_Implementation(FGameplayTag AnimationTag) const
@@ -37,7 +47,11 @@ void UKzGameplayAbility_InteractionAction::ActivateAbility(const FGameplayAbilit
 		return;
 	}
 
-	UAbilityTask_WaitInputTag* WaitInput = UAbilityTask_WaitInputTag::WaitInputTag(this, FGameplayTagContainer(), false);
+	// The object declares which inputs drive its actions, so this ability needs no bindings of its own
+	UKzInteractableComponent* Interactable = Interactor->GetActiveInteractable();
+	const FGameplayTagContainer ActionTags = Interactable ? Interactable->GetActionInputTags() : FGameplayTagContainer();
+
+	UAbilityTask_WaitInputTag* WaitInput = UAbilityTask_WaitInputTag::WaitInputTag(this, ActionTags, false);
 	WaitInput->OnPressed.AddDynamic(this, &UKzGameplayAbility_InteractionAction::OnInputPressed);
 	WaitInput->ReadyForActivation();
 
@@ -47,7 +61,7 @@ void UKzGameplayAbility_InteractionAction::ActivateAbility(const FGameplayAbilit
 	WaitEnd->ReadyForActivation();
 }
 
-void UKzGameplayAbility_InteractionAction::OnInputPressed(FGameplayTag InputTag)
+void UKzGameplayAbility_InteractionAction::OnInputPressed(FGameplayTag PressedTag)
 {
 	// One action at a time: a second press mid-animation would stack montages over each other
 	if (RunningAction.IsValid())
@@ -57,18 +71,18 @@ void UKzGameplayAbility_InteractionAction::OnInputPressed(FGameplayTag InputTag)
 
 	UKzInteractorComponent* Interactor = GetInteractor();
 	UKzInteractableComponent* Interactable = Interactor ? Interactor->GetActiveInteractable() : nullptr;
-	if (!Interactable || !Interactable->CanRunAction(InputTag, Interactor))
+	if (!Interactable || !Interactable->CanRunAction(PressedTag, Interactor))
 	{
 		return;
 	}
 
-	const FKzInteractionAction* Action = Interactable->FindAction(InputTag);
+	const FKzInteractionAction* Action = Interactable->FindAction(PressedTag);
 	if (!Action)
 	{
 		return;
 	}
 
-	RunningAction = InputTag;
+	RunningAction = PressedTag;
 
 	UAnimMontage* Montage = Action->AnimationTag.IsValid() ? ResolveMontage(Action->AnimationTag) : nullptr;
 	if (!Montage)
@@ -127,3 +141,5 @@ void UKzGameplayAbility_InteractionAction::OnInteractionEnded(UKzInteractableCom
 {
 	K2_EndAbility();
 }
+
+UE_ENABLE_OPTIMIZATION
