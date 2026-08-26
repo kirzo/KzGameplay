@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Abilities/KzGameplayAbility.h"
 #include "ScriptableTasks/ScriptableAction.h"
+#include "Interaction/KzInteractionTypes.h"
 #include "KzGameplayAbility_Interaction.generated.h"
 
 /**
@@ -42,6 +43,16 @@ private:
 	/** The payload we activated with, kept so the ending action sees the same context as the beginning one. */
 	UPROPERTY()
 	FGameplayEventData ActivationPayload;
+
+	/**
+	 * The interaction we were driving when we started. Ending takes it with us: an ability can die for
+	 * reasons the interaction knows nothing about (another ability cancelling it, a blocking tag, a stun),
+	 * and an interaction nobody is driving is the same bug as an ability outliving its interaction.
+	 *
+	 * Safe to end blindly because handles are never reused: if it already ended, or the interactor has
+	 * since started another one, this names something that no longer exists and nothing happens.
+	 */
+	FKzInteractionHandle DrivenInteraction;
 
 	UFUNCTION()
 	void OnInteractionEnded(class UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
