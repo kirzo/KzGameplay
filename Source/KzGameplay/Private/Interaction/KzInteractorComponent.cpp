@@ -34,7 +34,6 @@ void UKzInteractorComponent::BeginPlay()
 	// The end of our interaction comes from the subsystem, never from whoever caused it
 	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 	{
-		Subsystem->OnInteractionBegun.AddDynamic(this, &UKzInteractorComponent::HandleInteractionBegun);
 		Subsystem->OnInteractionEnded.AddDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
 	}
 
@@ -74,7 +73,6 @@ void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 	{
-		Subsystem->OnInteractionBegun.RemoveDynamic(this, &UKzInteractorComponent::HandleInteractionBegun);
 		Subsystem->OnInteractionEnded.RemoveDynamic(this, &UKzInteractorComponent::HandleInteractionEnded);
 
 		// Otherwise whatever we were holding waits for an avatar that no longer exists
@@ -371,13 +369,8 @@ void UKzInteractorComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 
 void UKzInteractorComponent::HandleInteractionBegun(const FKzInteraction& Interaction)
 {
-	if (Interaction.Interactor.Get() != this)
-	{
-		return;
-	}
-
 	// Learned here rather than from BeginInteraction's return value: this runs while that call is still
-	// on the stack, and whoever reacts to the event below must already see us as engaged
+	// on the stack, and whoever reacts below must already see us as engaged
 	CurrentInteraction = Interaction.Handle;
 
 	// Fully stop scanning and clear UI focus since we are now locked in

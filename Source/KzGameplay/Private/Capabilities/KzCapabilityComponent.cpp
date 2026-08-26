@@ -115,6 +115,41 @@ bool UKzCapabilityComponent::HasCapability(FGameplayTag Capability) const
 	return ASC && ASC->HasMatchingGameplayTag(Capability);
 }
 
+bool UKzCapabilityComponent::CanUseCapability(FGameplayTag Capability) const
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystem();
+	if (!ASC || !HasCapability(Capability))
+	{
+		return false;
+	}
+
+	// Only the authority tracks handles, so everyone else looks the ability up through the set
+	FGameplayAbilitySpec* Spec = nullptr;
+	if (const FGameplayAbilitySpecHandle* Handle = GrantedAbilities.Find(Capability))
+	{
+		Spec = ASC->FindAbilitySpecFromHandle(*Handle);
+	}
+	else if (const FKzCapabilityGrant* Grant = CapabilitySet ? CapabilitySet->FindGrant(Capability) : nullptr)
+	{
+		Spec = Grant->Ability ? ASC->FindAbilitySpecFromClass(Grant->Ability) : nullptr;
+	}
+
+	// Nothing implements it, so there is nothing that could refuse
+	if (!Spec || !Spec->Ability)
+	{
+		return true;
+	}
+
+	// Using it counts as being able to. Without this, an ability that blocks itself through its own
+	// ActivationOwnedTags would answer no for exactly as long as it runs
+	if (Spec->IsActive())
+	{
+		return true;
+	}
+
+	return Spec->Ability->CanActivateAbility(Spec->Handle, ASC->AbilityActorInfo.Get());
+}
+
 bool UKzCapabilityComponent::TryActivateCapability(FGameplayTag Capability)
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystem();
