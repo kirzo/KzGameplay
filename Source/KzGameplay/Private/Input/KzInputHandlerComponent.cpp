@@ -9,6 +9,9 @@
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "EnhancedInputSubsystems.h"
+#include "Engine/LocalPlayer.h"
 
 UKzInputHandlerComponent::UKzInputHandlerComponent()
 {
@@ -62,27 +65,76 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 		return;
 	}
 
+	// The base layer is the character's own: rebinding it drops everything an item had pushed, which is
+	// correct, since a possession change means those items are no longer in these hands
+	for (int32 Index = ActiveProfiles.Num() - 1; Index >= 0; --Index)
+	{
+		UnbindProfileLayer(Pawn, ActiveProfiles[Index]);
+	}
+	ActiveProfiles.Reset();
+
+	UKzInputProfile* BaseProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get();
+	if (!BaseProfile)
+	{
+		return;
+	}
+
+	BindProfileLayer(Pawn, BaseProfile);
+}
+
+void UKzInputHandlerComponent::PushInputProfile(UKzInputProfile* Profile)
+{
+	APawn* Pawn = Cast<APawn>(GetOwner());
+	if (!Profile || !Pawn || ActiveProfiles.ContainsByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; }))
+	{
+		return;
+	}
+
+	BindProfileLayer(Pawn, Profile);
+}
+
+void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
+{
+	APawn* Pawn = Cast<APawn>(GetOwner());
+	const int32 Index = ActiveProfiles.IndexOfByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; });
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+
+	UnbindProfileLayer(Pawn, ActiveProfiles[Index]);
+	ActiveProfiles.RemoveAt(Index);
+}
+
+const FKzInputAction* UKzInputHandlerComponent::FindActionConfig(const FGameplayTag& InputTag) const
+{
+	// Topmost first, so a profile pushed later retunes a tag the one below already declared
+	for (int32 Index = ActiveProfiles.Num() - 1; Index >= 0; --Index)
+	{
+		if (const UKzInputProfile* Profile = ActiveProfiles[Index].Profile)
+		{
+			if (const FKzInputAction* Found = Profile->FindActionConfigForTag(InputTag))
+			{
+				return Found;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, UKzInputProfile* Profile)
+{
 	UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(Pawn->InputComponent);
 	if (!EnhancedInput)
 	{
 		return;
 	}
 
-	ActiveInputProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get();
-	if (!ActiveInputProfile)
-	{
-		return;
-	}
+	FActiveProfile Layer;
+	Layer.Profile = Profile;
 
-	// 1. Unbind previous actions to prevent ghost triggers
-	for (uint32 Handle : BindHandles)
-	{
-		EnhancedInput->RemoveBindingByHandle(Handle);
-	}
-	BindHandles.Empty();
-
-	// 2. Bind new actions and store their handles
-	for (const FKzInputAction& Action : ActiveInputProfile->InputActions)
+	for (const FKzInputAction& Action : Profile->InputActions)
 	{
 		if (!Action.InputAction || !Action.InputTag.IsValid())
 		{
@@ -91,9 +143,9 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 
 		if (Action.Routing == EKzInputRouting::Ability)
 		{
-			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Started, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag, Action.OnStartedEvent).GetHandle());
-			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Completed, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
-			BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Canceled, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
+			Layer.BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Started, this, &UKzInputHandlerComponent::Input_ActionPressed, Action.InputTag, Action.OnStartedEvent).GetHandle());
+			Layer.BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Completed, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
+			Layer.BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, ETriggerEvent::Canceled, this, &UKzInputHandlerComponent::Input_ActionReleased, Action.InputTag, Action.OnCompletedEvent).GetHandle());
 		}
 		else
 		{
@@ -101,10 +153,54 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 			// per-frame updates (Triggered), and end (Completed/Canceled) via the delegate's phase.
 			for (ETriggerEvent Phase : { ETriggerEvent::Started, ETriggerEvent::Triggered, ETriggerEvent::Completed, ETriggerEvent::Canceled })
 			{
-				BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, Phase, this, &UKzInputHandlerComponent::Input_Axis, Action.InputTag, Phase).GetHandle());
+				Layer.BindHandles.Add(EnhancedInput->BindAction(Action.InputAction, Phase, this, &UKzInputHandlerComponent::Input_Axis, Action.InputTag, Phase).GetHandle());
 			}
 		}
 	}
+
+	// The keys travel with the profile, so nobody has to remember to keep a second asset in step
+	if (Profile->MappingContext)
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn))
+		{
+			Subsystem->AddMappingContext(Profile->MappingContext, Profile->ContextPriority);
+			Layer.bAppliedContext = true;
+		}
+	}
+
+	ActiveProfiles.Add(MoveTemp(Layer));
+}
+
+void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer)
+{
+	if (Pawn)
+	{
+		if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(Pawn->InputComponent))
+		{
+			for (uint32 Handle : Layer.BindHandles)
+			{
+				EnhancedInput->RemoveBindingByHandle(Handle);
+			}
+		}
+
+		if (Layer.bAppliedContext && Layer.Profile && Layer.Profile->MappingContext)
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn))
+			{
+				Subsystem->RemoveMappingContext(Layer.Profile->MappingContext);
+			}
+		}
+	}
+
+	Layer.BindHandles.Reset();
+	Layer.bAppliedContext = false;
+}
+
+UEnhancedInputLocalPlayerSubsystem* UKzInputHandlerComponent::GetLocalPlayerInput(const APawn* Pawn) const
+{
+	// AI pawns have no local player, and therefore no keys: their bindings simply never fire
+	const APlayerController* PC = Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+	return PC ? ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()) : nullptr;
 }
 
 void UKzInputHandlerComponent::Input_ActionPressed(FGameplayTag InputTag, FGameplayTag EventTag)
@@ -168,7 +264,7 @@ void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGamep
 
 	// An analog action announces its start and end like any other. Without this the profile's
 	// OnStartedEvent is authored, saved, and never sent: only the digital path was wiring them up
-	const FKzInputAction* ActionConfig = ActiveInputProfile ? ActiveInputProfile->FindActionConfigForTag(InputTag) : nullptr;
+	const FKzInputAction* ActionConfig = FindActionConfig(InputTag);
 	if (!ActionConfig)
 	{
 		return;
@@ -196,12 +292,9 @@ void UKzInputHandlerComponent::PushInputIgnore(FGameplayTag InputTag, FName Sour
 	{
 		// Find the configured Completed event to properly tell GAS that the action ended
 		FGameplayTag EventTagToRelease;
-		if (ActiveInputProfile)
+		if (const FKzInputAction* ActionConfig = FindActionConfig(InputTag))
 		{
-			if (const FKzInputAction* ActionConfig = ActiveInputProfile->FindActionConfigForTag(InputTag))
-			{
-				EventTagToRelease = ActionConfig->OnCompletedEvent;
-			}
+			EventTagToRelease = ActionConfig->OnCompletedEvent;
 		}
 
 		// Force the release
