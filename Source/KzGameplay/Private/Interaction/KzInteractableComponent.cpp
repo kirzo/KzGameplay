@@ -271,6 +271,24 @@ bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorCom
 	Action->Effect.SetContextProperty(TEXT("Target"), GetOwner());
 	Action->Effect.Run(this);
 
+	// Then the handlers, for whatever the action means in code rather than in data
+	if (AActor* OwnerActor = GetOwner())
+	{
+		if (OwnerActor->Implements<UKzInteractableInterface>())
+		{
+			IKzInteractableInterface::Execute_OnInteractionAction(OwnerActor, Interactor, this, InputTag);
+		}
+
+		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
+		for (UActorComponent* Component : SiblingComponents)
+		{
+			if (Component != this)
+			{
+				IKzInteractableInterface::Execute_OnInteractionAction(Component, Interactor, this, InputTag);
+			}
+		}
+	}
+
 	return true;
 }
 

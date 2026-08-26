@@ -49,6 +49,13 @@ public:
 	void OnInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
 
 	/**
+	 * Called when one of the interactable's actions runs, after its data-driven Effect.
+	 * This is where a component answers an action in C++, the way the pump adds pressure.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	void OnInteractionAction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag);
+
+	/**
 	 * Called while this is focused, to report whether the interaction could run right now.
 	 * Return false with a reason to stay visible but blocked, so the UI can explain itself.
 	 */
@@ -65,6 +72,7 @@ public:
 protected:
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
 	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) {}
+	virtual void OnInteractionAction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) {}
 	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) { return true; }
 	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) { return true; }
 };
