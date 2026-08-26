@@ -165,6 +165,23 @@ void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGamep
 	ProcessedInputs.Add(InputTag, ModifiedVector);
 
 	OnInputAxis.Broadcast(InputTag, FInputActionValue(ModifiedVector), TriggerEvent);
+
+	// An analog action announces its start and end like any other. Without this the profile's
+	// OnStartedEvent is authored, saved, and never sent: only the digital path was wiring them up
+	const FKzInputAction* ActionConfig = ActiveInputProfile ? ActiveInputProfile->FindActionConfigForTag(InputTag) : nullptr;
+	if (!ActionConfig)
+	{
+		return;
+	}
+
+	if (TriggerEvent == ETriggerEvent::Started)
+	{
+		Input_ActionPressed(InputTag, ActionConfig->OnStartedEvent);
+	}
+	else if (TriggerEvent == ETriggerEvent::Completed || TriggerEvent == ETriggerEvent::Canceled)
+	{
+		Input_ActionReleased(InputTag, ActionConfig->OnCompletedEvent);
+	}
 }
 
 void UKzInputHandlerComponent::PushInputIgnore(FGameplayTag InputTag, FName SourceID, bool bIgnoreInput, int32 Priority)
