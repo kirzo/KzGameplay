@@ -14,8 +14,17 @@ void KzInteraction::DeclareContext(FScriptableContainer& Container)
 {
 	Container.AddContextProperty<AActor*>(TEXT("Instigator"));
 	Container.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-	Container.AddContextProperty<AActor*>(TEXT("Target"));
+	Container.AddContextProperty<AActor*>(TEXT("Owner"));
 	Container.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+}
+
+void KzInteraction::FillContext(FScriptableContainer& Container, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+{
+	Container.ResetContext();
+	Container.SetContextProperty(TEXT("Instigator"), Interactor ? Interactor->GetOwner() : nullptr);
+	Container.SetContextProperty(TEXT("Interactor"), Interactor);
+	Container.SetContextProperty(TEXT("Owner"), Interactable ? Interactable->GetOwner() : nullptr);
+	Container.SetContextProperty(TEXT("Interactable"), Interactable);
 }
 
 FKzInteractionAction::FKzInteractionAction()
@@ -98,10 +107,7 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
-	InteractionRequirement.ResetContext();
-	InteractionRequirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-	InteractionRequirement.SetContextProperty(TEXT("Interactor"), Interactor);
-	InteractionRequirement.SetContextProperty(TEXT("Interactable"), MutableThis);
+	KzInteraction::FillContext(InteractionRequirement, Interactor, MutableThis);
 
 	if (!FScriptableRequirement::EvaluateRequirement(Interactor, InteractionRequirement))
 	{
@@ -145,10 +151,7 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
-	AvailabilityRequirement.ResetContext();
-	AvailabilityRequirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-	AvailabilityRequirement.SetContextProperty(TEXT("Interactor"), Interactor);
-	AvailabilityRequirement.SetContextProperty(TEXT("Interactable"), MutableThis);
+	KzInteraction::FillContext(AvailabilityRequirement, Interactor, MutableThis);
 
 	if (!FScriptableRequirement::EvaluateRequirement(Interactor, AvailabilityRequirement))
 	{
@@ -238,11 +241,7 @@ bool UKzInteractableComponent::CanRunAction(FGameplayTag InputTag, UKzInteractor
 
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
-	Action->Requirement.ResetContext();
-	Action->Requirement.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-	Action->Requirement.SetContextProperty(TEXT("Interactor"), Interactor);
-	Action->Requirement.SetContextProperty(TEXT("Interactable"), MutableThis);
-	Action->Requirement.SetContextProperty(TEXT("Target"), GetOwner());
+	KzInteraction::FillContext(Action->Requirement, Interactor, MutableThis);
 
 	return FScriptableRequirement::EvaluateRequirement(Interactor, Action->Requirement);
 }
@@ -266,10 +265,7 @@ bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorCom
 		LastActionTime.Add(InputTag, World->GetTimeSeconds());
 	}
 
-	Action->Effect.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-	Action->Effect.SetContextProperty(TEXT("Interactor"), Interactor);
-	Action->Effect.SetContextProperty(TEXT("Interactable"), this);
-	Action->Effect.SetContextProperty(TEXT("Target"), GetOwner());
+	KzInteraction::FillContext(Action->Effect, Interactor, this);
 	Action->Effect.Run(this);
 
 	// Then the handlers, for whatever the action means in code rather than in data
@@ -383,10 +379,7 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 
 	OnInteract.Broadcast(Interactor);
 
-	InteractionAction.SetContextProperty(TEXT("Instigator"), Interactor->GetOwner());
-	InteractionAction.SetContextProperty(TEXT("Interactor"), Interactor);
-	InteractionAction.SetContextProperty(TEXT("Interactable"), this);
-	InteractionAction.SetContextProperty(TEXT("Target"), GetOwner());
+	KzInteraction::FillContext(InteractionAction, Interactor, this);
 	InteractionAction.Run(this);
 }
 
