@@ -3,6 +3,7 @@
 #include "Abilities/KzGameplayAbility_Interaction.h"
 #include "Abilities/Tasks/AbilityTask_WaitInteractionEnded.h"
 #include "Interaction/KzInteractorComponent.h"
+#include "Interaction/KzInteractionSubsystem.h"
 #include "GameFramework/Actor.h"
 
 UKzGameplayAbility_Interaction::UKzGameplayAbility_Interaction()
@@ -33,6 +34,14 @@ void UKzGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 		ActivationPayload = *TriggerEventData;
 	}
 
+	if (const AActor* Avatar = GetAvatarActorFromActorInfo())
+	{
+		if (const UKzInteractorComponent* Interactor = Avatar->FindComponentByClass<UKzInteractorComponent>())
+		{
+			DrivenInteraction = Interactor->GetCurrentInteraction();
+		}
+	}
+
 	FillContext(OnBeginAction);
 	OnBeginAction.Run(this);
 
@@ -54,6 +63,11 @@ void UKzGameplayAbility_Interaction::EndAbility(const FGameplayAbilitySpecHandle
 	{
 		FillContext(OnEndAction);
 		OnEndAction.Run(this);
+
+		if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
+		{
+			Subsystem->EndInteraction(DrivenInteraction, EKzInteractionEndReason::Interrupted);
+		}
 	}
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);

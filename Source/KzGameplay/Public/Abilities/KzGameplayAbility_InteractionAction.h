@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Abilities/KzGameplayAbility.h"
+#include "Abilities/KzGameplayAbility_Interaction.h"
 #include "Interaction/KzInteractionTypes.h"
 #include "KzGameplayAbility_InteractionAction.generated.h"
 
@@ -19,7 +19,7 @@ class UKzInteractorComponent;
  * avatar answers an animation tag with a montage from its own set.
  */
 UCLASS()
-class KZGAMEPLAY_API UKzGameplayAbility_InteractionAction : public UKzGameplayAbility
+class KZGAMEPLAY_API UKzGameplayAbility_InteractionAction : public UKzGameplayAbility_Interaction
 {
 	GENERATED_BODY()
 
@@ -43,9 +43,6 @@ private:
 
 	UFUNCTION()
 	void OnInputPressed(FGameplayTag PressedTag);
-
-	UFUNCTION()
-	void OnInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
 
 	UFUNCTION()
 	void OnEffectNotify(FGameplayEventData Payload);

@@ -2,7 +2,6 @@
 
 #include "Abilities/KzGameplayAbility_InteractionAction.h"
 #include "Abilities/Tasks/AbilityTask_WaitInputTag.h"
-#include "Abilities/Tasks/AbilityTask_WaitInteractionEnded.h"
 #include "Interaction/KzInteractorComponent.h"
 #include "Interaction/KzInteractionTags.h"
 #include "Interaction/KzInteractableComponent.h"
@@ -54,11 +53,6 @@ void UKzGameplayAbility_InteractionAction::ActivateAbility(const FGameplayAbilit
 	UAbilityTask_WaitInputTag* WaitInput = UAbilityTask_WaitInputTag::WaitInputTag(this, ActionTags, false);
 	WaitInput->OnPressed.AddDynamic(this, &UKzGameplayAbility_InteractionAction::OnInputPressed);
 	WaitInput->ReadyForActivation();
-
-	// The interaction outliving this ability would leave the actions armed with nothing behind them
-	UAbilityTask_WaitInteractionEnded* WaitEnd = UAbilityTask_WaitInteractionEnded::WaitInteractionEnded(this, Interactor);
-	WaitEnd->OnInteractionEnded.AddDynamic(this, &UKzGameplayAbility_InteractionAction::OnInteractionEnded);
-	WaitEnd->ReadyForActivation();
 }
 
 void UKzGameplayAbility_InteractionAction::OnInputPressed(FGameplayTag PressedTag)
@@ -135,11 +129,6 @@ void UKzGameplayAbility_InteractionAction::CommitRunningAction()
 	{
 		Interactable->RunAction(RunningAction, Interactor);
 	}
-}
-
-void UKzGameplayAbility_InteractionAction::OnInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
-{
-	K2_EndAbility();
 }
 
 UE_ENABLE_OPTIMIZATION
