@@ -96,6 +96,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FGameplayTag UnavailableReason;
 
+	/**
+	 * Whether AvailabilityRequirement has to keep holding for the whole interaction, ending it if it stops.
+	 * For rules that describe the object rather than the moment: a table that catches fire is no longer
+	 * pushable, whether or not somebody had already grabbed it.
+	 *
+	 * Off by default because a start rule can become false by the very act of starting, and that would
+	 * cancel the interaction it just allowed.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	bool bEndIfUnavailable = false;
+
 	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FScriptableAction InteractionAction;

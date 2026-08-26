@@ -14,8 +14,8 @@ void KzInteraction::DeclareContext(FScriptableContainer& Container)
 {
 	Container.AddContextProperty<AActor*>(TEXT("Instigator"));
 	Container.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
-	Container.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 	Container.AddContextProperty<AActor*>(TEXT("Target"));
+	Container.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
 }
 
 FKzInteractionAction::FKzInteractionAction()
@@ -434,6 +434,17 @@ bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& 
 	}
 
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	// The same data that decided whether this could start, asked again for as long as it runs
+	if (bEndIfUnavailable)
+	{
+		FGameplayTag UnusedReason;
+		if (!GetAvailability(Interaction.Interactor.Get(), UnusedReason))
+		{
+			OutReason = EKzInteractionEndReason::ConditionFailed;
+			return false;
+		}
+	}
 
 	if (OwnerActor->Implements<UKzInteractableInterface>())
 	{
