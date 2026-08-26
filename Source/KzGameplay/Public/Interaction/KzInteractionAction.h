@@ -8,6 +8,9 @@
 #include "ScriptableTasks/ScriptableAction.h"
 #include "KzInteractionAction.generated.h"
 
+class UKzInteractorComponent;
+class UKzInteractableComponent;
+
 namespace KzInteraction
 {
 	/**
@@ -16,6 +19,13 @@ namespace KzInteraction
 	 * enough: it is rebuilt from the definitions, so the editor would find nothing to bind against.
 	 */
 	KZGAMEPLAY_API void DeclareContext(FScriptableContainer& Container);
+
+	/**
+	 * Fills that same context. Kept next to DeclareContext on purpose: the shape and its values have to
+	 * agree, and they only do if adding an entry means editing two adjacent functions instead of hunting
+	 * down every place that fills one.
+	 */
+	KZGAMEPLAY_API void FillContext(FScriptableContainer& Container, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
 }
 
 /**
