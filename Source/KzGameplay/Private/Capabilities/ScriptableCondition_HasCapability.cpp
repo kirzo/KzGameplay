@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Capabilities/ScriptableCondition_HasCapability.h"
+#include "Capabilities/KzCapabilityComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "GameFramework/Actor.h"
@@ -10,6 +11,15 @@ bool UScriptableCondition_HasCapability::Evaluate_Implementation() const
 	if (!IsValid(TargetActor) || !Capability.IsValid())
 	{
 		return false;
+	}
+
+	if (bMustBeUsableNow)
+	{
+		// Only the component knows what implements a capability, so only it can say whether that would run
+		if (const UKzCapabilityComponent* Capabilities = TargetActor->FindComponentByClass<UKzCapabilityComponent>())
+		{
+			return Capabilities->CanUseCapability(Capability);
+		}
 	}
 
 	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(TargetActor);
@@ -27,9 +37,10 @@ FText UScriptableCondition_HasCapability::GetDisplayTitle() const
 
 	if (Capability.IsValid())
 	{
-		return FText::Format(INVTEXT("Can {0} [{1}]"), FText::FromString(TargetName), FText::FromName(Capability.GetTagName()));
+		const FText Verb = bMustBeUsableNow ? INVTEXT("Can {0} {1} right now?") : INVTEXT("Can {0} {1}?");
+		return FText::Format(Verb, FText::FromString(TargetName), FText::FromName(Capability.GetTagLeafName()));
 	}
 
-	return INVTEXT("Has Capability");
+	return INVTEXT("Has Capability...?");
 }
 #endif

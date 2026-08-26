@@ -180,6 +180,13 @@ public:
 	/** Handle of our live interaction, for code that needs to talk to the subsystem about it. */
 	FKzInteractionHandle GetCurrentInteraction() const { return CurrentInteraction; }
 
+	/**
+	 * Records an interaction of ours that just began and announces it.
+	 * Called by the subsystem before anything else is told, so handlers that ask what we are interacting
+	 * with already have an answer.
+	 */
+	void HandleInteractionBegun(const FKzInteraction& Interaction);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -231,10 +238,6 @@ protected:
 
 	/** True where interactions are decided rather than mirrored. */
 	bool HasInteractionAuthority() const;
-
-	/** Announces an interaction of ours that just began. */
-	UFUNCTION()
-	void HandleInteractionBegun(const FKzInteraction& Interaction);
 
 	/** Routes the subsystem's end-of-interaction notification to our own listeners. */
 	UFUNCTION()

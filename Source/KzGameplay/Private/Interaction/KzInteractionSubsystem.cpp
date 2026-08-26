@@ -109,6 +109,10 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 	const FKzInteractionHandle Handle = Interaction.Handle;
 	Interactions.Add(Handle, Interaction);
 
+	// The interactor first, and directly: handlers below can activate abilities that ask it what it is
+	// interacting with, and it has to have an answer by then
+	Interactor->HandleInteractionBegun(Interactions[Handle]);
+
 	Interactable->NotifyInteractionBegun(Interactor, Interactions[Handle]);
 	OnInteractionBegun.Broadcast(Interactions[Handle]);
 

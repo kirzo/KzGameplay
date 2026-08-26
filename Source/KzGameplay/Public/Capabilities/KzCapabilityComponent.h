@@ -54,6 +54,15 @@ public:
 	bool HasCapability(FGameplayTag Capability) const;
 
 	/**
+	 * Whether the owner could put a capability to use right now, which is a stronger question than having
+	 * it: whatever implements it may be on cooldown, unaffordable, or blocked by the owner's current state.
+	 * A capability with nothing behind it is always usable, and one already in use answers yes, so an
+	 * ability that blocks itself while it runs does not report false for its own duration.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Capabilities")
+	bool CanUseCapability(FGameplayTag Capability) const;
+
+	/**
 	 * Activates whatever implements a capability.
 	 * Use this over a gameplay event when the caller needs to know whether anything answered.
 	 */

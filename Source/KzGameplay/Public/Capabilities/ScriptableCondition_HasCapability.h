@@ -28,6 +28,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Condition", meta = (Categories = "Capability"))
 	FGameplayTag Capability;
 
+	/**
+	 * Whether having it is not enough and it has to be usable this instant, which also asks whatever
+	 * implements the capability. Use it for what the player should see blocked and understand: you can
+	 * push, but not while your hands are full.
+	 *
+	 * Needs a UKzCapabilityComponent on the target to answer; without one it falls back to the plain check.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Condition")
+	bool bMustBeUsableNow = false;
+
 protected:
 	virtual bool Evaluate_Implementation() const override;
 
