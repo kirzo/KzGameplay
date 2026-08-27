@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "Items/KzItemFragment.h"
 #include "KzEquipmentLayout.generated.h"
 
 /**
@@ -27,6 +28,32 @@ public:
 	/** The localized name to display in the UI for this slot. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
 	FText DisplayName;
+
+	/**
+	 * Capabilities the owner gains while this slot holds something, whatever it is holding.
+	 * Dropping and throwing belong to a hand rather than to any particular object, and a head slot
+	 * grants neither. What each capability turns into is the capability set's business.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot", meta = (Categories = "Capability"))
+	FGameplayTagContainer GrantedCapabilities;
+
+	/**
+	 * Tags the owner carries while this slot holds something. Having a hand full is a fact about the
+	 * hand, not about what is in it, so State.Grabbing belongs here rather than on every object.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
+	FGameplayTagContainer EquippedTags;
+
+	/**
+	 * Capabilities granted only when what this slot holds is of a certain kind: a hand with a melee
+	 * weapon in it can attack, whatever weapon it happens to be.
+	 *
+	 * Being a weapon is already written on the item as a fragment, so making every weapon repeat that it
+	 * grants attacking would be saying the same thing twice, and forgetting to say it in a new one is a
+	 * silent bug rather than a compile error.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot", meta = (Categories = "Capability"))
+	TMap<TSubclassOf<UKzItemFragment>, FGameplayTagContainer> FragmentCapabilities;
 
 	FKzEquipmentSlotDefinition()
 		: DefaultSocketName(NAME_None)

@@ -2,6 +2,7 @@
 
 #include "Equipment/KzEquipmentComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Capabilities/KzCapabilityComponent.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/Fragments/KzItemFragment_Storable.h"
 #include "Items/KzItemComponent.h"
@@ -93,6 +94,7 @@ void UKzEquipmentComponent::InitializeEquipment(const UKzEquipmentLayout* Layout
 {
 	if (!Layout) return;
 
+	ActiveLayout = Layout;
 	EquipmentList.Slots.Empty();
 
 	TArray<FKzEquipmentSlotDefinition> AllSlots;
@@ -181,9 +183,106 @@ void UKzEquipmentComponent::ClearVisualForSlot(FEquippedSlot& Slot)
 	}
 }
 
+void UKzEquipmentComponent::RefreshEquippedGrants()
+{
+	if (!GetOwner())
+	{
+		return;
+	}
+
+	// Tags do not need one, so a character without capabilities still gets its State.Grabbing
+	UKzCapabilityComponent* Capabilities = GetOwner()->FindComponentByClass<UKzCapabilityComponent>();
+
+	TSet<FGameplayTag> Wanted;
+	TSet<FGameplayTag> WantedTags;
+
+	for (const FEquippedSlot& Slot : EquipmentList.Slots)
+	{
+		if (!Slot.Instance.IsValid())
+		{
+			continue;
+		}
+
+		// What the hand grants for holding anything, whatever it is holding
+		FKzEquipmentSlotDefinition Definition;
+		if (ActiveLayout && ActiveLayout->FindSlotDefinition(Slot.SlotID, Definition))
+		{
+			for (const FGameplayTag& Tag : Definition.GrantedCapabilities)
+			{
+				Wanted.Add(Tag);
+			}
+
+			for (const FGameplayTag& Tag : Definition.EquippedTags)
+			{
+				WantedTags.Add(Tag);
+			}
+
+			// And what the slot grants for the kind of thing it is holding
+			for (const TPair<TSubclassOf<UKzItemFragment>, FGameplayTagContainer>& Pair : Definition.FragmentCapabilities)
+			{
+				if (Pair.Key && Slot.Instance.ItemDef && Slot.Instance.ItemDef->HasFragment(Pair.Key))
+				{
+					for (const FGameplayTag& Tag : Pair.Value)
+					{
+						Wanted.Add(Tag);
+					}
+				}
+			}
+		}
+
+		// And what this particular object grants on top
+		if (Slot.Instance.ItemDef)
+		{
+			if (const UKzItemFragment_Equippable* Fragment = Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>())
+			{
+				for (const FGameplayTag& Tag : Fragment->GrantedCapabilities)
+				{
+					Wanted.Add(Tag);
+				}
+
+				for (const FGameplayTag& Tag : Fragment->EquippedTags)
+				{
+					WantedTags.Add(Tag);
+				}
+			}
+		}
+	}
+
+	if (Capabilities)
+	{
+		for (const FGameplayTag& Gone : ContributedCapabilities.Difference(Wanted))
+		{
+			Capabilities->RevokeCapability(Gone);
+		}
+
+		for (const FGameplayTag& Added : Wanted.Difference(ContributedCapabilities))
+		{
+			Capabilities->GrantCapability(Added);
+		}
+
+		ContributedCapabilities = MoveTemp(Wanted);
+	}
+
+	if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
+	{
+		for (const FGameplayTag& Gone : ContributedTags.Difference(WantedTags))
+		{
+			ASC->RemoveLooseGameplayTag(Gone);
+		}
+
+		for (const FGameplayTag& Added : WantedTags.Difference(ContributedTags))
+		{
+			ASC->AddLooseGameplayTag(Added);
+		}
+
+		ContributedTags = MoveTemp(WantedTags);
+	}
+}
+
 void UKzEquipmentComponent::HandleSlotAdded(FEquippedSlot& Slot)
 {
 	RefreshVisualForSlot(Slot);
+	RefreshEquippedGrants();
 
 	// Only announce non-empty slots on initial replication (late joiners); empty slots stay silent.
 	if (Slot.Instance.IsValid())
@@ -195,6 +294,7 @@ void UKzEquipmentComponent::HandleSlotAdded(FEquippedSlot& Slot)
 void UKzEquipmentComponent::HandleSlotUpdated(FEquippedSlot& Slot)
 {
 	RefreshVisualForSlot(Slot);
+	RefreshEquippedGrants();
 
 	if (Slot.Instance.IsValid())
 	{
@@ -318,14 +418,6 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				}
 			}
 
-			if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
-			{
-				for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
-				{
-					ASC->AddLooseGameplayTag(Tag);
-				}
-			}
-
 			Slot.Instance.ActiveEquippedAction = EquipFrag->OnEquippedAction.Clone(this);
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Instigator"), GetOwner());
 			Slot.Instance.ActiveEquippedAction.SetContextProperty(TEXT("Equipment"), this);
@@ -342,6 +434,7 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			// Create the authority machine's local visual and replicate the slot.
 			RefreshVisualForSlot(Slot);
 			EquipmentList.MarkItemDirty(Slot);
+			RefreshEquippedGrants();
 
 			// Notify server listeners
 			OnItemEquipped.Broadcast(TargetSlot, ItemToEquip);
@@ -403,17 +496,6 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 
 			Slot.Instance = FKzItemInstance(); // Clear the slot
 			EquipmentList.MarkItemDirty(Slot);
-
-			if (EquipFrag)
-			{
-				if (UAbilitySystemComponent* ASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(GetOwner()))
-				{
-					for (const FGameplayTag& Tag : EquipFrag->EquippedTags)
-					{
-						ASC->RemoveLooseGameplayTag(Tag);
-					}
-				}
-			}
 
 			bool bSentToInventory = false;
 
@@ -534,6 +616,7 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			OnItemUnequippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
 			OnItemUnequippedAction.Run(this);
 
+			RefreshEquippedGrants();
 			OnItemUnequipped.Broadcast(SlotID, OutUnequippedItem);
 			return true;
 		}

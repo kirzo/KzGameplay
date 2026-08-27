@@ -2,6 +2,9 @@
 
 #include "Capabilities/KzCapabilityComponent.h"
 #include "Capabilities/KzCapabilitySet.h"
+#include "Input/KzInputHandlerComponent.h"
+#include "Input/KzInputProfile.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "GameFramework/Actor.h"
@@ -56,7 +59,11 @@ void UKzCapabilityComponent::GrantDefaultCapabilities()
 
 	for (const TPair<FGameplayTag, FKzCapabilityGrant>& Pair : Resolved)
 	{
-		GrantCapability(Pair.Key, CapabilitySet);
+		// The rest are defined here and handed out by whatever grants them: an item, a slot, a script
+		if (Pair.Value.bGrantedByDefault)
+		{
+			GrantCapability(Pair.Key, CapabilitySet);
+		}
 	}
 }
 
@@ -80,10 +87,28 @@ void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabil
 	const UKzCapabilitySet* Set = SourceSet ? SourceSet : CapabilitySet.Get();
 	const FKzCapabilityGrant* Grant = Set ? Set->FindGrant(Capability) : nullptr;
 
-	if (Grant && Grant->Ability)
+	if (!Grant)
+	{
+		return;
+	}
+
+	if (Grant->Ability)
 	{
 		FGameplayAbilitySpec Spec(Grant->Ability, Grant->Level, INDEX_NONE, this);
 		GrantedAbilities.Add(Capability, ASC->GiveAbility(Spec));
+	}
+
+	// The controls come with the capability, so nothing that grants one has to know about inputs.
+	// ponytail: pushed here, which is authority-only. Fine while play is local; online this wants to
+	// react to the replicated tag instead, so the owning client gets its controls too
+	if (UKzInputHandlerComponent* Input = GetInputHandler())
+	{
+		for (UKzInputProfile* Profile : Grant->InputProfiles)
+		{
+			Input->PushInputProfile(Profile);
+		}
+
+		GrantedProfiles.Add(Capability, Grant->InputProfiles);
 	}
 }
 
@@ -107,6 +132,23 @@ void UKzCapabilityComponent::RevokeCapability(FGameplayTag Capability)
 	{
 		ASC->ClearAbility(Handle);
 	}
+
+	TArray<TObjectPtr<UKzInputProfile>> Profiles;
+	if (GrantedProfiles.RemoveAndCopyValue(Capability, Profiles))
+	{
+		if (UKzInputHandlerComponent* Input = GetInputHandler())
+		{
+			for (UKzInputProfile* Profile : Profiles)
+			{
+				Input->RemoveInputProfile(Profile);
+			}
+		}
+	}
+}
+
+UKzInputHandlerComponent* UKzCapabilityComponent::GetInputHandler() const
+{
+	return UKzSystemLibrary::FindComponentInActorOrController<UKzInputHandlerComponent>(GetOwner());
 }
 
 bool UKzCapabilityComponent::HasCapability(FGameplayTag Capability) const

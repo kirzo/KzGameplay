@@ -59,6 +59,9 @@ private:
 	 */
 	TArray<FActiveProfile> ActiveProfiles;
 
+	/** Always climbing, so a context added later outranks every one already on. */
+	int32 NextContextPriority = 0;
+
 	/** Map of ignore stacks, keyed by the specific Gameplay Tag of the input. */
 	TMap<FGameplayTag, Kz::TPriorityStack<bool, false, FName, false>> IgnoreInputStacks;
 

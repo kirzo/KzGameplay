@@ -163,7 +163,11 @@ void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, UKzInputProfile* Pr
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn))
 		{
-			Subsystem->AddMappingContext(Profile->MappingContext, Profile->ContextPriority);
+			// Derived from the order things were pushed rather than authored: priority only decides who
+			// wins a key two contexts both claim, and that answer is already "whatever went on last".
+			// A number per asset made unrelated profiles share one space and collide over nothing, and
+			// could disagree with the stack that FindActionConfig walks.
+			Subsystem->AddMappingContext(Profile->MappingContext, NextContextPriority++);
 			Layer.bAppliedContext = true;
 		}
 	}
