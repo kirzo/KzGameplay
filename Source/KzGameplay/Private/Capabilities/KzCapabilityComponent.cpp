@@ -115,10 +115,38 @@ bool UKzCapabilityComponent::HasCapability(FGameplayTag Capability) const
 	return ASC && ASC->HasMatchingGameplayTag(Capability);
 }
 
+void UKzCapabilityComponent::SuppressCapability(FGameplayTag Capability, FName SourceID)
+{
+	if (Capability.IsValid())
+	{
+		SuppressedCapabilities.FindOrAdd(Capability).Add(SourceID);
+	}
+}
+
+void UKzCapabilityComponent::ReleaseCapability(FGameplayTag Capability, FName SourceID)
+{
+	if (TSet<FName>* Sources = SuppressedCapabilities.Find(Capability))
+	{
+		Sources->Remove(SourceID);
+
+		if (Sources->IsEmpty())
+		{
+			SuppressedCapabilities.Remove(Capability);
+		}
+	}
+}
+
+bool UKzCapabilityComponent::IsCapabilitySuppressed(FGameplayTag Capability) const
+{
+	// ponytail: exact match. Suppressing a parent tag to hold everything under it is the obvious next
+	// step, and turns this lookup into a walk over the map when somebody needs it
+	return SuppressedCapabilities.Contains(Capability);
+}
+
 bool UKzCapabilityComponent::CanUseCapability(FGameplayTag Capability) const
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystem();
-	if (!ASC || !HasCapability(Capability))
+	if (!ASC || !HasCapability(Capability) || IsCapabilitySuppressed(Capability))
 	{
 		return false;
 	}

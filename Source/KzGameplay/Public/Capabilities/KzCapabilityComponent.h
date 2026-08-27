@@ -63,6 +63,25 @@ public:
 	bool CanUseCapability(FGameplayTag Capability) const;
 
 	/**
+	 * Holds a capability back without taking it away: the owner still has it, it just cannot be used
+	 * while the source says so. For rules that come from the world rather than from the owner, like a
+	 * room where nobody draws a weapon.
+	 *
+	 * Keyed by source so several can suppress the same thing and release in any order. Reaches
+	 * capabilities with no ability behind them, which is what ActivationBlockedTags cannot do.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Capabilities")
+	void SuppressCapability(FGameplayTag Capability, FName SourceID);
+
+	/** Lifts one source's hold. The capability comes back when the last source lets go. */
+	UFUNCTION(BlueprintCallable, Category = "Capabilities")
+	void ReleaseCapability(FGameplayTag Capability, FName SourceID);
+
+	/** Whether anything is currently holding this capability back. */
+	UFUNCTION(BlueprintPure, Category = "Capabilities")
+	bool IsCapabilitySuppressed(FGameplayTag Capability) const;
+
+	/**
 	 * Activates whatever implements a capability.
 	 * Use this over a gameplay event when the caller needs to know whether anything answered.
 	 */
@@ -76,6 +95,9 @@ protected:
 private:
 	/** Abilities we granted, so we can take back exactly what we gave. Authority only. */
 	TMap<FGameplayTag, FGameplayAbilitySpecHandle> GrantedAbilities;
+
+	/** Who is holding what back. A capability with no sources left is free again. */
+	TMap<FGameplayTag, TSet<FName>> SuppressedCapabilities;
 
 	UAbilitySystemComponent* GetAbilitySystem() const;
 
