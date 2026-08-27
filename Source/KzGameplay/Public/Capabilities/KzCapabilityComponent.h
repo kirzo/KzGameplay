@@ -10,6 +10,8 @@
 
 class UAbilitySystemComponent;
 class UKzCapabilitySet;
+class UKzInputProfile;
+class UKzInputHandlerComponent;
 
 /**
  * Grants and revokes capabilities, and is the only thing that should ever grant an ability.
@@ -98,6 +100,11 @@ private:
 
 	/** Who is holding what back. A capability with no sources left is free again. */
 	TMap<FGameplayTag, TSet<FName>> SuppressedCapabilities;
+
+	/** Input profiles we pushed per capability, so revoking takes back exactly those. */
+	TMap<FGameplayTag, TArray<TObjectPtr<UKzInputProfile>>> GrantedProfiles;
+
+	UKzInputHandlerComponent* GetInputHandler() const;
 
 	UAbilitySystemComponent* GetAbilitySystem() const;
 

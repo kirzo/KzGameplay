@@ -68,10 +68,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> MappingContext;
 
-	/** Enhanced Input priority for the context above. Higher wins when two contexts map the same key. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-	int32 ContextPriority = 0;
-
 	/** List of input actions used by this profile and their corresponding tags. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input", meta = (TitleProperty = "InputTag"))
 	TArray<FKzInputAction> InputActions;

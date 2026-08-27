@@ -174,6 +174,14 @@ protected:
 	UPROPERTY(Replicated)
 	FKzEquipmentList EquipmentList;
 
+	/** Capabilities and tags this component granted, so a refresh takes back only what it gave. */
+	TSet<FGameplayTag> ContributedCapabilities;
+	TSet<FGameplayTag> ContributedTags;
+
+	/** The layout the slots were built from, kept because slots carry rules and not just names. */
+	UPROPERTY(Transient)
+	TObjectPtr<const UKzEquipmentLayout> ActiveLayout;
+
 	/** Creates the local cosmetic mesh (SpawnMesh mode) for a slot on the current machine, replacing any existing one. */
 	void RefreshVisualForSlot(FEquippedSlot& Slot);
 
@@ -185,4 +193,13 @@ protected:
 
 	/** Called on clients when a slot's item changes: refresh the visual and broadcast equip/unequip. */
 	void HandleSlotUpdated(FEquippedSlot& Slot);
+
+	/**
+	 * Works out what the occupied slots and their items add up to, capabilities and tags alike, and
+	 * grants or revokes the difference.
+	 *
+	 * Recomputed rather than counted: two hands can contribute the same thing, and emptying one of them
+	 * must not take it from the other. The whole answer is cheap and cannot drift.
+	 */
+	void RefreshEquippedGrants();
 };

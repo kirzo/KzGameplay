@@ -8,6 +8,7 @@
 #include "KzCapabilitySet.generated.h"
 
 class UGameplayAbility;
+class UKzInputProfile;
 
 /**
  * What backs a capability. An empty Ability is meaningful: the owner can do the thing and needs no ability
@@ -18,6 +19,16 @@ struct KZGAMEPLAY_API FKzCapabilityGrant
 {
 	GENERATED_BODY()
 
+	/**
+	 * Whether the owner starts with this, or has to be given it by something.
+	 *
+	 * The set says what every capability is made of, including ones the owner may never hold: attacking
+	 * is defined here so the axe does not have to know about abilities, but you only get it by picking
+	 * the axe up.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Capability")
+	bool bGrantedByDefault = false;
+
 	/** Ability granted alongside the capability tag. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Capability")
 	TSubclassOf<UGameplayAbility> Ability;
@@ -25,6 +36,13 @@ struct KZGAMEPLAY_API FKzCapabilityGrant
 	/** Level the ability is granted at. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Capability", meta = (ClampMin = 1))
 	int32 Level = 1;
+
+	/**
+	 * Controls that come with the capability. Knowing how to do something and having the buttons for it
+	 * are the same fact, so whatever grants the capability never has to mention inputs at all.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Capability")
+	TArray<TObjectPtr<UKzInputProfile>> InputProfiles;
 };
 
 /**

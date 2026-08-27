@@ -76,6 +76,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
 	FTransform AttachmentOffset;
 
+	/**
+	 * Capabilities the owner gains while this item is equipped: what this object lets you do that you
+	 * could not do without it. The item names them and never learns what implements them.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (Categories = "Capability"))
+	FGameplayTagContainer GrantedCapabilities;
+
 	/** Tags automatically granted to the Owner's Ability System while this item is equipped. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
 	FGameplayTagContainer EquippedTags;
