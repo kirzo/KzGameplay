@@ -3,6 +3,8 @@
 #include "Input/Modifiers/KzInputModifier_PrimitiveSweep.h"
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "Engine/World.h"
 #include "CollisionDebugDrawingPublic.h"
 #include "DrawDebugHelpers.h"
@@ -37,7 +39,7 @@ FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor
 	QueryParams.AddIgnoredActors(IgnoredActors);
 
 	// 2. Define the Sweep
-	FVector StartLoc = SweepPrimitive->Bounds.Origin + SweepPrimitive->ComponentVelocity * 0.1f;
+	FVector StartLoc = SweepPrimitive->Bounds.Origin;
 	FQuat SweepQuat = SweepPrimitive->GetComponentQuat();
 	FCollisionShape Shape = SweepPrimitive->GetCollisionShape();
 
@@ -61,6 +63,24 @@ FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor
 		float HalfHeight = FMath::Max(Radius, Shape.GetCapsuleHalfHeight() - FloorClearance);
 		Shape.SetCapsule(Radius, HalfHeight);
 	}
+
+	// The sweep has to cover the ground the avatar is about to cover, so its reach comes from the avatar
+	// own speed: pushing something heavy slows the character down and shortens the sweep with it
+	float AvatarSpeed = 0.0f;
+	if (const APawn* AvatarPawn = Cast<APawn>(Avatar))
+	{
+		if (const UPawnMovementComponent* MoveComp = AvatarPawn->GetMovementComponent())
+		{
+			AvatarSpeed = MoveComp->GetMaxSpeed();
+		}
+	}
+
+	if (AvatarSpeed <= 0.0f)
+	{
+		AvatarSpeed = Avatar->GetVelocity().Size();
+	}
+
+	const float SweepDistance = AvatarSpeed * LookAheadTime;
 
 	ECollisionChannel ObjectType = SweepPrimitive->GetCollisionObjectType();
 	FCollisionResponseParams ResponseParams(SweepPrimitive->GetCollisionResponseToChannels());
