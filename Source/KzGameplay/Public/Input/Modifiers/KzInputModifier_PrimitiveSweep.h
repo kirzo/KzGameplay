@@ -29,6 +29,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sweep", meta = (ExposeOnSpawn = "true"))
 	TArray<TObjectPtr<AActor>> IgnoredActors;
 
+#if WITH_EDITORONLY_DATA
+	/** Draws the sweep shape, the swept path and any hit normals. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sweep")
+	bool bDrawDebug = false;
+#endif
+
 protected:
 	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 };

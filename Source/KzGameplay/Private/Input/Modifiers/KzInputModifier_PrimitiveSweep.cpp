@@ -4,6 +4,8 @@
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+#include "CollisionDebugDrawingPublic.h"
+#include "DrawDebugHelpers.h"
 
 FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
@@ -83,6 +85,30 @@ FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor
 		FHitResult Hit;
 		bool bHit = World->SweepSingleByChannel(Hit, StartLoc, EndLoc, SweepQuat, ObjectType, Shape, QueryParams, ResponseParams);
 
+#if WITH_EDITOR
+		if (bDrawDebug)
+		{
+			TArray<FHitResult> DebugHits;
+			if (bHit)
+			{
+				DebugHits.Add(Hit);
+			}
+
+			if (Shape.IsBox())
+			{
+				DrawBoxSweeps(World, StartLoc, EndLoc, Shape.GetBox(), SweepQuat, DebugHits, -1.0f);
+			}
+			else if (Shape.IsCapsule())
+			{
+				DrawCapsuleSweeps(World, StartLoc, EndLoc, Shape.GetCapsuleHalfHeight(), Shape.GetCapsuleRadius(), SweepQuat, DebugHits, -1.0f);
+			}
+			else
+			{
+				DrawSphereSweeps(World, StartLoc, EndLoc, Shape.GetSphereRadius(), DebugHits, -1.0f);
+			}
+		}
+#endif
+
 		if (bHit && Hit.bBlockingHit)
 		{
 			// Calculate the percentage of input used before the impact
@@ -144,6 +170,15 @@ FVector UKzInputModifier_PrimitiveSweep::ModifyInput_Implementation(const AActor
 
 	// 4. Restore original vertical input if you want to allow gravity/jumping to bypass wall sliding logic
 	AccumulatedInput.Z = CurrentInput.Z;
+
+#if WITH_EDITOR
+	if (bDrawDebug)
+	{
+		const FVector ArrowOrigin = SweepPrimitive->Bounds.Origin;
+		DrawDebugDirectionalArrow(World, ArrowOrigin, ArrowOrigin + CurrentInput * SweepDistance, 10.0f, FColor::Silver, false, -1.0f, 0, 1.0f);
+		DrawDebugDirectionalArrow(World, ArrowOrigin, ArrowOrigin + AccumulatedInput * SweepDistance, 10.0f, FColor::Green, false, -1.0f, 0, 2.0f);
+	}
+#endif
 
 	return AccumulatedInput;
 }
