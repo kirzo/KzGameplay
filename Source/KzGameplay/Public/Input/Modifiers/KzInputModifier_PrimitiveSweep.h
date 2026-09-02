@@ -21,9 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sweep", meta = (ExposeOnSpawn = "true"))
 	TObjectPtr<UPrimitiveComponent> SweepPrimitive;
 
-	/** How far ahead to check for collisions (in cm). */
+	/** Seconds of movement to look ahead. The reach in cm is this times the avatar current top speed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sweep", meta = (ExposeOnSpawn = "true"))
-	float SweepDistance = 30.0f;
+	float LookAheadTime = 0.1f;
 
 	/** Additional actors to ignore during the sweep. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sweep", meta = (ExposeOnSpawn = "true"))
