@@ -24,7 +24,7 @@ FVector UKzInputModifier_Tether::ModifyInput_Implementation(const AActor* Avatar
 	AnchorToAvatar.Z = 0.0f;
 
 	float Dist = AnchorToAvatar.Size();
-	if (Dist < UE_KINDA_SMALL_NUMBER)
+	if (Dist < FMath::Max(DeadZoneDistance, UE_KINDA_SMALL_NUMBER))
 	{
 		return CurrentInput;
 	}

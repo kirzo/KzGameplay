@@ -26,6 +26,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether", meta = (ExposeOnSpawn = "true", ClampMin = 0.0))
 	float MaxDistance = 150.0f;
 
+	/**
+	 * Below this anchor distance the leash stays silent. At near-zero range the outward direction is
+	 * numeric noise and would strip legitimate input, pinning an avatar that stands on its own anchor.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether", meta = (ExposeOnSpawn = "true", ClampMin = 0.0))
+	float DeadZoneDistance = 15.0f;
+
 protected:
 	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 };
