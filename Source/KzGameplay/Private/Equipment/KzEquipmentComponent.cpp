@@ -108,6 +108,27 @@ void UKzEquipmentComponent::InitializeEquipment(const UKzEquipmentLayout* Layout
 	EquipmentList.MarkArrayDirty();
 }
 
+const UKzEquipmentLayout* UKzEquipmentComponent::GetLayout() const
+{
+	// Clients never run InitializeEquipment, so their slots take their rules from the default layout.
+	return ActiveLayout ? ActiveLayout.Get() : DefaultLayout.Get();
+}
+
+USceneComponent* UKzEquipmentComponent::GetAttachParentForSlot(FGameplayTag SlotID) const
+{
+	FKzEquipmentSlotDefinition Definition;
+	if (const UKzEquipmentLayout* Layout = GetLayout())
+	{
+		if (Layout->FindSlotDefinition(SlotID, Definition) && !Definition.AttachComponent.ComponentName.IsNone())
+		{
+			return Definition.AttachComponent.GetComponent(this);
+		}
+	}
+
+	// A slot that names no component means a bone socket on the character.
+	return GetOwner() ? GetOwner()->FindComponentByClass<USkeletalMeshComponent>() : nullptr;
+}
+
 void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 {
 	// Drop any existing local visual first, so swaps recreate cleanly.
@@ -130,16 +151,19 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 		return;
 	}
 
-	USkeletalMeshComponent* OwnerMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
-	if (!OwnerMesh)
+	USceneComponent* AttachParent = GetAttachParentForSlot(Slot.SlotID);
+	if (!AttachParent)
 	{
 		return;
 	}
 
 	FName AttachmentSocket = EquipFrag->SocketOverride;
-	if (AttachmentSocket.IsNone() && DefaultLayout)
+	if (AttachmentSocket.IsNone())
 	{
-		AttachmentSocket = DefaultLayout->GetSocketForSlot(Slot.SlotID);
+		if (const UKzEquipmentLayout* Layout = GetLayout())
+		{
+			AttachmentSocket = Layout->GetSocketForSlot(Slot.SlotID);
+		}
 	}
 
 	UMeshComponent* NewMesh = nullptr;
@@ -162,7 +186,7 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 	if (NewMesh)
 	{
 		NewMesh->RegisterComponent();
-		NewMesh->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
+		NewMesh->AttachToComponent(AttachParent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
 		NewMesh->SetRelativeTransform(EquipFrag->AttachmentOffset);
 
 		if (EquipFrag->bDisableCollisionOnEquip)
@@ -193,6 +217,8 @@ void UKzEquipmentComponent::RefreshEquippedGrants()
 	// Tags do not need one, so a character without capabilities still gets its State.Grabbing
 	UKzCapabilityComponent* Capabilities = GetOwner()->FindComponentByClass<UKzCapabilityComponent>();
 
+	const UKzEquipmentLayout* Layout = GetLayout();
+
 	TSet<FGameplayTag> Wanted;
 	TSet<FGameplayTag> WantedTags;
 
@@ -205,7 +231,7 @@ void UKzEquipmentComponent::RefreshEquippedGrants()
 
 		// What the hand grants for holding anything, whatever it is holding
 		FKzEquipmentSlotDefinition Definition;
-		if (ActiveLayout && ActiveLayout->FindSlotDefinition(Slot.SlotID, Definition))
+		if (Layout && Layout->FindSlotDefinition(Slot.SlotID, Definition))
 		{
 			for (const FGameplayTag& Tag : Definition.GrantedCapabilities)
 			{
@@ -308,12 +334,13 @@ void UKzEquipmentComponent::HandleSlotUpdated(FEquippedSlot& Slot)
 
 bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid() || !DefaultLayout) return false;
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!GetOwner()->HasAuthority() || !ItemToEquip.IsValid() || !Layout) return false;
 
 	const UKzItemFragment_Equippable* EquipFrag = ItemToEquip.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
 	if (!EquipFrag) return false; // Not equippable!
 
-	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(EquipFrag->TargetSlot);
+	FGameplayTag TargetSlot = Layout->ResolveSlotID(EquipFrag->TargetSlot);
 
 	for (FEquippedSlot& Slot : EquipmentList.Slots)
 	{
@@ -327,12 +354,12 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			// Assign the new item to the slot
 			Slot.Instance = ItemToEquip;
 
-			USkeletalMeshComponent* OwnerMesh = GetOwner()->FindComponentByClass<USkeletalMeshComponent>();
+			USceneComponent* AttachParent = GetAttachParentForSlot(TargetSlot);
 
 			FName AttachmentSocket = EquipFrag->SocketOverride;
 			if (AttachmentSocket.IsNone())
 			{
-				AttachmentSocket = DefaultLayout->GetSocketForSlot(TargetSlot);
+				AttachmentSocket = Layout->GetSocketForSlot(TargetSlot);
 			}
 
 			UKzItemComponent* ItemComp = nullptr;
@@ -398,15 +425,15 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 						}
 					}
 
-					if (OwnerMesh)
+					if (AttachParent)
 					{
 						if (EquipFrag->bUseCustomAttachment && ItemComp)
 						{
-							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(OwnerMesh, AttachmentSocket, EquipFrag->AttachmentOffset));
+							ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(AttachParent, AttachmentSocket, EquipFrag->AttachmentOffset));
 						}
 						else
 						{
-							CurrentActor->AttachToComponent(OwnerMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
+							CurrentActor->AttachToComponent(AttachParent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
 							CurrentActor->SetActorRelativeTransform(EquipFrag->AttachmentOffset);
 						}
 					}
@@ -471,12 +498,13 @@ bool UKzEquipmentComponent::EquipItemFromWorld(UKzItemComponent* ItemComp, FKzIt
 
 bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem)
 {
-	if (!GetOwner()->HasAuthority() || !DefaultLayout)
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!GetOwner()->HasAuthority() || !Layout)
 	{
 		return false;
 	}
 
-	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
+	FGameplayTag TargetSlot = Layout->ResolveSlotID(SlotID);
 
 	for (FEquippedSlot& Slot : EquipmentList.Slots)
 	{
@@ -627,12 +655,13 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 
 const FKzItemInstance* UKzEquipmentComponent::FindItemInSlot(FGameplayTag SlotID) const
 {
-	if (!DefaultLayout)
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!Layout)
 	{
 		return nullptr;
 	}
 
-	FGameplayTag TargetSlot = DefaultLayout->ResolveSlotID(SlotID);
+	FGameplayTag TargetSlot = Layout->ResolveSlotID(SlotID);
 
 	if (const FEquippedSlot* FoundSlot = EquipmentList.Slots.FindByKey(TargetSlot))
 	{

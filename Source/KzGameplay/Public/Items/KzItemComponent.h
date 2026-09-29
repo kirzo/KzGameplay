@@ -15,6 +15,8 @@ class UKzInteractorComponent;
 class UKzInteractableComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemPickedUpDelegate, AActor*, NewOwner);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemEquippedDelegate, AActor*, Equipper);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemDroppedDelegate, AActor*, FormerEquipper);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemCustomAttachDelegate, AActor*, Equipper, FKzTransformSource, AttachSource);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCustomDetachDelegate, AActor*, Equipper);
 
@@ -42,6 +44,14 @@ public:
 	/** Fired exactly before this item is equipped or placed in the inventory. */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
 	FOnItemPickedUpDelegate OnPickedUp;
+
+	/** Fired when this item lands in an equipper's hands. */
+	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
+	FOnItemEquippedDelegate OnEquipped;
+
+	/** Fired when this item leaves the equipper's hands (dropped, thrown or stashed). */
+	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
+	FOnItemDroppedDelegate OnDropped;
 
 	/**
 	 * Fired by the EquipmentComponent to handle custom attachment logic

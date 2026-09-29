@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "Components/KzComponentReference.h"
 #include "Items/KzItemFragment.h"
 #include "KzEquipmentLayout.generated.h"
 
@@ -21,9 +22,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
 	FGameplayTag SlotID;
 
-	/** The default bone/socket name on the skeletal mesh where items in this slot should attach. */
+	/** The default socket name on the attach component where items in this slot should attach. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
 	FName DefaultSocketName;
+
+	/**
+	 * Component of the owner that items in this slot attach to. Left empty it is the owner skeletal mesh,
+	 * which is what a bone socket needs; a backpack or a hose reel may want the root capsule instead.
+	 *
+	 * A layout is an asset with no actor behind it, so the picker degrades to typing the component
+	 * variable name (Mesh, CapsuleComponent).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
+	FKzComponentReference AttachComponent;
 
 	/** The localized name to display in the UI for this slot. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")

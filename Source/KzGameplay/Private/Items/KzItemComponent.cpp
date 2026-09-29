@@ -101,12 +101,18 @@ void UKzItemComponent::SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlo
 {
 	EquipperActor = NewEquipper;
 	EquippedSlotID = NewSlotID;
+
+	OnEquipped.Broadcast(NewEquipper);
 }
 
 void UKzItemComponent::ClearEquippedState()
 {
+	AActor* FormerEquipper = EquipperActor.Get();
+
 	EquipperActor = nullptr;
 	EquippedSlotID = FGameplayTag::EmptyTag;
+
+	OnDropped.Broadcast(FormerEquipper);
 }
 
 FVector UKzItemComponent::GetItemVelocity() const

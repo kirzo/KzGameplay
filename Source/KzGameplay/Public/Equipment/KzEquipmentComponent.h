@@ -182,6 +182,12 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<const UKzEquipmentLayout> ActiveLayout;
 
+	/** The layout in force: the one it was initialized with, or the default on machines that never ran InitializeEquipment. */
+	const UKzEquipmentLayout* GetLayout() const;
+
+	/** Resolves what items in a slot hang from: the slot AttachComponent, or the owner skeletal mesh when it is empty. */
+	USceneComponent* GetAttachParentForSlot(FGameplayTag SlotID) const;
+
 	/** Creates the local cosmetic mesh (SpawnMesh mode) for a slot on the current machine, replacing any existing one. */
 	void RefreshVisualForSlot(FEquippedSlot& Slot);
 
