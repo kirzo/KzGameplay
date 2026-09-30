@@ -109,12 +109,28 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 	const FKzInteractionHandle Handle = Interaction.Handle;
 	Interactions.Add(Handle, Interaction);
 
+	// Handlers get the local copy, which shares the scope: any of them may end the interaction and take the
+	// map entry with it, as a pickup that destroys the item does. Nobody hears it began after that.
+
 	// The interactor first, and directly: handlers below can activate abilities that ask it what it is
 	// interacting with, and it has to have an answer by then
-	Interactor->HandleInteractionBegun(Interactions[Handle]);
+	Interactor->HandleInteractionBegun(Interaction);
 
-	Interactable->NotifyInteractionBegun(Interactor, Interactions[Handle]);
-	OnInteractionBegun.Broadcast(Interactions[Handle]);
+	if (IsInteractionActive(Handle))
+	{
+		Interactable->NotifyInteractionBegun(Interactor, Interaction);
+	}
+
+	if (IsInteractionActive(Handle))
+	{
+		OnInteractionBegun.Broadcast(Interaction);
+	}
+
+	if (!IsInteractionActive(Handle))
+	{
+		// Already over when this returns, which is what Completed tells the caller
+		return EKzInteractionResult::Completed;
+	}
 
 	if (Result == EKzInteractionResult::Completed)
 	{

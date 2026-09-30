@@ -381,8 +381,8 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 				TSubclassOf<AActor> TargetClass = EquipFrag->GetEquippedActorClass(ItemToEquip.ItemDef->WorldActorClass).LoadSynchronous();
 				AActor* CurrentActor = Slot.Instance.SpawnedActor;
 
-				// 1. If the actor from the ground is different from the equipped class, recreate it
-				if (CurrentActor && TargetClass && CurrentActor->GetClass() != TargetClass)
+				// 1. If the actor from the ground is not of the equipped class, recreate it. A subclass is, and keeps its own setup
+				if (CurrentActor && TargetClass && !CurrentActor->IsA(TargetClass))
 				{
 					CurrentActor->Destroy();
 					CurrentActor = nullptr;
