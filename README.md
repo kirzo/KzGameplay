@@ -21,11 +21,20 @@ This plugin relies on the following custom modules to function:
    YourProject/
    └── Plugins/
        ├── KzGameplay/
+       │   ├── KzGameplay/
+       │   └── KzGameplayLimbic/
        ├── KzLib/
        └── ScriptableFramework/
+   ```
 4. Right-click your project's `.uproject` file and select **Generate Visual Studio project files** (or your IDE's equivalent).
 5. Open your IDE and compile the project, or simply launch the `.uproject` file to let Unreal Engine build the missing modules.
 6. Ensure the plugins are enabled in your project via **Edit -> Plugins**.
+
+### Optional Integrations
+
+Integrations with other plugins live in this repository next to KzGameplay, each as its own plugin and disabled by default, so KzGameplay never depends on them. Enable the ones you need in **Edit -> Plugins**:
+
+* **KzGameplay - Limbic Integration** (`KzGameplayLimbic`): requires **[Limbic](https://github.com/kirzo/Limbic)**. Adds the *Limbic Pose* item fragment, which holds a Limbic pose while the item is equipped.
 
 ## 🌟 Core Systems
 
