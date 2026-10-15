@@ -25,6 +25,12 @@ public:
 	 */
 	virtual void OnInstanceCreated(FKzItemInstance& Instance) const;
 
+	/**
+	 * Fragment classes this one cannot work without on the same item, as Unity's RequireComponent.
+	 * The item adds them when this one is added, the item editor will not remove them while this one stays, and validation fails if one is missing.
+	 */
+	virtual void GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const {}
+
 protected:
 	/** Blueprint-implementable event for OnInstanceCreated. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Item Fragment", meta = (DisplayName = "On Instance Created"))

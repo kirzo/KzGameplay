@@ -6,6 +6,7 @@
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
+#include "UObject/UnrealType.h"
 #endif
 
 #if WITH_EDITOR
@@ -40,7 +41,59 @@ EDataValidationResult UKzItemDefinition::IsDataValid(FDataValidationContext& Con
 		Result = EDataValidationResult::Invalid;
 	}
 
+	for (const UKzItemFragment* Fragment : Fragments)
+	{
+		if (!Fragment)
+		{
+			continue;
+		}
+
+		TArray<TSubclassOf<UKzItemFragment>> Required;
+		Fragment->GetRequiredFragments(Required);
+		for (const TSubclassOf<UKzItemFragment>& RequiredClass : Required)
+		{
+			if (RequiredClass && !HasFragment(RequiredClass))
+			{
+				Context.AddError(FText::Format(INVTEXT("{0} requires a {1} fragment on the same item."), Fragment->GetClass()->GetDisplayNameText(), RequiredClass->GetDisplayNameText()));
+				Result = EDataValidationResult::Invalid;
+			}
+		}
+	}
+
 	return Result;
+}
+
+void UKzItemDefinition::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UKzItemDefinition, Fragments))
+	{
+		AddRequiredFragments();
+	}
+}
+
+void UKzItemDefinition::AddRequiredFragments()
+{
+	// Fragments added here are visited too, so requirements of requirements come along.
+	for (int32 Index = 0; Index < Fragments.Num(); ++Index)
+	{
+		if (!Fragments[Index])
+		{
+			continue;
+		}
+
+		TArray<TSubclassOf<UKzItemFragment>> Required;
+		Fragments[Index]->GetRequiredFragments(Required);
+		for (const TSubclassOf<UKzItemFragment>& RequiredClass : Required)
+		{
+			if (RequiredClass && !RequiredClass->HasAnyClassFlags(CLASS_Abstract) && !HasFragment(RequiredClass))
+			{
+				Modify();
+				Fragments.Add(NewObject<UKzItemFragment>(this, RequiredClass, NAME_None, RF_Transactional));
+			}
+		}
+	}
 }
 #endif
 

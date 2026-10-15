@@ -12,6 +12,7 @@ class AActor;
 class UStreamableRenderAsset;
 class UKzEquipmentComponent;
 class UKzItemComponent;
+struct FKzEquipEvent;
 
 /** Defines how the item is represented visually when equipped. */
 UENUM(BlueprintType)
@@ -90,6 +91,12 @@ public:
 	/** Action to execute when the item is equipped (e.g., granting an active ability). */
 	UPROPERTY(EditAnywhere, Category = "Events")
 	FScriptableAction OnEquippedAction;
+
+	/** Tells the item's fragments that implement IKzEquipListener that it was equipped. The equipment component calls it on every machine but a dedicated server, as it shows the item. */
+	void NotifyEquipped(const FKzEquipEvent& Event) const;
+
+	/** Tells them it was put away, as the equipment component stops showing it. */
+	void NotifyUnequipped(const FKzEquipEvent& Event) const;
 
 	/** Helper to get the correct class to spawn when equipping as an actor. */
 	TSoftClassPtr<AActor> GetEquippedActorClass(const TSoftClassPtr<AActor>& DefaultWorldClass) const

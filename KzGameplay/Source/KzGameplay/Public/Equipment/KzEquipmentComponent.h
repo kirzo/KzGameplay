@@ -35,6 +35,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment Slot")
 	FKzItemInstance Instance;
 
+	/** The item this machine shows in the slot and told its equip listeners about. Local: by the time a change replicates, clients have lost the old item. */
+	UPROPERTY(NotReplicated, Transient)
+	TObjectPtr<const UKzItemDefinition> ShownItem = nullptr;
+
 	FEquippedSlot() {}
 	FEquippedSlot(FGameplayTag InSlotID) : SlotID(InSlotID) {}
 
@@ -166,6 +170,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	FKzItemInstance GetItemInSlot(FGameplayTag SlotID) const;
 
+	/** Resolves what items in a slot hang from: the slot AttachComponent, or the owner skeletal mesh when it is empty. */
+	USceneComponent* GetAttachParentForSlot(FGameplayTag SlotID) const;
+
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
@@ -185,20 +192,23 @@ protected:
 	/** The layout in force: the one it was initialized with, or the default on machines that never ran InitializeEquipment. */
 	const UKzEquipmentLayout* GetLayout() const;
 
-	/** Resolves what items in a slot hang from: the slot AttachComponent, or the owner skeletal mesh when it is empty. */
-	USceneComponent* GetAttachParentForSlot(FGameplayTag SlotID) const;
-
 	/** Creates the local cosmetic mesh (SpawnMesh mode) for a slot on the current machine, replacing any existing one. */
 	void RefreshVisualForSlot(FEquippedSlot& Slot);
 
 	/** Destroys the local cosmetic mesh for a slot on the current machine. */
 	void ClearVisualForSlot(FEquippedSlot& Slot);
 
+	/** Makes ItemDef what this machine shows in the slot, telling the old item's equip listeners it went and the new one's it came. Dedicated servers show nothing. */
+	void ShowItem(FEquippedSlot& Slot, const UKzItemDefinition* ItemDef);
+
 	/** Called on clients when a slot first replicates in: refresh the visual and broadcast if it holds an item. */
 	void HandleSlotAdded(FEquippedSlot& Slot);
 
 	/** Called on clients when a slot's item changes: refresh the visual and broadcast equip/unequip. */
 	void HandleSlotUpdated(FEquippedSlot& Slot);
+
+	/** Called on clients when a slot replicates out: drop the visual and put its item away. */
+	void HandleSlotRemoved(FEquippedSlot& Slot);
 
 	/**
 	 * Works out what the occupied slots and their items add up to, capabilities and tags alike, and

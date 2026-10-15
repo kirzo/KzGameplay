@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Equipment/KzEquipmentComponent.h"
+#include "Equipment/KzEquipListener.h"
 #include "Items/KzItemDefinition.h"
 #include "Capabilities/KzCapabilityComponent.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
@@ -46,7 +47,15 @@ void FEquippedSlot::PreReplicatedRemove(const FKzEquipmentList& InArraySerialize
 {
 	if (InArraySerializer.OwnerComponent)
 	{
-		InArraySerializer.OwnerComponent->ClearVisualForSlot(*this);
+		InArraySerializer.OwnerComponent->HandleSlotRemoved(*this);
+	}
+}
+
+namespace
+{
+	const UKzItemDefinition* GetHeldItem(const FEquippedSlot& Slot)
+	{
+		return Slot.Instance.IsValid() ? Slot.Instance.ItemDef.Get() : nullptr;
 	}
 }
 
@@ -207,6 +216,35 @@ void UKzEquipmentComponent::ClearVisualForSlot(FEquippedSlot& Slot)
 	}
 }
 
+void UKzEquipmentComponent::ShowItem(FEquippedSlot& Slot, const UKzItemDefinition* ItemDef)
+{
+	// Listeners are cosmetic, like the mesh. A replicated change that keeps the item, such as a stat, tells them nothing.
+	if (Slot.ShownItem == ItemDef || (GetWorld() && GetWorld()->GetNetMode() == NM_DedicatedServer))
+	{
+		return;
+	}
+
+	const UKzItemDefinition* PutAway = Slot.ShownItem;
+	Slot.ShownItem = ItemDef;
+
+	FKzEquipEvent Event;
+	Event.Owner = GetOwner();
+	Event.Equipment = this;
+	Event.SlotID = Slot.SlotID;
+
+	if (const UKzItemFragment_Equippable* Equippable = PutAway ? PutAway->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr)
+	{
+		Event.Item = PutAway;
+		Equippable->NotifyUnequipped(Event);
+	}
+
+	if (const UKzItemFragment_Equippable* Equippable = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr)
+	{
+		Event.Item = ItemDef;
+		Equippable->NotifyEquipped(Event);
+	}
+}
+
 void UKzEquipmentComponent::RefreshEquippedGrants()
 {
 	if (!GetOwner())
@@ -308,6 +346,7 @@ void UKzEquipmentComponent::RefreshEquippedGrants()
 void UKzEquipmentComponent::HandleSlotAdded(FEquippedSlot& Slot)
 {
 	RefreshVisualForSlot(Slot);
+	ShowItem(Slot, GetHeldItem(Slot));
 	RefreshEquippedGrants();
 
 	// Only announce non-empty slots on initial replication (late joiners); empty slots stay silent.
@@ -320,6 +359,7 @@ void UKzEquipmentComponent::HandleSlotAdded(FEquippedSlot& Slot)
 void UKzEquipmentComponent::HandleSlotUpdated(FEquippedSlot& Slot)
 {
 	RefreshVisualForSlot(Slot);
+	ShowItem(Slot, GetHeldItem(Slot));
 	RefreshEquippedGrants();
 
 	if (Slot.Instance.IsValid())
@@ -330,6 +370,12 @@ void UKzEquipmentComponent::HandleSlotUpdated(FEquippedSlot& Slot)
 	{
 		OnItemUnequipped.Broadcast(Slot.SlotID, Slot.Instance);
 	}
+}
+
+void UKzEquipmentComponent::HandleSlotRemoved(FEquippedSlot& Slot)
+{
+	ClearVisualForSlot(Slot);
+	ShowItem(Slot, nullptr);
 }
 
 bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem)
@@ -458,8 +504,9 @@ bool UKzEquipmentComponent::EquipItem(const FKzItemInstance& ItemToEquip, FKzIte
 			OnItemEquippedAction.SetContextProperty(TEXT("SlotID"), Slot.SlotID);
 			OnItemEquippedAction.Run(this);
 
-			// Create the authority machine's local visual and replicate the slot.
+			// Create the authority machine's local visual, tell the item's listeners and replicate the slot.
 			RefreshVisualForSlot(Slot);
+			ShowItem(Slot, Slot.Instance.ItemDef);
 			EquipmentList.MarkItemDirty(Slot);
 			RefreshEquippedGrants();
 
@@ -518,8 +565,9 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 			OutUnequippedItem.ActiveEquippedAction.Reset();
 			OutUnequippedItem.ActiveEquippedAction = FScriptableAction();
 
-			// Destroy the authority machine's local cosmetic mesh; clients drop theirs via the callback.
+			// Destroy the authority machine's local cosmetic mesh and put the item away from its listeners; clients do both via the callbacks.
 			ClearVisualForSlot(Slot);
+			ShowItem(Slot, nullptr);
 			OutUnequippedItem.SpawnedComponent = nullptr;
 
 			Slot.Instance = FKzItemInstance(); // Clear the slot

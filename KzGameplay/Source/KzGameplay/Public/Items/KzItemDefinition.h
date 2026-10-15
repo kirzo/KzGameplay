@@ -22,6 +22,7 @@ class KZGAMEPLAY_API UKzItemDefinition : public UPrimaryDataAsset
 public:
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 	// ==========================================
@@ -105,4 +106,10 @@ public:
 
 		return HasFragment(T::StaticClass());
 	}
+
+private:
+#if WITH_EDITOR
+	/** Adds the fragments the others require and the item lacks, and theirs in turn. */
+	void AddRequiredFragments();
+#endif
 };
