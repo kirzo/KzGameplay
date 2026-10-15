@@ -63,6 +63,8 @@ class KZGAMEPLAY_API UKzItemFragment_MeleeWeapon : public UKzItemFragment
 	GENERATED_BODY()
 
 public:
+	/** A melee weapon is swung from the hands, so it must be equippable. */
+	virtual void GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const override;
 
 	/** The base damage applied per hit before any multipliers. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Melee")

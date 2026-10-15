@@ -1,9 +1,15 @@
 // Copyright 2026 kirzo
 
 #include "Items/Fragments/KzItemFragment_MeleeWeapon.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Actor.h"
+
+void UKzItemFragment_MeleeWeapon::GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const
+{
+	OutRequired.Add(UKzItemFragment_Equippable::StaticClass());
+}
 
 bool UKzItemFragment_MeleeWeapon::GetComboStep(int32 Index, FKzMeleeComboStep& OutStep) const
 {
