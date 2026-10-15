@@ -4,6 +4,7 @@
 
 #include "KzGameplayEditor.h"
 #include "KzGameplayEditorStyle.h"
+#include "Customizations/KzItemFragmentRowCustomizer.h"
 
 #include "Items/KzItemDefinition.h"
 #include "Equipment/KzEquipmentLayout.h"
@@ -75,7 +76,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 	TArray<FKzArrayEditorTabConfig> ItemTabs;
 	ItemTabs.Add(FKzArrayEditorTabConfig(
 		GET_MEMBER_NAME_CHECKED(UKzItemDefinition, Fragments),
-		INVTEXT("Fragment")));
+		INVTEXT("Fragment"),
+		MakeShared<FKzItemFragmentRowCustomizer>()));
 
 	TArray<FKzArrayEditorTabConfig> InputTabs;
 	InputTabs.Add(FKzArrayEditorTabConfig(
