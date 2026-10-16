@@ -8,6 +8,11 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
+namespace
+{
+	using FActionKey = TPair<TWeakObjectPtr<UKzInteractorComponent>, FGameplayTag>;
+}
+
 void KzInteraction::DeclareContext(FScriptableContainer& Container)
 {
 	Container.AddContextProperty<AActor*>(TEXT("Instigator"));
@@ -54,6 +59,23 @@ void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void UKzInteractableComponent::Activate(bool bReset)
 {
 	Super::Activate(bReset);
+
+	// Asked about every scan and every validation, so gathered once instead of on each question
+	Handlers.Reset();
+	if (AActor* OwnerActor = GetOwner())
+	{
+		if (OwnerActor->Implements<UKzInteractableInterface>())
+		{
+			Handlers.Add(OwnerActor);
+		}
+		for (UActorComponent* Component : OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass()))
+		{
+			if (Component != this)
+			{
+				Handlers.Add(Component);
+			}
+		}
+	}
 
 	if (GetWorld() && GetWorld()->IsGameWorld())
 	{
@@ -111,30 +133,9 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 		return false;
 	}
 
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor) return false;
+	if (!GetOwner()) return false;
 
-	if (OwnerActor->Implements<UKzInteractableInterface>())
-	{
-		if (!IKzInteractableInterface::Execute_CanInteract(OwnerActor, Interactor, MutableThis))
-		{
-			return false;
-		}
-	}
-
-	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-	for (UActorComponent* Comp : SiblingComponents)
-	{
-		if (Comp != this)
-		{
-			if (!IKzInteractableInterface::Execute_CanInteract(Comp, Interactor, MutableThis))
-			{
-				return false;
-			}
-		}
-	}
-
-	return true;
+	return ForEachHandler([Interactor, MutableThis](UObject* Handler) { return IKzInteractableInterface::Execute_CanInteract(Handler, Interactor, MutableThis); });
 }
 
 bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interactor, FGameplayTag& OutReason) const
@@ -156,33 +157,12 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 		return false;
 	}
 
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor)
+	if (!GetOwner())
 	{
 		return false;
 	}
 
-	if (OwnerActor->Implements<UKzInteractableInterface>())
-	{
-		if (!IKzInteractableInterface::Execute_GetInteractionAvailability(OwnerActor, Interactor, MutableThis, OutReason))
-		{
-			return false;
-		}
-	}
-
-	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-	for (UActorComponent* Component : SiblingComponents)
-	{
-		if (Component != MutableThis)
-		{
-			if (!IKzInteractableInterface::Execute_GetInteractionAvailability(Component, Interactor, MutableThis, OutReason))
-			{
-				return false;
-			}
-		}
-	}
-
-	return true;
+	return ForEachHandler([Interactor, MutableThis, &OutReason](UObject* Handler) { return IKzInteractableInterface::Execute_GetInteractionAvailability(Handler, Interactor, MutableThis, OutReason); });
 }
 
 const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const
@@ -227,7 +207,7 @@ bool UKzInteractableComponent::CanRunAction(FGameplayTag InputTag, UKzInteractor
 
 	if (Action->Cooldown > 0.0f)
 	{
-		const double* LastUse = LastActionTime.Find(InputTag);
+		const double* LastUse = LastActionTimes.Find(FActionKey(Interactor, InputTag));
 		const UWorld* World = GetWorld();
 
 		if (LastUse && World && World->GetTimeSeconds() - *LastUse < Action->Cooldown)
@@ -259,29 +239,26 @@ bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorCom
 
 	if (const UWorld* World = GetWorld())
 	{
-		LastActionTime.Add(InputTag, World->GetTimeSeconds());
+		// Instigators that are gone leave their times behind
+		for (auto It = LastActionTimes.CreateIterator(); It; ++It)
+		{
+			if (!It.Key().Key.IsValid())
+			{
+				It.RemoveCurrent();
+			}
+		}
+		LastActionTimes.Add(FActionKey(Interactor, InputTag), World->GetTimeSeconds());
 	}
 
 	KzInteraction::FillContext(Action->Effect, Interactor, this);
 	Action->Effect.Run(this);
 
 	// Then the handlers, for whatever the action means in code rather than in data
-	if (AActor* OwnerActor = GetOwner())
+	ForEachHandler([this, Interactor, InputTag](UObject* Handler)
 	{
-		if (OwnerActor->Implements<UKzInteractableInterface>())
-		{
-			IKzInteractableInterface::Execute_OnInteractionAction(OwnerActor, Interactor, this, InputTag);
-		}
-
-		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-		for (UActorComponent* Component : SiblingComponents)
-		{
-			if (Component != this)
-			{
-				IKzInteractableInterface::Execute_OnInteractionAction(Component, Interactor, this, InputTag);
-			}
-		}
-	}
+		IKzInteractableInterface::Execute_OnInteractionAction(Handler, Interactor, this, InputTag);
+		return true;
+	});
 
 	return true;
 }
@@ -295,6 +272,7 @@ void UKzInteractableComponent::PressPerformedAction(FGameplayTag InputTag, UKzIn
 	else if (bPerformedActionLanded)
 	{
 		KeptPress = InputTag;
+		KeptPressInteractor = Interactor;
 	}
 }
 
@@ -330,17 +308,31 @@ void UKzInteractableComponent::FinishAction()
 	}
 
 	const FGameplayTag Next = KeptPress;
-	UKzInteractorComponent* Interactor = PerformingInteractor.Get();
+	UKzInteractorComponent* Interactor = KeptPressInteractor.Get();
 	PerformedAction = FGameplayTag();
 	PerformingInteractor.Reset();
 	bPerformedActionLanded = false;
 	KeptPress = FGameplayTag();
+	KeptPressInteractor.Reset();
 
-	// A press kept while it ran starts the next one right away, as long as the interaction still runs
+	// A press kept while it ran starts the next one right away, as long as whoever made it still interacts
 	if (Next.IsValid() && Interactor && HasInteractor(Interactor))
 	{
 		StartPerformedAction(Next, Interactor);
 	}
+}
+
+bool UKzInteractableComponent::ForEachHandler(TFunctionRef<bool(UObject*)> Visit) const
+{
+	for (const TWeakObjectPtr<UObject>& Handler : Handlers)
+	{
+		UObject* Object = Handler.Get();
+		if (Object && !Visit(Object))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 int32 UKzInteractableComponent::GetInteractionCount() const
@@ -380,32 +372,15 @@ EKzInteractionResult UKzInteractableComponent::EvaluateInteractionResult(UKzInte
 {
 	if (!Interactor) return EKzInteractionResult::Ignored;
 
+	// Continuous > Completed > Ignored: a handler can raise the answer, never lower it
 	EKzInteractionResult FinalResult = DefaultInteractionResult;
-	AActor* OwnerActor = GetOwner();
-
-	if (OwnerActor)
+	ForEachHandler([this, Interactor, &FinalResult](UObject* Handler)
 	{
-		auto Escalate = [&FinalResult](EKzInteractionResult Result)
-			{
-				// Continuous > Completed > Ignored: a handler can raise the answer, never lower it
-				if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
-				else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
-			};
-
-		if (OwnerActor->Implements<UKzInteractableInterface>())
-		{
-			Escalate(IKzInteractableInterface::Execute_GetInteractionResult(OwnerActor, Interactor, this));
-		}
-
-		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-		for (UActorComponent* Component : SiblingComponents)
-		{
-			if (Component != this)
-			{
-				Escalate(IKzInteractableInterface::Execute_GetInteractionResult(Component, Interactor, this));
-			}
-		}
-	}
+		const EKzInteractionResult Result = IKzInteractableInterface::Execute_GetInteractionResult(Handler, Interactor, this);
+		if (Result == EKzInteractionResult::Continuous) FinalResult = EKzInteractionResult::Continuous;
+		else if (Result == EKzInteractionResult::Completed && FinalResult == EKzInteractionResult::Ignored) FinalResult = EKzInteractionResult::Completed;
+		return true;
+	});
 
 	return FinalResult;
 }
@@ -414,22 +389,11 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 {
 	if (!Interactor) return;
 
-	if (AActor* OwnerActor = GetOwner())
+	ForEachHandler([this, Interactor, &Interaction](UObject* Handler)
 	{
-		if (OwnerActor->Implements<UKzInteractableInterface>())
-		{
-			IKzInteractableInterface::Execute_OnInteractionBegun(OwnerActor, Interactor, this, Interaction);
-		}
-
-		TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-		for (UActorComponent* Component : SiblingComponents)
-		{
-			if (Component != this)
-			{
-				IKzInteractableInterface::Execute_OnInteractionBegun(Component, Interactor, this, Interaction);
-			}
-		}
-	}
+		IKzInteractableInterface::Execute_OnInteractionBegun(Handler, Interactor, this, Interaction);
+		return true;
+	});
 
 	OnInteract.Broadcast(Interactor);
 
@@ -439,34 +403,28 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 
 void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)
 {
-	// An action left halfway lands nothing more: the object may finish its animation, but Land and Finish no longer do anything
+	// An action whose instigator leaves halfway lands nothing more, but still finishes, so a press kept from somebody else starts the next
 	if (PerformedAction.IsValid() && PerformingInteractor == Interaction.Interactor)
 	{
-		PerformedAction = FGameplayTag();
 		PerformingInteractor.Reset();
-		bPerformedActionLanded = false;
+		bPerformedActionLanded = true;
+	}
+	if (KeptPress.IsValid() && KeptPressInteractor == Interaction.Interactor)
+	{
 		KeptPress = FGameplayTag();
+		KeptPressInteractor.Reset();
 	}
 
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor)
+	if (!GetOwner())
 	{
 		return;
 	}
 
-	if (OwnerActor->Implements<UKzInteractableInterface>())
+	ForEachHandler([&Interaction, Reason](UObject* Handler)
 	{
-		IKzInteractableInterface::Execute_OnInteractionEnded(OwnerActor, Interaction, Reason);
-	}
-
-	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-	for (UActorComponent* Component : SiblingComponents)
-	{
-		if (Component != this)
-		{
-			IKzInteractableInterface::Execute_OnInteractionEnded(Component, Interaction, Reason);
-		}
-	}
+		IKzInteractableInterface::Execute_OnInteractionEnded(Handler, Interaction, Reason);
+		return true;
+	});
 
 	OnInteractionEnded.Broadcast(Interaction.Interactor.Get(), Reason);
 }
@@ -484,14 +442,11 @@ bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& 
 		}
 	}
 
-	AActor* OwnerActor = GetOwner();
-	if (!OwnerActor)
+	if (!GetOwner())
 	{
 		OutReason = EKzInteractionEndReason::TargetLost;
 		return false;
 	}
-
-	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 
 	// The same data that decided whether this could start, asked again for as long as it runs
 	if (bEndIfUnavailable)
@@ -504,27 +459,7 @@ bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& 
 		}
 	}
 
-	if (OwnerActor->Implements<UKzInteractableInterface>())
-	{
-		if (!IKzInteractableInterface::Execute_ShouldKeepInteractionAlive(OwnerActor, Interaction, OutReason))
-		{
-			return false;
-		}
-	}
-
-	TArray<UActorComponent*> SiblingComponents = OwnerActor->GetComponentsByInterface(UKzInteractableInterface::StaticClass());
-	for (UActorComponent* Component : SiblingComponents)
-	{
-		if (Component != MutableThis)
-		{
-			if (!IKzInteractableInterface::Execute_ShouldKeepInteractionAlive(Component, Interaction, OutReason))
-			{
-				return false;
-			}
-		}
-	}
-
-	return true;
+	return ForEachHandler([&Interaction, &OutReason](UObject* Handler) { return IKzInteractableInterface::Execute_ShouldKeepInteractionAlive(Handler, Interaction, OutReason); });
 }
 
 void UKzInteractableComponent::StopAllInteractions(EKzInteractionEndReason Reason)

@@ -253,19 +253,28 @@ public:
 	void StopAllInteractions(EKzInteractionEndReason Reason = EKzInteractionEndReason::Interrupted);
 
 private:
-	/**
-	 * When each action last ran, for cooldowns.
-	 */
-	UPROPERTY(Transient)
-	TMap<FGameplayTag, double> LastActionTime;
+	/** When each instigator last ran each action, for cooldowns: several at once each keep their own pace. */
+	TMap<TPair<TWeakObjectPtr<UKzInteractorComponent>, FGameplayTag>, double> LastActionTimes;
 
-	/** The action the object is performing and who pressed it, whether its effect landed, and a press kept for when it finishes. */
+	/**
+	 * The action the object is performing, one at a time since it is the object's own animation, and who pressed it; whether it can still
+	 * land its effect; and a press kept for when it finishes, from whoever made it.
+	 */
 	FGameplayTag PerformedAction;
 	TWeakObjectPtr<UKzInteractorComponent> PerformingInteractor;
 	bool bPerformedActionLanded = false;
 	FGameplayTag KeptPress;
+	TWeakObjectPtr<UKzInteractorComponent> KeptPressInteractor;
 
 	void StartPerformedAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor);
+
+	/**
+	 * The owner and the sibling components that implement the interactable interface, owner first, gathered on activation.
+	 */
+	TArray<TWeakObjectPtr<UObject>> Handlers;
+
+	/** Calls Visit on each handler until it returns false; false when one did. */
+	bool ForEachHandler(TFunctionRef<bool(UObject*)> Visit) const;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
