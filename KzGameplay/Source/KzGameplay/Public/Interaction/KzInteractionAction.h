@@ -50,12 +50,20 @@ struct KZGAMEPLAY_API FKzInteractionAction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action", meta = (Categories = "Input"))
 	FGameplayTag InputTag;
 
-	/** Animation the instigator plays. Empty means no animation, and the effect lands immediately. */
+	/**
+	 * The object plays the action itself, as a lever its timeline, in place of an animation of the instigator: the press only starts it,
+	 * through the interactable's OnActionStarted, and the object calls Land Action when the effect is due and Finish Action once it is over.
+	 * Those pace the presses, so there are no times to keep in step.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action")
+	bool bPerformedByInteractable = false;
+
+	/** Animation the instigator plays. Empty means no animation, and the effect lands immediately. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action", meta = (EditCondition = "!bPerformedByInteractable", EditConditionHides))
 	FGameplayTag AnimationTag;
 
 	/** Notify that marks the moment the effect lands. Empty runs the effect as the montage starts. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Action", meta = (EditCondition = "!bPerformedByInteractable", EditConditionHides))
 	FGameplayTag EffectNotify;
 
 	/**

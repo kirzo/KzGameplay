@@ -289,6 +289,63 @@ bool UKzInteractableComponent::RunAction(FGameplayTag InputTag, UKzInteractorCom
 	return true;
 }
 
+void UKzInteractableComponent::PressPerformedAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor)
+{
+	if (!PerformedAction.IsValid())
+	{
+		StartPerformedAction(InputTag, Interactor);
+	}
+	else if (bPerformedActionLanded)
+	{
+		KeptPress = InputTag;
+	}
+}
+
+void UKzInteractableComponent::StartPerformedAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor)
+{
+	if (!CanRunAction(InputTag, Interactor))
+	{
+		return;
+	}
+
+	PerformedAction = InputTag;
+	PerformingInteractor = Interactor;
+	bPerformedActionLanded = false;
+	OnActionStarted.Broadcast(Interactor, InputTag);
+}
+
+void UKzInteractableComponent::LandAction()
+{
+	if (!PerformedAction.IsValid() || bPerformedActionLanded)
+	{
+		return;
+	}
+
+	bPerformedActionLanded = true;
+	RunAction(PerformedAction, PerformingInteractor.Get());
+}
+
+void UKzInteractableComponent::FinishAction()
+{
+	if (!PerformedAction.IsValid())
+	{
+		return;
+	}
+
+	const FGameplayTag Next = KeptPress;
+	UKzInteractorComponent* Interactor = PerformingInteractor.Get();
+	PerformedAction = FGameplayTag();
+	PerformingInteractor.Reset();
+	bPerformedActionLanded = false;
+	KeptPress = FGameplayTag();
+
+	// A press kept while it ran starts the next one right away, as long as the interaction still runs
+	if (Next.IsValid() && Interactor && HasInteractor(Interactor))
+	{
+		StartPerformedAction(Next, Interactor);
+	}
+}
+
 int32 UKzInteractableComponent::GetInteractionCount() const
 {
 	const UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
@@ -385,6 +442,15 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 
 void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)
 {
+	// An action left halfway lands nothing more: the object may finish its animation, but Land and Finish no longer do anything
+	if (PerformedAction.IsValid() && PerformingInteractor == Interaction.Interactor)
+	{
+		PerformedAction = FGameplayTag();
+		PerformingInteractor.Reset();
+		bPerformedActionLanded = false;
+		KeptPress = FGameplayTag();
+	}
+
 	AActor* OwnerActor = GetOwner();
 	if (!OwnerActor)
 	{

@@ -13,7 +13,8 @@ class UKzInteractorComponent;
 /**
  * Drives the actions an interactable offers while an interaction runs: press, play, land the effect,
  * repeat. One ability covers every object that works that way, since the montage, the notify and the
- * effect are data on the interactable rather than a graph per object.
+ * effect are data on the interactable rather than a graph per object. Actions the object performs itself
+ * only get the press handed over, as the object paces them.
  *
  * Bind it to the inputs it should watch through InputBindings, and give ResolveMontage a body so the
  * avatar answers an animation tag with a montage from its own set.

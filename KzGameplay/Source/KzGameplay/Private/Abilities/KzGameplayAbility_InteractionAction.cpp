@@ -65,13 +65,20 @@ void UKzGameplayAbility_InteractionAction::OnInputPressed(FGameplayTag PressedTa
 
 	UKzInteractorComponent* Interactor = GetInteractor();
 	UKzInteractableComponent* Interactable = Interactor ? Interactor->GetActiveInteractable() : nullptr;
-	if (!Interactable || !Interactable->CanRunAction(PressedTag, Interactor))
+	const FKzInteractionAction* Action = Interactable ? Interactable->FindAction(PressedTag) : nullptr;
+	if (!Action)
 	{
 		return;
 	}
 
-	const FKzInteractionAction* Action = Interactable->FindAction(PressedTag);
-	if (!Action)
+	// The object performs it: it starts, keeps or ignores the press, and lands the effect when its own animation gets there
+	if (Action->bPerformedByInteractable)
+	{
+		Interactable->PressPerformedAction(PressedTag, Interactor);
+		return;
+	}
+
+	if (!Interactable->CanRunAction(PressedTag, Interactor))
 	{
 		return;
 	}

@@ -16,6 +16,7 @@ class UKzInteractorComponent;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, UKzInteractorComponent*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzInteractorComponent*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableEndedDelegate, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableActionStartedDelegate, UKzInteractorComponent*, Interactor, FGameplayTag, InputTag);
 
 /**
  * Represents an entity in the world that can be interacted with.
@@ -156,6 +157,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableEndedDelegate OnInteractionEnded;
 
+	/** Fired when an action the object performs itself starts, for it to play it, as a lever its timeline, calling Land Action and Finish Action as it goes. */
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnInteractableActionStartedDelegate OnActionStarted;
+
 public:
 	// ==========================================
 	// RUNTIME LOGIC
@@ -201,6 +206,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions")
 	bool RunAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor);
 
+	/**
+	 * A press of an action the object performs itself: starts it while none is running, keeps one press once the running one has landed
+	 * its effect, to start the next as soon as it finishes, and ignores presses before that.
+	 */
+	void PressPerformedAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor);
+
+	/** Lands the effect of the action the object is performing, at the moment of its own animation it is due. Once per action. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions")
+	void LandAction();
+
+	/** Ends the action the object is performing; a press kept meanwhile starts the next one at once. */
+	UFUNCTION(BlueprintCallable, Category = "Interaction|Actions")
+	void FinishAction();
+
 	/** Returns true if the interactable has reached its maximum allowed interactors. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	bool IsInteractionFull() const;
@@ -243,6 +262,14 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TMap<FGameplayTag, double> LastActionTime;
+
+	/** The action the object is performing and who pressed it, whether its effect landed, and a press kept for when it finishes. */
+	FGameplayTag PerformedAction;
+	TWeakObjectPtr<UKzInteractorComponent> PerformingInteractor;
+	bool bPerformedActionLanded = false;
+	FGameplayTag KeptPress;
+
+	void StartPerformedAction(FGameplayTag InputTag, UKzInteractorComponent* Interactor);
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
