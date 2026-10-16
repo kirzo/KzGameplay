@@ -4,8 +4,6 @@
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "Abilities/KzGameplayAbility.h"
 
-UE_DISABLE_OPTIMIZATION
-
 UAbilityTask_WaitInputTag::UAbilityTask_WaitInputTag(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -79,5 +77,3 @@ void UAbilityTask_WaitInputTag::OnDestroy(bool AbilityIsEnding)
 
 	Super::OnDestroy(AbilityIsEnding);
 }
-
-UE_ENABLE_OPTIMIZATION

@@ -9,8 +9,6 @@
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "GameFramework/Actor.h"
 
-UE_DISABLE_OPTIMIZATION
-
 UKzGameplayAbility_InteractionAction::UKzGameplayAbility_InteractionAction()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
@@ -137,5 +135,3 @@ void UKzGameplayAbility_InteractionAction::CommitRunningAction()
 		Interactable->RunAction(RunningAction, Interactor);
 	}
 }
-
-UE_ENABLE_OPTIMIZATION

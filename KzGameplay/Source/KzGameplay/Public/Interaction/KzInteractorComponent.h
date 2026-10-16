@@ -132,7 +132,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UKzInteractableComponent* GetCurrentFocus() const { return CurrentFocus.Get(); }
 
-	/** * Call this from your PlayerController/Character when the 'Interact' input is pressed. */
+	/**
+	 * Starts an interaction with the current focus.
+	 * On a client without authority this asks the server and returns Pending: the real outcome arrives
+	 * through OnInteractionEnded / the subsystem's OnInteractionBegun, never as a return value.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	EKzInteractionResult Interact();
 
@@ -148,11 +152,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void ResumeScanning();
 
-	/**
-	 * Starts an interaction with the current focus.
-	 * On a client without authority this asks the server and returns Pending: the real outcome arrives
-	 * through OnInteractionEnded / the subsystem's OnInteractionBegun, never as a return value.
-	 */
 	/** Ends the current continuous interaction, if any, as a deliberate release. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void StopCurrentInteraction();

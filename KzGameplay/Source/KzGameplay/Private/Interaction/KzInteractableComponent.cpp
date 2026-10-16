@@ -8,8 +8,6 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
-UE_DISABLE_OPTIMIZATION
-
 void KzInteraction::DeclareContext(FScriptableContainer& Container)
 {
 	Container.AddContextProperty<AActor*>(TEXT("Instigator"));
@@ -36,7 +34,6 @@ FKzInteractionAction::FKzInteractionAction()
 UKzInteractableComponent::UKzInteractableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
-	InteractionTime = 0.0f;
 
 	KzInteraction::DeclareContext(InteractionRequirement);
 	KzInteraction::DeclareContext(AvailabilityRequirement);
@@ -537,5 +534,3 @@ void UKzInteractableComponent::StopAllInteractions(EKzInteractionEndReason Reaso
 		Subsystem->EndInteractionsOn(this, Reason);
 	}
 }
-
-UE_ENABLE_OPTIMIZATION

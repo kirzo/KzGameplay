@@ -37,10 +37,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FText PromptText;
 
-	/** How long the interaction button must be held. 0.0 means instant interaction. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0"))
-	float InteractionTime;
-
 	/**
 	 * The maximum number of simultaneous interactors allowed.
 	 * 1 = Single user (Default). 0 or less = Unlimited interactors.
