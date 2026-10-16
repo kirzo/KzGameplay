@@ -15,6 +15,7 @@ class UKzInteractorComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, UKzInteractorComponent*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzInteractorComponent*, Interactor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableEndedDelegate, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason);
 
 /**
  * Represents an entity in the world that can be interacted with.
@@ -144,9 +145,16 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableFocusDelegate OnEndFocus;
 
-	/** Fired when the interaction has been successfully triggered. */
+	/** Fired when the interaction has been successfully triggered, on every machine, right after OnInteractionBegun. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableActionDelegate OnInteract;
+
+	/**
+	 * Fired when an interaction with this ends, whoever ended it, on every machine, right after OnInteractionEnded. The Interactor may already be gone.
+	 * With OnInteract, it lets a Blueprint follow an interaction without implementing the interactable interface.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnInteractableEndedDelegate OnInteractionEnded;
 
 public:
 	// ==========================================

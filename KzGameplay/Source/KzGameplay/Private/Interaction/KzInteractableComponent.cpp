@@ -404,6 +404,8 @@ void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Inte
 			IKzInteractableInterface::Execute_OnInteractionEnded(Component, Interaction, Reason);
 		}
 	}
+
+	OnInteractionEnded.Broadcast(Interaction.Interactor.Get(), Reason);
 }
 
 bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) const
