@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 UKzSensorComponent::UKzSensorComponent()
 {
@@ -59,6 +60,8 @@ void UKzSensorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UKzSensorComponent::PerformScan()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UKzSensorComponent::PerformScan);
+
 	UKzSpatialSenseSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>();
 	if (!Subsystem) return;
 
@@ -90,7 +93,6 @@ void UKzSensorComponent::PerformScan()
 		// Requirement-less sensors skip the whole per-candidate context setup
 		if (bHasRequirement)
 		{
-			DetectionRequirement.ResetContext();
 			DetectionRequirement.SetContextProperty(TEXT("Instigator"), InstigatorActor);
 			DetectionRequirement.SetContextProperty(TEXT("Target"), TargetActor);
 

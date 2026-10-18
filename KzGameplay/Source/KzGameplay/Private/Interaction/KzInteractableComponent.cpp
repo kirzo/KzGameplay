@@ -23,7 +23,6 @@ void KzInteraction::DeclareContext(FScriptableContainer& Container)
 
 void KzInteraction::FillContext(FScriptableContainer& Container, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
-	Container.ResetContext();
 	Container.SetContextProperty(TEXT("Instigator"), Interactor ? Interactor->GetOwner() : nullptr);
 	Container.SetContextProperty(TEXT("Interactor"), Interactor);
 	Container.SetContextProperty(TEXT("Owner"), Interactable ? Interactable->GetOwner() : nullptr);

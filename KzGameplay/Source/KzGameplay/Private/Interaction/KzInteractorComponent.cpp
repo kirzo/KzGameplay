@@ -9,6 +9,7 @@
 
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 UKzInteractorComponent::UKzInteractorComponent()
 {
@@ -88,6 +89,8 @@ void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UKzInteractorComponent::PerformScan()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UKzInteractorComponent::PerformScan);
+
 	UKzInteractionSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzInteractionSubsystem>();
 	if (!Subsystem) return;
 
@@ -114,7 +117,6 @@ void UKzInteractorComponent::PerformScan()
 		DebugInfo.bIsBest = false;
 #endif
 
-		FilterRequirement.ResetContext();
 		FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
 		FilterRequirement.SetContextProperty(TEXT("Interactor"), this);
 		FilterRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
