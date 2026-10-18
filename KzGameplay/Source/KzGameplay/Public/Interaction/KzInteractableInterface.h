@@ -64,6 +64,13 @@ public:
 	void OnInteractionAction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag);
 
 	/**
+	 * Called when an action the object performs itself starts, for the object to play it: it calls Land Action on the interactable when
+	 * the effect is due and Finish Action once it is over. Runs where the press does.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	void OnPerformedActionStarted(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag);
+
+	/**
 	 * Called while this is focused, to report whether the interaction could run right now.
 	 * Return false with a reason to stay visible but blocked, so the UI can explain itself.
 	 */
@@ -83,6 +90,7 @@ protected:
 	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) {}
 	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) {}
 	virtual void OnInteractionAction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) {}
+	virtual void OnPerformedActionStarted_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) {}
 	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) { return true; }
 	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) { return true; }
 };

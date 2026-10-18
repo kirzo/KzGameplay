@@ -286,6 +286,11 @@ void UKzInteractableComponent::StartPerformedAction(FGameplayTag InputTag, UKzIn
 	PerformedAction = InputTag;
 	PerformingInteractor = Interactor;
 	bPerformedActionLanded = false;
+	ForEachHandler([this, Interactor, InputTag](UObject* Handler)
+	{
+		IKzInteractableInterface::Execute_OnPerformedActionStarted(Handler, Interactor, this, InputTag);
+		return true;
+	});
 	OnActionStarted.Broadcast(Interactor, InputTag);
 }
 
