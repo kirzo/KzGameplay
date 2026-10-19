@@ -24,21 +24,21 @@ UAbilityTask_MoveToLocationUsingInput::UAbilityTask_MoveToLocationUsingInput(con
 UAbilityTask_MoveToLocationUsingInput* UAbilityTask_MoveToLocationUsingInput::MoveToLocationUsingInput(
 	UGameplayAbility* OwningAbility,
 	FName TaskInstanceName,
-	FVector Location,
+	FKzTransformSource Target,
 	EKzTargetVerticalAlignment VerticalAlignment,
 	float AcceptanceRadius,
 	float Timeout,
 	bool bBlockPlayerInput,
 	bool bUseTargetRotation,
-	FRotator TargetRotation,
 	float InterpolationDuration)
 {
 	UAbilityTask_MoveToLocationUsingInput* MyObj = NewAbilityTask<UAbilityTask_MoveToLocationUsingInput>(OwningAbility, TaskInstanceName);
 
-	MyObj->TargetLocation = Kz::ResolveVerticalAlignedLocation(MyObj->GetAvatarActor(), Location, VerticalAlignment);
+	MyObj->Target = Target;
+	MyObj->VerticalAlignment = VerticalAlignment;
+	MyObj->ResolveTarget();
 
 	MyObj->bUseTargetRotation = bUseTargetRotation;
-	MyObj->TargetRotation = FRotator(0.0f, TargetRotation.Yaw, 0.0f);
 	MyObj->AcceptanceRadius = FMath::Max(AcceptanceRadius, 4.0f);
 	MyObj->Timeout = Timeout;
 	MyObj->InterpolationDuration = FMath::Max(InterpolationDuration, 0.0f);
@@ -57,6 +57,19 @@ FName UAbilityTask_MoveToLocationUsingInput::GetBlockSourceID() const
 {
 	// Unique per task, so two of these running at once cannot release each other's block
 	return FName(*FString::Printf(TEXT("MoveToLocation_%u"), GetUniqueID()));
+}
+
+void UAbilityTask_MoveToLocationUsingInput::ResolveTarget()
+{
+	// A target destroyed on the way leaves the last place it was
+	if ((Target.SourceType == EKzTransformSourceType::Scene && !IsValid(Target.SourceComponent)) || (Target.SourceType == EKzTransformSourceType::Actor && !IsValid(Target.SourceActor)))
+	{
+		return;
+	}
+
+	const FTransform Resolved = Target.GetTransform();
+	TargetLocation = Kz::ResolveVerticalAlignedLocation(GetAvatarActor(), Resolved.GetLocation(), VerticalAlignment);
+	TargetRotation = FRotator(0.0f, Resolved.Rotator().Yaw, 0.0f);
 }
 
 void UAbilityTask_MoveToLocationUsingInput::Activate()
@@ -95,6 +108,11 @@ void UAbilityTask_MoveToLocationUsingInput::TickTask(float DeltaTime)
 	}
 
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
+
+	if (bTrackTarget)
+	{
+		ResolveTarget();
+	}
 
 	// Check for Timeout Fallback
 	if (Timeout > 0.0f && (CurrentTime - TimeStarted) >= Timeout)
@@ -143,6 +161,7 @@ void UAbilityTask_MoveToLocationUsingInput::TickTask(float DeltaTime)
 					{
 						bJustFinished = true;
 						TargetLocation = CurrentLocation;
+						bTrackTarget = false;
 					}
 				}
 				else
@@ -225,8 +244,8 @@ void UAbilityTask_MoveToLocationUsingInput::GetLifetimeReplicatedProps(TArray<FL
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, TargetLocation);
-	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, TargetRotation);
+	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, Target);
+	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, VerticalAlignment);
 	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, bUseTargetRotation);
 	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, AcceptanceRadius);
 	DOREPLIFETIME(UAbilityTask_MoveToLocationUsingInput, Timeout);

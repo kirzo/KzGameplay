@@ -163,12 +163,12 @@ public:
 	// ==========================================
 
 	/**
-	 * Returns the exact world transform of the interaction spot, if one is required and valid.
-	 * @param OutTransform The transform of the interaction spot.
-	 * @return True if a specific interaction spot is required and was successfully resolved.
+	 * The interaction spot as a source that follows the object, so whoever walks to it arrives where it is now rather than where it was.
+	 * Falls back to this component when the spot reference does not resolve.
+	 * @return True if this interactable requires an interaction spot.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	bool GetInteractionTransform(FTransform& OutTransform) const;
+	bool GetInteractionSpot(FKzTransformSource& OutSpot) const;
 
 	/** Evaluates if the given interactor can interact with this component. */
 	virtual bool CanInteract(class UKzInteractorComponent* Interactor) const;

@@ -98,19 +98,15 @@ void UKzInteractableComponent::Deactivate()
 	Super::Deactivate();
 }
 
-bool UKzInteractableComponent::GetInteractionTransform(FTransform& OutTransform) const
+bool UKzInteractableComponent::GetInteractionSpot(FKzTransformSource& OutSpot) const
 {
 	if (!bRequiresInteractionSpot)
 	{
 		return false;
 	}
 
-	if (InteractionSpot.GetSocketTransform(this, OutTransform))
-	{
-		return true;
-	}
-
-	OutTransform = GetComponentTransform();
+	FTransform Resolved;
+	OutSpot = InteractionSpot.GetSocketTransform(this, Resolved) ? InteractionSpot.ToTransformSource(this) : FKzTransformSource(this);
 	return true;
 }
 
