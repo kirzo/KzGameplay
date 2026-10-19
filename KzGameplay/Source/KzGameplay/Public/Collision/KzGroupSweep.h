@@ -34,4 +34,10 @@ namespace KzGroupSweep
 	 * the earliest hit and slides what is left along it, up to MaxBounces times. It only falls short where no part of the move is free.
 	 */
 	KZGAMEPLAY_API FVector SlideHorizontal(const UWorld& World, TConstArrayView<FKzGroupSweepShape> Shapes, const FVector& Delta, const FCollisionQueryParams& Params, int32 MaxBounces = 3);
+
+	/**
+	 * Turns a group of shapes about Pivot by up to Yaw degrees as one body, halving the turn up to MaxHalvings times until no shape runs
+	 * into something it was not already touching. Leaves Shapes at the turned pose and returns the yaw it allowed, zero if none fits.
+	 */
+	KZGAMEPLAY_API double RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, int32 MaxHalvings = 3);
 }

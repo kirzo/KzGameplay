@@ -2,6 +2,7 @@
 
 #include "Collision/KzGroupSweep.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
@@ -105,4 +106,58 @@ FVector KzGroupSweep::SlideHorizontal(const UWorld& World, TConstArrayView<FKzGr
 	}
 
 	return Moved;
+}
+
+double KzGroupSweep::RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, int32 MaxHalvings)
+{
+	// What the group already touches does not count, so it can turn away from a wall it rests against.
+	TSet<const UPrimitiveComponent*> Touching;
+	TArray<FOverlapResult> Overlaps;
+	for (const FKzGroupSweepShape& Shape : Shapes)
+	{
+		Overlaps.Reset();
+		World.OverlapMultiByChannel(Overlaps, Shape.Start, Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses);
+		for (const FOverlapResult& Overlap : Overlaps)
+		{
+			if (Overlap.bBlockingHit)
+			{
+				Touching.Add(Overlap.GetComponent());
+			}
+		}
+	}
+
+	auto RunsIntoSomething = [&](const FQuat& Turn)
+	{
+		for (const FKzGroupSweepShape& Shape : Shapes)
+		{
+			Overlaps.Reset();
+			World.OverlapMultiByChannel(Overlaps, Pivot + Turn.RotateVector(Shape.Start - Pivot), Turn * Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses);
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				if (Overlap.bBlockingHit && !Touching.Contains(Overlap.GetComponent()))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+
+	for (int32 Halving = 0; Halving <= MaxHalvings; ++Halving, Yaw *= 0.5)
+	{
+		const FQuat Turn(FVector::UpVector, FMath::DegreesToRadians(Yaw));
+		if (RunsIntoSomething(Turn))
+		{
+			continue;
+		}
+
+		for (FKzGroupSweepShape& Shape : Shapes)
+		{
+			Shape.Start = Pivot + Turn.RotateVector(Shape.Start - Pivot);
+			Shape.Rotation = Turn * Shape.Rotation;
+		}
+		return Yaw;
+	}
+
+	return 0.0;
 }
