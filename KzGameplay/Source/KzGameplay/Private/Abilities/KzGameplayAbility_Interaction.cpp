@@ -51,7 +51,7 @@ void UKzGameplayAbility_Interaction::ActivateAbility(const FGameplayAbilitySpecH
 	WaitEnd->ReadyForActivation();
 }
 
-void UKzGameplayAbility_Interaction::OnInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
+void UKzGameplayAbility_Interaction::OnInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	K2_EndAbility();
 }

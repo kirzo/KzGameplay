@@ -127,6 +127,10 @@ struct KZGAMEPLAY_API FKzInteraction
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction")
 	float StartTime = 0.0f;
 
+	/** Why it ended beyond the end reason, such as the Reason of the rule that stopped holding. Empty until it ends, and often after. */
+	UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+	FGameplayTag EndDetail;
+
 	/** True while both ends still exist. A false here ends the interaction on the next validation pass. */
 	bool HasLiveEnds() const { return Interactor.IsValid() && Interactable.IsValid() && Instigator.IsValid(); }
 

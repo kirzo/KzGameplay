@@ -10,7 +10,7 @@
 class UKzInteractorComponent;
 class UKzInteractableComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKzInteractionEndedTaskDelegate, UKzInteractableComponent*, Interactable, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKzInteractionEndedTaskDelegate, UKzInteractableComponent*, Interactable, EKzInteractionEndReason, Reason, FGameplayTag, Detail);
 
 /**
  * Waits for the avatar's interaction to end, whoever ends it: the player letting go, the object breaking
@@ -25,7 +25,7 @@ class KZGAMEPLAY_API UAbilityTask_WaitInteractionEnded : public UAbilityTask
 public:
 	UAbilityTask_WaitInteractionEnded(const FObjectInitializer& ObjectInitializer);
 
-	/** Fired once the interaction ends, with what ended it. */
+	/** Fired once the interaction ends, with what ended it and its detail. */
 	UPROPERTY(BlueprintAssignable)
 	FKzInteractionEndedTaskDelegate OnInteractionEnded;
 
@@ -46,5 +46,5 @@ private:
 	TObjectPtr<UKzInteractorComponent> Interactor;
 
 	UFUNCTION()
-	void HandleInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
+	void HandleInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail);
 };

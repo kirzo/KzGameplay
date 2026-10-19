@@ -34,7 +34,7 @@ void UAbilityTask_WaitInteractionEnded::Activate()
 	{
 		if (ShouldBroadcastAbilityTaskDelegates())
 		{
-			OnInteractionEnded.Broadcast(nullptr, EKzInteractionEndReason::Interrupted);
+			OnInteractionEnded.Broadcast(nullptr, EKzInteractionEndReason::Interrupted, FGameplayTag());
 		}
 
 		EndTask();
@@ -44,11 +44,11 @@ void UAbilityTask_WaitInteractionEnded::Activate()
 	Interactor->OnInteractionEnded.AddDynamic(this, &UAbilityTask_WaitInteractionEnded::HandleInteractionEnded);
 }
 
-void UAbilityTask_WaitInteractionEnded::HandleInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
+void UAbilityTask_WaitInteractionEnded::HandleInteractionEnded(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	if (ShouldBroadcastAbilityTaskDelegates())
 	{
-		OnInteractionEnded.Broadcast(Interactable, Reason);
+		OnInteractionEnded.Broadcast(Interactable, Reason, Detail);
 	}
 
 	EndTask();

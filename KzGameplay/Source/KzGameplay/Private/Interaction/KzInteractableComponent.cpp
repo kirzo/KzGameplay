@@ -4,6 +4,7 @@
 #include "Interaction/KzInteractorComponent.h"
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractableInterface.h"
+#include "Interaction/KzInteractableGroupComponent.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -35,37 +36,59 @@ FKzInteractionAction::FKzInteractionAction()
 	KzInteraction::DeclareContext(Effect);
 }
 
-FKzAvailabilityRule::FKzAvailabilityRule()
+FKzInteractionRule::FKzInteractionRule()
 {
 	KzInteraction::DeclareContext(Requirement);
-}
-
-const FKzAvailabilityRule* KzInteraction::FindFailedRule(TArray<FKzAvailabilityRule>& Rules, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, bool bOnlyEnding)
-{
-	// In order, so the first rule that fails is the one the player is told about
-	for (FKzAvailabilityRule& Rule : Rules)
-	{
-		if (bOnlyEnding && !Rule.bEndIfFails)
-		{
-			continue;
-		}
-
-		FillContext(Rule.Requirement, Interactor, Interactable);
-		if (!FScriptableRequirement::EvaluateRequirement(Interactor, Rule.Requirement))
-		{
-			return &Rule;
-		}
-	}
-
-	return nullptr;
 }
 
 UKzInteractableComponent::UKzInteractableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
-	KzInteraction::DeclareContext(InteractionRequirement);
 	KzInteraction::DeclareContext(InteractionAction);
+}
+
+const FKzInteractionRule* UKzInteractableComponent::FindFailedRule(UKzInteractorComponent* Interactor, ERuleCheck Check) const
+{
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	auto FindIn = [Interactor, Check, MutableThis](TArray<FKzInteractionRule>& InRules) -> const FKzInteractionRule*
+	{
+		// In order, so the first rule that fails is the one reported
+		for (FKzInteractionRule& Rule : InRules)
+		{
+			const bool bAsked = Check == ERuleCheck::End ? Rule.bEndIfFails : Rule.OnFail == (Check == ERuleCheck::Hide ? EKzInteractionRuleFail::Hide : EKzInteractionRuleFail::Block);
+			if (!bAsked)
+			{
+				continue;
+			}
+
+			KzInteraction::FillContext(Rule.Requirement, Interactor, MutableThis);
+			if (!FScriptableRequirement::EvaluateRequirement(Interactor, Rule.Requirement))
+			{
+				return &Rule;
+			}
+		}
+		return nullptr;
+	};
+
+	if (const FKzInteractionRule* Failed = FindIn(Rules))
+	{
+		return Failed;
+	}
+
+	for (const TWeakObjectPtr<UKzInteractableGroupComponent>& Group : Groups)
+	{
+		if (UKzInteractableGroupComponent* Resolved = Group.Get())
+		{
+			if (const FKzInteractionRule* Failed = FindIn(Resolved->Rules))
+			{
+				return Failed;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 void UKzInteractableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -85,6 +108,7 @@ void UKzInteractableComponent::Activate(bool bReset)
 
 	// Asked about every scan and every validation, so gathered once instead of on each question
 	Handlers.Reset();
+	Groups.Reset();
 	if (AActor* OwnerActor = GetOwner())
 	{
 		if (OwnerActor->Implements<UKzInteractableInterface>())
@@ -96,6 +120,15 @@ void UKzInteractableComponent::Activate(bool bReset)
 			if (Component != this)
 			{
 				Handlers.Add(Component);
+			}
+		}
+
+		TInlineComponentArray<UKzInteractableGroupComponent*> OwnerGroups(OwnerActor);
+		for (UKzInteractableGroupComponent* Group : OwnerGroups)
+		{
+			if (Group->IsMember(this))
+			{
+				Groups.Add(Group);
 			}
 		}
 	}
@@ -143,15 +176,12 @@ bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) c
 		return false;
 	}
 
-	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
-
-	KzInteraction::FillContext(InteractionRequirement, Interactor, MutableThis);
-
-	if (!FScriptableRequirement::EvaluateRequirement(Interactor, InteractionRequirement))
+	if (FindFailedRule(Interactor, ERuleCheck::Hide))
 	{
 		return false;
 	}
 
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 	if (!GetOwner()) return false;
 
 	return ForEachHandler([Interactor, MutableThis](UObject* Handler) { return IKzInteractableInterface::Execute_CanInteract(Handler, Interactor, MutableThis); });
@@ -166,13 +196,13 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 		return false;
 	}
 
-	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
-	if (const FKzAvailabilityRule* Failed = KzInteraction::FindFailedRule(AvailabilityRules, Interactor, MutableThis, false))
+	if (const FKzInteractionRule* Failed = FindFailedRule(Interactor, ERuleCheck::Block))
 	{
 		OutReason = Failed->Reason;
 		return false;
 	}
 
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 	if (!GetOwner())
 	{
 		return false;
@@ -447,10 +477,10 @@ void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Inte
 		return true;
 	});
 
-	OnInteractionEnded.Broadcast(Interaction.Interactor.Get(), Reason);
+	OnInteractionEnded.Broadcast(Interaction.Interactor.Get(), Reason, Interaction.EndDetail);
 }
 
-bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) const
+bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason, FGameplayTag& OutDetail) const
 {
 	// Range first, since it is the one rule every continuous interaction shares
 	if (KeepAliveRange > 0.0f)
@@ -471,9 +501,10 @@ bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& 
 
 	// The rules that describe the object, asked again for as long as it runs
 	UKzInteractorComponent* Interactor = Interaction.Interactor.Get();
-	if (Interactor && KzInteraction::FindFailedRule(AvailabilityRules, Interactor, const_cast<UKzInteractableComponent*>(this), true))
+	if (const FKzInteractionRule* Failed = Interactor ? FindFailedRule(Interactor, ERuleCheck::End) : nullptr)
 	{
 		OutReason = EKzInteractionEndReason::ConditionFailed;
+		OutDetail = Failed->Reason;
 		return false;
 	}
 

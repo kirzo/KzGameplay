@@ -311,7 +311,7 @@ bool UKzInteractorComponent::HasInteractionAuthority() const
 	return Subsystem ? Subsystem->HasInteractionAuthority() : true;
 }
 
-void UKzInteractorComponent::UpdateReplicatedInteraction(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
+void UKzInteractorComponent::UpdateReplicatedInteraction(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	if (!GetOwner() || !GetOwner()->HasAuthority())
 	{
@@ -320,6 +320,7 @@ void UKzInteractorComponent::UpdateReplicatedInteraction(UKzInteractableComponen
 
 	ReplicatedInteraction.Interactable = Interactable;
 	ReplicatedInteraction.LastEndReason = Reason;
+	ReplicatedInteraction.LastEndDetail = Detail;
 	ReplicatedInteraction.Sequence++;
 }
 
@@ -351,7 +352,7 @@ void UKzInteractorComponent::OnRep_ReplicatedInteraction(const FKzReplicatedInte
 	{
 		if (UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr)
 		{
-			Subsystem->EndInteraction(CurrentInteraction, ReplicatedInteraction.LastEndReason);
+			Subsystem->EndInteraction(CurrentInteraction, ReplicatedInteraction.LastEndReason, ReplicatedInteraction.LastEndDetail);
 		}
 	}
 
@@ -404,9 +405,9 @@ void UKzInteractorComponent::HandleInteractionEnded(const FKzInteraction& Intera
 	// Back to looking around, whatever ended it
 	StartScanning();
 
-	UpdateReplicatedInteraction(nullptr, Reason);
+	UpdateReplicatedInteraction(nullptr, Reason, Interaction.EndDetail);
 
-	OnInteractionEnded.Broadcast(Interaction.Interactable.Get(), Reason);
+	OnInteractionEnded.Broadcast(Interaction.Interactable.Get(), Reason, Interaction.EndDetail);
 
 	if (InteractionEndedEventTag.IsValid())
 	{
@@ -414,6 +415,12 @@ void UKzInteractorComponent::HandleInteractionEnded(const FKzInteraction& Intera
 		Payload.Instigator = GetOwner();
 		Payload.Target = Interaction.Target.Get();
 		Payload.EventTag = InteractionEndedEventTag;
+
+		// The detail rides as a target tag: why the target let go
+		if (Interaction.EndDetail.IsValid())
+		{
+			Payload.TargetTags.AddTag(Interaction.EndDetail);
+		}
 
 		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(GetOwner(), InteractionEndedEventTag, Payload);
 	}

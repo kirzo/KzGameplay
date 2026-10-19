@@ -55,7 +55,7 @@ private:
 	FKzInteractionHandle DrivenInteraction;
 
 	UFUNCTION()
-	void OnInteractionEnded(class UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
+	void OnInteractionEnded(class UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail);
 
 	void FillContext(FScriptableAction& Action) const;
 };

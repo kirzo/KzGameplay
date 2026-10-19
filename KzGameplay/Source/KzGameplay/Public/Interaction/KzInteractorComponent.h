@@ -11,7 +11,7 @@
 #include "KzInteractorComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCurrentInteractableChangedDelegate, UKzInteractableComponent*, NewInteractable, UKzInteractableComponent*, OldInteractable);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractorInteractionEndedDelegate, UKzInteractableComponent*, Interactable, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnInteractorInteractionEndedDelegate, UKzInteractableComponent*, Interactable, EKzInteractionEndReason, Reason, FGameplayTag, Detail);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnFocusAvailabilityChangedDelegate, UKzInteractableComponent*, Interactable, bool, bAvailable, FGameplayTag, Reason);
 
 /**
@@ -35,6 +35,10 @@ struct FKzReplicatedInteraction
 	/** Why the last one ended, so clients can react the same way the server did. */
 	UPROPERTY()
 	EKzInteractionEndReason LastEndReason = EKzInteractionEndReason::Released;
+
+	/** And its detail, for the same reason. */
+	UPROPERTY()
+	FGameplayTag LastEndDetail;
 };
 
 #if WITH_GAMEPLAY_DEBUGGER
@@ -230,7 +234,7 @@ protected:
 	void ServerEndInteraction(EKzInteractionEndReason Reason);
 
 	/** Publishes our current engagement to clients. Authority only. */
-	void UpdateReplicatedInteraction(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
+	void UpdateReplicatedInteraction(UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail = FGameplayTag());
 
 	/** Mirrors an interaction the server started, without re-deciding whether it was allowed. */
 	void MirrorServerInteraction(UKzInteractableComponent* Target);

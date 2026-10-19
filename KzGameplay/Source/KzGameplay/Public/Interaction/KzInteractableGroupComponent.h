@@ -10,12 +10,12 @@
 #include "KzInteractableGroupComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKzInteractableGroupBegunDelegate, UKzInteractableComponent*, Interactable, UKzInteractorComponent*, Interactor);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKzInteractableGroupEndedDelegate, UKzInteractableComponent*, Interactable, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FKzInteractableGroupEndedDelegate, UKzInteractableComponent*, Interactable, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason, FGameplayTag, Detail);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKzInteractableGroupActionDelegate, UKzInteractableComponent*, Interactable, UKzInteractorComponent*, Interactor, FGameplayTag, InputTag);
 
 /**
  * Several interactables of one actor that behave as one, such as the handles of a table: the rules they share, configured once
- * on top of each member's own, and the events of all of them in one place. An actor can have several groups.
+ * and checked by each member after its own, and the events of all of them in one place. An actor can have several groups.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent, DisplayName = "Interactable Group"))
 class KZGAMEPLAY_API UKzInteractableGroupComponent : public UActorComponent, public IKzInteractableInterface
@@ -25,23 +25,19 @@ class KZGAMEPLAY_API UKzInteractableGroupComponent : public UActorComponent, pub
 public:
 	UKzInteractableGroupComponent();
 
-	/** The owner's interactables in this group. Empty means all of them. */
+	/** The owner's interactables in this group. Empty means all of them. Read as the members activate, like their handlers. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowedClasses = "/Script/KzGameplay.KzInteractableComponent"))
 	TArray<FKzComponentReference> Members;
 
-	/** Hard requirement of every member, after its own: failing it removes the member from the scan, with no prompt. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	mutable FScriptableRequirement InteractionRequirement;
-
-	/** Soft requirements of every member, checked in order after its own; the first that fails names the reason. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "Reason"))
-	mutable TArray<FKzAvailabilityRule> AvailabilityRules;
+	/** Rules of every member, checked in order after the member's own, with the same meaning. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "{OnFail}: {Reason}"))
+	TArray<FKzInteractionRule> Rules;
 
 	/** An interaction with a member began. On every machine. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FKzInteractableGroupBegunDelegate OnBegun;
 
-	/** An interaction with a member ended, whoever ended it. On every machine; the Interactor may already be gone. */
+	/** An interaction with a member ended, whoever ended it, with the detail when someone knew it. On every machine; the Interactor may already be gone. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FKzInteractableGroupEndedDelegate OnEnded;
 
@@ -58,10 +54,6 @@ public:
 	bool IsMember(const UKzInteractableComponent* Interactable) const;
 
 protected:
-	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
-	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) override;
-	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) override;
-
 	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) override;
 	virtual void OnInteractionEnded_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason Reason) override;
 	virtual void OnInteractionAction_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) override;

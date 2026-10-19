@@ -142,7 +142,7 @@ EKzInteractionResult UKzInteractionSubsystem::BeginInteraction(UKzInteractorComp
 	return Result;
 }
 
-void UKzInteractionSubsystem::EndInteraction(FKzInteractionHandle Handle, EKzInteractionEndReason Reason)
+void UKzInteractionSubsystem::EndInteraction(FKzInteractionHandle Handle, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	FKzInteraction Interaction;
 	if (!Interactions.RemoveAndCopyValue(Handle, Interaction))
@@ -150,6 +150,8 @@ void UKzInteractionSubsystem::EndInteraction(FKzInteractionHandle Handle, EKzInt
 		// Ending twice is normal: whoever ended it and whoever reacted both try
 		return;
 	}
+
+	Interaction.EndDetail = Detail;
 
 	// Undo before anyone reacts, so listeners see a settled world
 	if (Interaction.Scope.IsValid())
@@ -166,7 +168,7 @@ void UKzInteractionSubsystem::EndInteraction(FKzInteractionHandle Handle, EKzInt
 	OnInteractionEnded.Broadcast(Interaction, Reason);
 }
 
-void UKzInteractionSubsystem::EndInteractionsFor(const UKzInteractorComponent* Interactor, EKzInteractionEndReason Reason)
+void UKzInteractionSubsystem::EndInteractionsFor(const UKzInteractorComponent* Interactor, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	TArray<FKzInteractionHandle> Handles;
 	for (const TPair<FKzInteractionHandle, FKzInteraction>& Pair : Interactions)
@@ -179,11 +181,11 @@ void UKzInteractionSubsystem::EndInteractionsFor(const UKzInteractorComponent* I
 
 	for (const FKzInteractionHandle& Handle : Handles)
 	{
-		EndInteraction(Handle, Reason);
+		EndInteraction(Handle, Reason, Detail);
 	}
 }
 
-void UKzInteractionSubsystem::EndInteractionsOn(const UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason)
+void UKzInteractionSubsystem::EndInteractionsOn(const UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail)
 {
 	TArray<FKzInteractionHandle> Handles;
 	for (const TPair<FKzInteractionHandle, FKzInteraction>& Pair : Interactions)
@@ -196,7 +198,7 @@ void UKzInteractionSubsystem::EndInteractionsOn(const UKzInteractableComponent* 
 
 	for (const FKzInteractionHandle& Handle : Handles)
 	{
-		EndInteraction(Handle, Reason);
+		EndInteraction(Handle, Reason, Detail);
 	}
 }
 
@@ -295,7 +297,7 @@ void UKzInteractionSubsystem::ValidateInteractions()
 
 	TGuardValue<bool> Guard(bValidating, true);
 
-	TArray<TPair<FKzInteractionHandle, EKzInteractionEndReason>> Expired;
+	TArray<TTuple<FKzInteractionHandle, EKzInteractionEndReason, FGameplayTag>> Expired;
 
 	for (const TPair<FKzInteractionHandle, FKzInteraction>& Pair : Interactions)
 	{
@@ -303,26 +305,27 @@ void UKzInteractionSubsystem::ValidateInteractions()
 
 		if (!Interaction.Interactable.IsValid() || !Interaction.Target.IsValid())
 		{
-			Expired.Emplace(Pair.Key, EKzInteractionEndReason::TargetLost);
+			Expired.Emplace(Pair.Key, EKzInteractionEndReason::TargetLost, FGameplayTag());
 			continue;
 		}
 
 		if (!Interaction.Interactor.IsValid() || !Interaction.Instigator.IsValid())
 		{
-			Expired.Emplace(Pair.Key, EKzInteractionEndReason::InstigatorLost);
+			Expired.Emplace(Pair.Key, EKzInteractionEndReason::InstigatorLost, FGameplayTag());
 			continue;
 		}
 
 		EKzInteractionEndReason Reason = EKzInteractionEndReason::ConditionFailed;
-		if (!Interaction.Interactable->ShouldKeepInteractionAlive(Interaction, Reason))
+		FGameplayTag Detail;
+		if (!Interaction.Interactable->ShouldKeepInteractionAlive(Interaction, Reason, Detail))
 		{
-			Expired.Emplace(Pair.Key, Reason);
+			Expired.Emplace(Pair.Key, Reason, Detail);
 		}
 	}
 
-	for (const TPair<FKzInteractionHandle, EKzInteractionEndReason>& Pair : Expired)
+	for (const TTuple<FKzInteractionHandle, EKzInteractionEndReason, FGameplayTag>& Entry : Expired)
 	{
-		EndInteraction(Pair.Key, Pair.Value);
+		EndInteraction(Entry.Get<0>(), Entry.Get<1>(), Entry.Get<2>());
 	}
 }
 

@@ -12,25 +12,39 @@
 #include "KzInteractableComponent.generated.h"
 
 class UKzInteractorComponent;
-class UKzInteractableComponent;
+class UKzInteractableGroupComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, UKzInteractorComponent*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzInteractorComponent*, Interactor);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableEndedDelegate, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnInteractableEndedDelegate, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason, FGameplayTag, Detail);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableActionStartedDelegate, UKzInteractorComponent*, Interactor, FGameplayTag, InputTag);
 
-/** A soft requirement of an interactable, with what the player is told when it fails. */
+/** What failing an interaction rule does before the interaction starts. */
+UENUM(BlueprintType)
+enum class EKzInteractionRuleFail : uint8
+{
+	/** Removed from the scan: no focus, no prompt, and the UI never hears of it. For what the player should not even see. */
+	Hide,
+
+	/** Focusable but blocked, reporting the rule's Reason. For what the player should see and understand, like full hands. */
+	Block
+};
+
+/** A rule an interactable must meet, what failing it does, and the reason reported. */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzAvailabilityRule
+struct KZGAMEPLAY_API FKzInteractionRule
 {
 	GENERATED_BODY()
 
-	FKzAvailabilityRule();
+	FKzInteractionRule();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	EKzInteractionRuleFail OnFail = EKzInteractionRuleFail::Hide;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FScriptableRequirement Requirement;
 
-	/** Reported when Requirement fails, for the UI to turn into words. */
+	/** Shown to the UI when a Block rule fails, and the EndDetail of an interaction any rule ends. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FGameplayTag Reason;
 
@@ -43,12 +57,6 @@ struct KZGAMEPLAY_API FKzAvailabilityRule
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	bool bEndIfFails = false;
 };
-
-namespace KzInteraction
-{
-	/** The first of Rules the interactor fails, in order and only among those that end interactions if bOnlyEnding; null if none. */
-	KZGAMEPLAY_API const FKzAvailabilityRule* FindFailedRule(TArray<FKzAvailabilityRule>& Rules, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, bool bOnlyEnding);
-}
 
 /**
  * Represents an entity in the world that can be interacted with.
@@ -109,18 +117,12 @@ public:
 	EKzInteractionResult DefaultInteractionResult = EKzInteractionResult::Ignored;
 
 	/**
-	 * Hard requirement: failing it removes this from the scan entirely, so there is no prompt and no UI.
-	 * Use it for what the player should not even see, like a capability they do not have.
+	 * What this must meet to be used, checked in order, before those of the Interactable Groups it belongs to: any failing Hide rule
+	 * removes it from the scan, the first failing Block rule names the reason the UI shows, and the first failing rule with bEndIfFails
+	 * ends a running interaction with its Reason as the detail.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	mutable FScriptableRequirement InteractionRequirement;
-
-	/**
-	 * Soft requirements, checked in order: failing one keeps this visible and focusable but blocks the interaction, reporting the
-	 * Reason of the first that failed. Use them for what the player should see and understand, like a missing key or full hands.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "Reason"))
-	mutable TArray<FKzAvailabilityRule> AvailabilityRules;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "{OnFail}: {Reason}"))
+	mutable TArray<FKzInteractionRule> Rules;
 
 	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -165,6 +167,7 @@ public:
 
 	/**
 	 * Fired when an interaction with this ends, whoever ended it, on every machine, right after OnInteractionEnded. The Interactor may already be gone.
+	 * Detail says why beyond the reason when someone knew, such as the Reason of the rule that ended it.
 	 * With OnInteract, it lets a Blueprint follow an interaction without implementing the interactable interface.
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
@@ -262,8 +265,8 @@ public:
 	/** Tells the owner and sibling handlers that an interaction ended. Called by the subsystem. */
 	virtual void NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason);
 
-	/** Asks the range rule and the handlers whether a running interaction still holds. Called by the subsystem. */
-	virtual bool ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) const;
+	/** Asks the range, the rules and the handlers whether a running interaction still holds, with the detail of what broke it. Called by the subsystem. */
+	virtual bool ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason, FGameplayTag& OutDetail) const;
 
 	/** Ends every interaction running on this component. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
@@ -290,8 +293,17 @@ private:
 	 */
 	TArray<TWeakObjectPtr<UObject>> Handlers;
 
+	/** The owner's Interactable Groups this belongs to, gathered on activation like the handlers, whose rules follow our own. */
+	TArray<TWeakObjectPtr<UKzInteractableGroupComponent>> Groups;
+
 	/** Calls Visit on each handler until it returns false; false when one did. */
 	bool ForEachHandler(TFunctionRef<bool(UObject*)> Visit) const;
+
+	/** Which rules a check asks about. */
+	enum class ERuleCheck : uint8 { Hide, Block, End };
+
+	/** The first rule of ours, then of our groups, that the check asks about and the interactor fails; null if none. */
+	const FKzInteractionRule* FindFailedRule(UKzInteractorComponent* Interactor, ERuleCheck Check) const;
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 

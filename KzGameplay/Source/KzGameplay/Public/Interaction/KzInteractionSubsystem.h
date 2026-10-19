@@ -89,17 +89,17 @@ public:
 	 */
 	EKzInteractionResult BeginInteraction(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FKzInteractionHandle& OutHandle);
 
-	/** Ends a live interaction. Safe to call with a stale or already-ended handle. */
+	/** Ends a live interaction, with an optional Detail that reaches everyone who hears of it. Safe to call with a stale or already-ended handle. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void EndInteraction(FKzInteractionHandle Handle, EKzInteractionEndReason Reason);
+	void EndInteraction(FKzInteractionHandle Handle, EKzInteractionEndReason Reason, FGameplayTag Detail = FGameplayTag());
 
 	/** Ends every interaction an interactor is engaged in. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void EndInteractionsFor(const UKzInteractorComponent* Interactor, EKzInteractionEndReason Reason);
+	void EndInteractionsFor(const UKzInteractorComponent* Interactor, EKzInteractionEndReason Reason, FGameplayTag Detail = FGameplayTag());
 
 	/** Ends every interaction targeting an interactable. */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
-	void EndInteractionsOn(const UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason);
+	void EndInteractionsOn(const UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail = FGameplayTag());
 
 	/** Returns true while the handle names a live interaction. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
