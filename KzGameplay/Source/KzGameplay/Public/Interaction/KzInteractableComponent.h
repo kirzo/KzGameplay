@@ -12,6 +12,7 @@
 #include "KzInteractableComponent.generated.h"
 
 class UKzInteractorComponent;
+class UKzInteractableComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableFocusDelegate, UKzInteractorComponent*, Interactor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzInteractorComponent*, Interactor);
@@ -42,6 +43,12 @@ struct KZGAMEPLAY_API FKzAvailabilityRule
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	bool bEndIfFails = false;
 };
+
+namespace KzInteraction
+{
+	/** The first of Rules the interactor fails, in order and only among those that end interactions if bOnlyEnding; null if none. */
+	KZGAMEPLAY_API const FKzAvailabilityRule* FindFailedRule(TArray<FKzAvailabilityRule>& Rules, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, bool bOnlyEnding);
+}
 
 /**
  * Represents an entity in the world that can be interacted with.
@@ -285,10 +292,6 @@ private:
 
 	/** Calls Visit on each handler until it returns false; false when one did. */
 	bool ForEachHandler(TFunctionRef<bool(UObject*)> Visit) const;
-
-	/** The first availability rule the interactor fails, only among those that end interactions if bOnlyEnding; null if none. */
-	const FKzAvailabilityRule* FindFailedRule(UKzInteractorComponent* Interactor, bool bOnlyEnding) const;
-
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
