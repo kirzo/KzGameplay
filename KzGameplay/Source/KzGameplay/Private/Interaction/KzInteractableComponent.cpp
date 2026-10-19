@@ -35,12 +35,16 @@ FKzInteractionAction::FKzInteractionAction()
 	KzInteraction::DeclareContext(Effect);
 }
 
+FKzAvailabilityRule::FKzAvailabilityRule()
+{
+	KzInteraction::DeclareContext(Requirement);
+}
+
 UKzInteractableComponent::UKzInteractableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
 	KzInteraction::DeclareContext(InteractionRequirement);
-	KzInteraction::DeclareContext(AvailabilityRequirement);
 	KzInteraction::DeclareContext(InteractionAction);
 }
 
@@ -142,22 +146,41 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 		return false;
 	}
 
-	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
-
-	KzInteraction::FillContext(AvailabilityRequirement, Interactor, MutableThis);
-
-	if (!FScriptableRequirement::EvaluateRequirement(Interactor, AvailabilityRequirement))
+	if (const FKzAvailabilityRule* Failed = FindFailedRule(Interactor, false))
 	{
-		OutReason = UnavailableReason;
+		OutReason = Failed->Reason;
 		return false;
 	}
 
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 	if (!GetOwner())
 	{
 		return false;
 	}
 
 	return ForEachHandler([Interactor, MutableThis, &OutReason](UObject* Handler) { return IKzInteractableInterface::Execute_GetInteractionAvailability(Handler, Interactor, MutableThis, OutReason); });
+}
+
+const FKzAvailabilityRule* UKzInteractableComponent::FindFailedRule(UKzInteractorComponent* Interactor, bool bOnlyEnding) const
+{
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+
+	// In order, so the first rule that fails is the one the player is told about
+	for (FKzAvailabilityRule& Rule : AvailabilityRules)
+	{
+		if (bOnlyEnding && !Rule.bEndIfFails)
+		{
+			continue;
+		}
+
+		KzInteraction::FillContext(Rule.Requirement, Interactor, MutableThis);
+		if (!FScriptableRequirement::EvaluateRequirement(Interactor, Rule.Requirement))
+		{
+			return &Rule;
+		}
+	}
+
+	return nullptr;
 }
 
 const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const
@@ -448,15 +471,12 @@ bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& 
 		return false;
 	}
 
-	// The same data that decided whether this could start, asked again for as long as it runs
-	if (bEndIfUnavailable)
+	// The rules that describe the object, asked again for as long as it runs
+	UKzInteractorComponent* Interactor = Interaction.Interactor.Get();
+	if (Interactor && FindFailedRule(Interactor, true))
 	{
-		FGameplayTag UnusedReason;
-		if (!GetAvailability(Interaction.Interactor.Get(), UnusedReason))
-		{
-			OutReason = EKzInteractionEndReason::ConditionFailed;
-			return false;
-		}
+		OutReason = EKzInteractionEndReason::ConditionFailed;
+		return false;
 	}
 
 	return ForEachHandler([&Interaction, &OutReason](UObject* Handler) { return IKzInteractableInterface::Execute_ShouldKeepInteractionAlive(Handler, Interaction, OutReason); });

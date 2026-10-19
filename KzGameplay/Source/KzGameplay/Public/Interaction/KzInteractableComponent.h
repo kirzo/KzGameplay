@@ -18,6 +18,31 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteractableActionDelegate, UKzIn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableEndedDelegate, UKzInteractorComponent*, Interactor, EKzInteractionEndReason, Reason);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInteractableActionStartedDelegate, UKzInteractorComponent*, Interactor, FGameplayTag, InputTag);
 
+/** A soft requirement of an interactable, with what the player is told when it fails. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzAvailabilityRule
+{
+	GENERATED_BODY()
+
+	FKzAvailabilityRule();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableRequirement Requirement;
+
+	/** Reported when Requirement fails, for the UI to turn into words. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FGameplayTag Reason;
+
+	/**
+	 * Whether this rule has to keep holding for the whole interaction, ending it if it stops. For rules that describe the object rather
+	 * than the moment: a table that catches fire is no longer pushable, whether or not somebody had already grabbed it.
+	 *
+	 * Off by default because a start rule can become false by the very act of starting, and that would cancel the interaction it just allowed.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	bool bEndIfFails = false;
+};
+
 /**
  * Represents an entity in the world that can be interacted with.
  */
@@ -84,26 +109,11 @@ public:
 	mutable FScriptableRequirement InteractionRequirement;
 
 	/**
-	 * Soft requirement: failing it keeps this visible and focusable but blocks the interaction, reporting
-	 * UnavailableReason. Use it for what the player should see and understand, like a missing key.
+	 * Soft requirements, checked in order: failing one keeps this visible and focusable but blocks the interaction, reporting the
+	 * Reason of the first that failed. Use them for what the player should see and understand, like a missing key or full hands.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	mutable FScriptableRequirement AvailabilityRequirement;
-
-	/** Reported when AvailabilityRequirement fails, for the UI to turn into words. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	FGameplayTag UnavailableReason;
-
-	/**
-	 * Whether AvailabilityRequirement has to keep holding for the whole interaction, ending it if it stops.
-	 * For rules that describe the object rather than the moment: a table that catches fire is no longer
-	 * pushable, whether or not somebody had already grabbed it.
-	 *
-	 * Off by default because a start rule can become false by the very act of starting, and that would
-	 * cancel the interaction it just allowed.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
-	bool bEndIfUnavailable = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "Reason"))
+	mutable TArray<FKzAvailabilityRule> AvailabilityRules;
 
 	/** Fired when the interaction has been successfully triggered. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -275,6 +285,9 @@ private:
 
 	/** Calls Visit on each handler until it returns false; false when one did. */
 	bool ForEachHandler(TFunctionRef<bool(UObject*)> Visit) const;
+
+	/** The first availability rule the interactor fails, only among those that end interactions if bOnlyEnding; null if none. */
+	const FKzAvailabilityRule* FindFailedRule(UKzInteractorComponent* Interactor, bool bOnlyEnding) const;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
