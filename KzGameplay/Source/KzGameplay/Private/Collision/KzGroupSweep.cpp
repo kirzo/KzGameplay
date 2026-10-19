@@ -50,10 +50,58 @@ FKzGroupSweepShape FKzGroupSweepShape::FromPawn(const APawn& Pawn)
 	return FromPrimitive(*Root, Movement ? Movement->MaxStepHeight : 4.0f);
 }
 
-FVector KzGroupSweep::SlideHorizontal(const UWorld& World, TConstArrayView<FKzGroupSweepShape> Shapes, const FVector& Delta, const FCollisionQueryParams& Params, int32 MaxBounces)
+namespace
+{
+	/** Whether something solid holds a body that simulates physics against a push by Delta, so the push would crush it rather than move it. */
+	bool IsPinned(const UWorld& World, UPrimitiveComponent& Body, const FVector& Delta, FCollisionQueryParams Params)
+	{
+		Params.AddIgnoredComponent(&Body);
+
+		const FKzGroupSweepShape Shape = FKzGroupSweepShape::FromPrimitive(Body);
+		FHitResult Hit;
+		if (!World.SweepSingleByChannel(Hit, Shape.Start, Shape.Start + Delta, Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses) || !Hit.bBlockingHit)
+		{
+			return false;
+		}
+
+		// ponytail: one level deep, another body that simulates counts as free; a chain of them can still be crushed against a wall
+		const UPrimitiveComponent* Other = Hit.GetComponent();
+		const bool bMovingAway = Hit.bStartPenetrating && (FVector(Hit.Normal) | Delta) >= 0.0;
+		return !bMovingAway && !(Other && Other->IsSimulatingPhysics());
+	}
+
+	/** The first hit that stops Shape on its way by Delta. With OutPushed, sees through the bodies that simulate physics and are free to move, collecting and ignoring them. */
+	bool SweepToBlock(const UWorld& World, const FKzGroupSweepShape& Shape, const FVector& Start, const FVector& Delta, FCollisionQueryParams& Params, TArray<UPrimitiveComponent*>* OutPushed, FHitResult& OutHit)
+	{
+		// Bounded, each pass sees through one more body
+		for (int32 Pass = 0; Pass < 8; ++Pass)
+		{
+			if (!World.SweepSingleByChannel(OutHit, Start, Start + Delta, Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses) || !OutHit.bBlockingHit)
+			{
+				return false;
+			}
+
+			UPrimitiveComponent* Body = OutHit.GetComponent();
+			if (!OutPushed || !Body || !Body->IsSimulatingPhysics() || IsPinned(World, *Body, Delta, Params))
+			{
+				return true;
+			}
+
+			OutPushed->AddUnique(Body);
+			Params.AddIgnoredComponent(Body);
+		}
+
+		return true;
+	}
+}
+
+FVector KzGroupSweep::SlideHorizontal(const UWorld& World, TConstArrayView<FKzGroupSweepShape> Shapes, const FVector& Delta, const FCollisionQueryParams& Params, TArray<UPrimitiveComponent*>* OutPushed, int32 MaxBounces)
 {
 	// Stops this far short of a hit, so the next sweep does not start touching it
 	constexpr double Skin = 0.1;
+
+	// Bodies found free to push stay ignored for the rest of the group's sweeps
+	FCollisionQueryParams QueryParams = Params;
 
 	FVector Moved = FVector::ZeroVector;
 	FVector Remaining(Delta.X, Delta.Y, 0.0);
@@ -66,7 +114,7 @@ FVector KzGroupSweep::SlideHorizontal(const UWorld& World, TConstArrayView<FKzGr
 		{
 			const FVector Start = Shape.Start + Moved;
 			FHitResult Hit;
-			if (!World.SweepSingleByChannel(Hit, Start, Start + Remaining, Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses) || !Hit.bBlockingHit)
+			if (!SweepToBlock(World, Shape, Start, Remaining, QueryParams, OutPushed, Hit))
 			{
 				continue;
 			}
@@ -108,8 +156,20 @@ FVector KzGroupSweep::SlideHorizontal(const UWorld& World, TConstArrayView<FKzGr
 	return Moved;
 }
 
-double KzGroupSweep::RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, int32 MaxHalvings)
+double KzGroupSweep::RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, TArray<UPrimitiveComponent*>* OutPushed, int32 MaxHalvings)
 {
+	// ponytail: no pinned check here, a turn small enough per frame rarely crushes anything; SlideHorizontal's IsPinned if it does
+	auto Blocks = [OutPushed](const FOverlapResult& Overlap)
+	{
+		UPrimitiveComponent* Component = Overlap.GetComponent();
+		if (OutPushed && Component && Component->IsSimulatingPhysics())
+		{
+			OutPushed->AddUnique(Component);
+			return false;
+		}
+		return static_cast<bool>(Overlap.bBlockingHit);
+	};
+
 	// What the group already touches does not count, so it can turn away from a wall it rests against.
 	TSet<const UPrimitiveComponent*> Touching;
 	TArray<FOverlapResult> Overlaps;
@@ -134,7 +194,7 @@ double KzGroupSweep::RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShap
 			World.OverlapMultiByChannel(Overlaps, Pivot + Turn.RotateVector(Shape.Start - Pivot), Turn * Shape.Rotation, Shape.Channel, Shape.Shape, Params, Shape.Responses);
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
-				if (Overlap.bBlockingHit && !Touching.Contains(Overlap.GetComponent()))
+				if (Blocks(Overlap) && !Touching.Contains(Overlap.GetComponent()))
 				{
 					return true;
 				}

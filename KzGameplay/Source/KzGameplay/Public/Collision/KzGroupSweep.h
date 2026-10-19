@@ -32,12 +32,15 @@ namespace KzGroupSweep
 	/**
 	 * How far a group of shapes can move by Delta together, in the horizontal plane, as one body: all of them are swept, the group stops at
 	 * the earliest hit and slides what is left along it, up to MaxBounces times. It only falls short where no part of the move is free.
+	 * With OutPushed, bodies that simulate physics do not stop it unless something solid holds them, and are collected there instead: whoever
+	 * moves the group without teleporting lets the physics engine push them out of the way.
 	 */
-	KZGAMEPLAY_API FVector SlideHorizontal(const UWorld& World, TConstArrayView<FKzGroupSweepShape> Shapes, const FVector& Delta, const FCollisionQueryParams& Params, int32 MaxBounces = 3);
+	KZGAMEPLAY_API FVector SlideHorizontal(const UWorld& World, TConstArrayView<FKzGroupSweepShape> Shapes, const FVector& Delta, const FCollisionQueryParams& Params, TArray<UPrimitiveComponent*>* OutPushed = nullptr, int32 MaxBounces = 3);
 
 	/**
 	 * Turns a group of shapes about Pivot by up to Yaw degrees as one body, halving the turn up to MaxHalvings times until no shape runs
 	 * into something it was not already touching. Leaves Shapes at the turned pose and returns the yaw it allowed, zero if none fits.
+	 * With OutPushed, bodies that simulate physics never stop it and are collected there, as in SlideHorizontal.
 	 */
-	KZGAMEPLAY_API double RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, int32 MaxHalvings = 3);
+	KZGAMEPLAY_API double RotateYaw(const UWorld& World, TArrayView<FKzGroupSweepShape> Shapes, const FVector& Pivot, double Yaw, const FCollisionQueryParams& Params, TArray<UPrimitiveComponent*>* OutPushed = nullptr, int32 MaxHalvings = 3);
 }
