@@ -6,6 +6,10 @@
 UKzInteractableGroupComponent::UKzInteractableGroupComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+
+	KzInteraction::DeclareContext(InteractionAction);
+	KzInteraction::DeclareContext(WhileAction);
+	KzInteraction::DeclareEndContext(EndAction);
 }
 
 bool UKzInteractableGroupComponent::IsMember(const UKzInteractableComponent* Interactable) const

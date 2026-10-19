@@ -6,6 +6,8 @@
 #include "GameplayTagContainer.h"
 #include "ScriptableConditions/ScriptableRequirement.h"
 #include "ScriptableTasks/ScriptableAction.h"
+#include "ScriptableContext.h"
+#include "Interaction/KzInteractionTypes.h"
 #include "KzInteractionAction.generated.h"
 
 class UKzInteractorComponent;
@@ -26,6 +28,15 @@ namespace KzInteraction
 	 * down every place that fills one.
 	 */
 	KZGAMEPLAY_API void FillContext(FScriptableContainer& Container, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
+	/** That same context as values, for running a copy of a container declared with DeclareContext. */
+	KZGAMEPLAY_API FScriptableContext MakeContext(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
+	/** Declares the context of what runs when an interaction ends: the interaction context plus Reason and Detail. */
+	KZGAMEPLAY_API void DeclareEndContext(FScriptableContainer& Container);
+
+	/** The end context as values, for running a copy of a container declared with DeclareEndContext. */
+	KZGAMEPLAY_API FScriptableContext MakeEndContext(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail);
 }
 
 /**

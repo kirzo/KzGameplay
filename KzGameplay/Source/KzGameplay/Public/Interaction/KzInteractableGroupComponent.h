@@ -14,8 +14,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FKzInteractableGroupEndedDelegate,
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKzInteractableGroupActionDelegate, UKzInteractableComponent*, Interactable, UKzInteractorComponent*, Interactor, FGameplayTag, InputTag);
 
 /**
- * Several interactables of one actor that behave as one, such as the handles of a table: the rules they share, configured once
- * and checked by each member after its own, and the events of all of them in one place. An actor can have several groups.
+ * Several interactables of one actor that behave as one, such as the handles of a table: the rules and actions they share, configured
+ * once and run by each member after its own, and the events of all of them in one place. An actor can have several groups.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent, DisplayName = "Interactable Group"))
 class KZGAMEPLAY_API UKzInteractableGroupComponent : public UActorComponent, public IKzInteractableInterface
@@ -32,6 +32,18 @@ public:
 	/** Rules of every member, checked in order after the member's own, with the same meaning. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (TitleProperty = "{OnFail}: {Reason}"))
 	TArray<FKzInteractionRule> Rules;
+
+	/** Fired when an interaction with a member begins, after the member's own. A copy runs each time, as several members can start at once. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction InteractionAction;
+
+	/** Runs while each interaction with a member lasts, as the member's own does: a copy per interaction, stopped when it ends. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction WhileAction;
+
+	/** Fired when an interaction with a member ends, after the member's own, with why it ended as Reason and Detail. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction EndAction;
 
 	/** An interaction with a member began. On every machine. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")

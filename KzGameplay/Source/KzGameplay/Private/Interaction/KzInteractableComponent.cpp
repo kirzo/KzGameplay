@@ -5,6 +5,7 @@
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractableInterface.h"
 #include "Interaction/KzInteractableGroupComponent.h"
+#include "ScriptableTasks/ScriptableActionRunner.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -12,6 +13,17 @@
 namespace
 {
 	using FActionKey = TPair<TWeakObjectPtr<UKzInteractorComponent>, FGameplayTag>;
+
+	/** Where the interaction physically happens: the interaction spot, or the interactable itself when it requires none. */
+	FKzTransformSource GetSpot(const UKzInteractableComponent* Interactable)
+	{
+		FKzTransformSource Spot;
+		if (Interactable && !Interactable->GetInteractionSpot(Spot))
+		{
+			Spot = FKzTransformSource(Interactable);
+		}
+		return Spot;
+	}
 }
 
 void KzInteraction::DeclareContext(FScriptableContainer& Container)
@@ -20,6 +32,7 @@ void KzInteraction::DeclareContext(FScriptableContainer& Container)
 	Container.AddContextProperty<UKzInteractorComponent*>(TEXT("Interactor"));
 	Container.AddContextProperty<AActor*>(TEXT("Owner"));
 	Container.AddContextProperty<UKzInteractableComponent*>(TEXT("Interactable"));
+	Container.AddContextProperty<FKzTransformSource>(TEXT("Spot"));
 }
 
 void KzInteraction::FillContext(FScriptableContainer& Container, UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
@@ -28,6 +41,58 @@ void KzInteraction::FillContext(FScriptableContainer& Container, UKzInteractorCo
 	Container.SetContextProperty(TEXT("Interactor"), Interactor);
 	Container.SetContextProperty(TEXT("Owner"), Interactable ? Interactable->GetOwner() : nullptr);
 	Container.SetContextProperty(TEXT("Interactable"), Interactable);
+	Container.SetContextProperty(TEXT("Spot"), GetSpot(Interactable));
+}
+
+FScriptableContext KzInteraction::MakeContext(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+{
+	FScriptableContext Context;
+	Context.SetProperty(TEXT("Instigator"), Interactor ? Interactor->GetOwner() : nullptr);
+	Context.SetProperty(TEXT("Interactor"), Interactor);
+	Context.SetProperty(TEXT("Owner"), Interactable ? Interactable->GetOwner() : nullptr);
+	Context.SetProperty(TEXT("Interactable"), Interactable);
+	Context.SetProperty(TEXT("Spot"), GetSpot(Interactable));
+	return Context;
+}
+
+void KzInteraction::DeclareEndContext(FScriptableContainer& Container)
+{
+	DeclareContext(Container);
+	Container.AddContextProperty<EKzInteractionEndReason>(TEXT("Reason"));
+	Container.AddContextProperty<FGameplayTag>(TEXT("Detail"));
+}
+
+FScriptableContext KzInteraction::MakeEndContext(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, EKzInteractionEndReason Reason, FGameplayTag Detail)
+{
+	FScriptableContext Context = MakeContext(Interactor, Interactable);
+	Context.SetProperty(TEXT("Reason"), Reason);
+	Context.SetProperty(TEXT("Detail"), Detail);
+	return Context;
+}
+
+namespace
+{
+	/** Runs a copy of Action, so several interactions can run it at once, each with its own state; null when it has nothing to run. */
+	UScriptableActionRunner* RunInteractionCopy(const FScriptableAction& Action, UObject* Owner, const FScriptableContext& Context)
+	{
+		return Action.Tasks.IsEmpty() ? nullptr : FScriptableAction::RunCopy(Owner, Action, Context);
+	}
+
+	/** Runs a copy of Action for as long as Interaction lasts: its cleanup stops whatever the copy still runs. */
+	void RunWhileInteraction(const FScriptableAction& Action, UObject* Owner, const FScriptableContext& Context, const FKzInteraction& Interaction)
+	{
+		if (UScriptableActionRunner* Runner = RunInteractionCopy(Action, Owner, Context))
+		{
+			TWeakObjectPtr<UScriptableActionRunner> WeakRunner(Runner);
+			Interaction.AddCleanup([WeakRunner]
+			{
+				if (WeakRunner.IsValid())
+				{
+					WeakRunner->Cancel();
+				}
+			});
+		}
+	}
 }
 
 FKzInteractionAction::FKzInteractionAction()
@@ -46,6 +111,8 @@ UKzInteractableComponent::UKzInteractableComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 
 	KzInteraction::DeclareContext(InteractionAction);
+	KzInteraction::DeclareContext(WhileAction);
+	KzInteraction::DeclareEndContext(EndAction);
 }
 
 const FKzInteractionRule* UKzInteractableComponent::FindFailedRule(UKzInteractorComponent* Interactor, ERuleCheck Check) const
@@ -450,6 +517,18 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 
 	KzInteraction::FillContext(InteractionAction, Interactor, this);
 	InteractionAction.Run(this);
+
+	// Ours first, then our groups': copies, since a group's are shared by all its members
+	const FScriptableContext Context = KzInteraction::MakeContext(Interactor, this);
+	RunWhileInteraction(WhileAction, this, Context, Interaction);
+	for (const TWeakObjectPtr<UKzInteractableGroupComponent>& Group : Groups)
+	{
+		if (UKzInteractableGroupComponent* Resolved = Group.Get())
+		{
+			RunInteractionCopy(Resolved->InteractionAction, Resolved, Context);
+			RunWhileInteraction(Resolved->WhileAction, Resolved, Context, Interaction);
+		}
+	}
 }
 
 void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Interaction, EKzInteractionEndReason Reason)
@@ -478,6 +557,17 @@ void UKzInteractableComponent::NotifyInteractionEnded(const FKzInteraction& Inte
 	});
 
 	OnInteractionEnded.Broadcast(Interaction.Interactor.Get(), Reason, Interaction.EndDetail);
+
+	// After the cleanup, so the while actions have already stopped
+	const FScriptableContext Context = KzInteraction::MakeEndContext(Interaction.Interactor.Get(), this, Reason, Interaction.EndDetail);
+	RunInteractionCopy(EndAction, this, Context);
+	for (const TWeakObjectPtr<UKzInteractableGroupComponent>& Group : Groups)
+	{
+		if (UKzInteractableGroupComponent* Resolved = Group.Get())
+		{
+			RunInteractionCopy(Resolved->EndAction, Resolved, Context);
+		}
+	}
 }
 
 bool UKzInteractableComponent::ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason, FGameplayTag& OutDetail) const

@@ -129,6 +129,17 @@ public:
 	FScriptableAction InteractionAction;
 
 	/**
+	 * Runs while each interaction lasts, on every machine: a copy starts when it begins and is stopped when it ends, so a task kept running,
+	 * such as a held pose, lasts exactly as long and undoes itself.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction WhileAction;
+
+	/** Fired when an interaction ends, on every machine, after the while action stopped, with why it ended as Reason and Detail. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	FScriptableAction EndAction;
+
+	/**
 	 * What the instigator can do repeatedly while the interaction runs, keyed by the input that fires it.
 	 * Lives here rather than in a bespoke component so anything interactable can offer actions.
 	 */
