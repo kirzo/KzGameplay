@@ -32,4 +32,18 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.Kz%sComponent"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
+
+	// Scriptable tasks and conditions wear the icon of what they act on; ScriptableFramework tints them
+	const TCHAR* const ScriptableObjects[][2] = {
+		{ TEXT("ScriptableTask_GrantCapability"), TEXT("CapabilitySet") },
+		{ TEXT("ScriptableCondition_HasCapability"), TEXT("CapabilitySet") },
+		{ TEXT("ScriptableTask_EquipItem"), TEXT("EquipmentLayout") },
+		{ TEXT("ScriptableTask_GrantItem"), TEXT("ItemDefinition") },
+		{ TEXT("ScriptableTask_LinkAnimLayers"), TEXT("AnimLayer") },
+		{ TEXT("ScriptableTask_LinkAnimLayerByQuery"), TEXT("AnimLayer") },
+	};
+	for (const auto& Pair : ScriptableObjects)
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	}
 }
