@@ -4,6 +4,18 @@
 #include "Items/KzItemDefinition.h"
 #include "Items/KzItemFragment.h"
 #include "PropertyHandle.h"
+#include "Styling/SlateIconFinder.h"
+#include "Widgets/Images/SImage.h"
+
+TSharedRef<SWidget> FKzItemFragmentRowCustomizer::BuildLeadingWidget(TSharedPtr<IPropertyHandle> Handle)
+{
+	return SNew(SImage)
+		.Image_Lambda([Handle]() -> const FSlateBrush*
+		{
+			UObject* Fragment = nullptr;
+			return Handle.IsValid() && Handle->GetValue(Fragment) == FPropertyAccess::Success && Fragment ? FSlateIconFinder::FindIconBrushForClass(Fragment->GetClass()) : nullptr;
+		});
+}
 
 bool FKzItemFragmentRowCustomizer::CanRemoveRows(const TArray<TSharedPtr<IPropertyHandle>>& Handles, FText& OutReason) const
 {

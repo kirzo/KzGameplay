@@ -46,4 +46,23 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
+
+	// Item fragments: a broken gem for the base, their own drawing, or the icon of the asset or component they feed
+	const TCHAR* const Fragments[][2] = {
+		{ TEXT("KzItemFragment"), TEXT("ItemFragment") },
+		{ TEXT("KzItemFragment_MeleeWeapon"), TEXT("MeleeWeapon") },
+		{ TEXT("KzItemFragment_InitialStats"), TEXT("InitialStats") },
+		{ TEXT("KzItemFragment_Equippable"), TEXT("EquipmentLayout") },
+		{ TEXT("KzItemFragment_Storable"), TEXT("Inventory") },
+	};
+	for (const auto& Pair : Fragments)
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	}
+
+	// KzGameplayLimbic's pose fragment wears Limbic's puppeteer
+	if (const TSharedPtr<IPlugin> Limbic = IPluginManager::Get().FindEnabledPlugin(TEXT("Limbic")))
+	{
+		Set("ClassIcon.KzItemFragment_LimbicPose", new FSlateVectorImageBrush(Limbic->GetBaseDir() / TEXT("Resources/Icons/Puppeteer.svg"), FVector2D(16.0f, 16.0f)));
+	}
 }
