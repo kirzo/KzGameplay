@@ -10,33 +10,20 @@ void UScriptableTask_LinkAnimLayerByQuery::BeginTask()
 {
 	if (IsValid(TargetActor))
 	{
-		// 1. Try to find the Database Component to resolve the query
-		if (UKzDatabaseComponent* DatabaseComp = TargetActor->FindComponentByClass<UKzDatabaseComponent>())
+		if (UClass* LayerClass = UKzDatabaseComponent::ResolveFor(TargetActor.Get(), Query, TSoftClassPtr<UAnimInstance>()).LoadSynchronous())
 		{
-			// We define the exact type we expect the database to return
-			TSoftClassPtr<UAnimInstance> ResolvedSoftClass;
+			// Cached so ResetTask unlinks this exact class.
+			ResolvedLayerClass = LayerClass;
 
-			// 2. Ask the component to resolve the query. It will automatically route it to the correct Asset in O(1).
-			if (DatabaseComp->Resolve<TSoftClassPtr<UAnimInstance>>(Query, ResolvedSoftClass))
+			if (UKzAnimLayerComponent* LayerComp = TargetActor->FindComponentByClass<UKzAnimLayerComponent>())
 			{
-				if (UClass* LoadedClass = ResolvedSoftClass.LoadSynchronous())
+				LayerComp->PushLayer(ResolvedLayerClass, LayerPriority);
+			}
+			else if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
+			{
+				if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
 				{
-					// Cache the result for the Reset phase
-					ResolvedLayerClass = LoadedClass;
-
-					// 3. Try to use the custom priority stack component
-					if (UKzAnimLayerComponent* LayerComp = TargetActor->FindComponentByClass<UKzAnimLayerComponent>())
-					{
-						LayerComp->PushLayer(ResolvedLayerClass, LayerPriority);
-					}
-					// 4. Fallback: Apply directly to the Skeletal Mesh
-					else if (USkeletalMeshComponent* SkeletalMesh = TargetActor->FindComponentByClass<USkeletalMeshComponent>())
-					{
-						if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
-						{
-							AnimInstance->LinkAnimClassLayers(ResolvedLayerClass);
-						}
-					}
+					AnimInstance->LinkAnimClassLayers(ResolvedLayerClass);
 				}
 			}
 		}
