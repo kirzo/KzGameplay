@@ -60,9 +60,15 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
 
-	// KzGameplayLimbic's pose fragment wears Limbic's puppeteer
+	// The Database fragment wears KzLib's database
+	if (const TSharedPtr<IPlugin> KzLibPlugin = IPluginManager::Get().FindEnabledPlugin(TEXT("KzLib")))
+	{
+		Set("ClassIcon.KzItemFragment_Database", new FSlateVectorImageBrush(KzLibPlugin->GetBaseDir() / TEXT("Resources/Icons/Database.svg"), FVector2D(16.0f, 16.0f)));
+	}
+
+	// KzGameplayLimbic's pose fragments, direct and by query, wear Limbic's puppeteer through their base
 	if (const TSharedPtr<IPlugin> Limbic = IPluginManager::Get().FindEnabledPlugin(TEXT("Limbic")))
 	{
-		Set("ClassIcon.KzItemFragment_LimbicPose", new FSlateVectorImageBrush(Limbic->GetBaseDir() / TEXT("Resources/Icons/Puppeteer.svg"), FVector2D(16.0f, 16.0f)));
+		Set("ClassIcon.KzItemFragment_LimbicPoseBase", new FSlateVectorImageBrush(Limbic->GetBaseDir() / TEXT("Resources/Icons/Puppeteer.svg"), FVector2D(16.0f, 16.0f)));
 	}
 }

@@ -1,9 +1,9 @@
 // Copyright 2026 kirzo
 
 #include "Items/Fragments/KzItemFragment_LimbicPose.h"
-#include "Components/KzDatabaseComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Equipment/KzEquipmentComponent.h"
+#include "Items/Fragments/KzItemFragment_Database.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "LimbicPuppeteer.h"
 #include "LimbicSlotLibrary.h"
@@ -20,35 +20,41 @@ namespace
 	}
 }
 
-UKzItemFragment_LimbicPose::UKzItemFragment_LimbicPose()
+UKzItemFragment_LimbicPoseBase::UKzItemFragment_LimbicPoseBase()
 {
 	Slot = TAG_Limbic_Slot_Hold;
 }
 
-void UKzItemFragment_LimbicPose::GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const
+void UKzItemFragment_LimbicPoseBase::GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const
 {
 	OutRequired.Add(UKzItemFragment_Equippable::StaticClass());
 }
 
-void UKzItemFragment_LimbicPose::OnEquipped_Implementation(const FKzEquipEvent& Event) const
+void UKzItemFragment_LimbicPoseBase::OnEquipped_Implementation(const FKzEquipEvent& Event) const
 {
 	USkeletalMeshComponent* Mesh = GetPosedMesh(Event);
-	const AActor* Holder = Event.Equipment ? Event.Equipment->GetOwner() : nullptr;
-	ULimbicPuppeteer* Pose = UKzDatabaseComponent::ResolveFor(Holder, PuppeteerQuery, Puppeteer).LoadSynchronous();
-	if (!Pose)
-	{
-		Pose = Puppeteer.LoadSynchronous();
-	}
-	if (Mesh && Pose)
+	ULimbicPuppeteer* Pose = Mesh ? GetPuppeteer(Event) : nullptr;
+	if (Pose)
 	{
 		ULimbicSlotLibrary::SetLimbicSlot(Mesh, Slot, Pose, BlendIn);
 	}
 }
 
-void UKzItemFragment_LimbicPose::OnUnequipped_Implementation(const FKzEquipEvent& Event) const
+void UKzItemFragment_LimbicPoseBase::OnUnequipped_Implementation(const FKzEquipEvent& Event) const
 {
 	if (USkeletalMeshComponent* Mesh = GetPosedMesh(Event))
 	{
 		ULimbicSlotLibrary::StopLimbicSlot(Mesh, Slot, BlendOut);
 	}
+}
+
+ULimbicPuppeteer* UKzItemFragment_LimbicPose::GetPuppeteer(const FKzEquipEvent& Event) const
+{
+	return Puppeteer.LoadSynchronous();
+}
+
+ULimbicPuppeteer* UKzItemFragment_LimbicPoseByQuery::GetPuppeteer(const FKzEquipEvent& Event) const
+{
+	const AActor* Holder = Event.Equipment ? Event.Equipment->GetOwner() : nullptr;
+	return UKzItemFragment_Database::ResolveFor(Event.Item.Get(), Holder, Query, TSoftObjectPtr<ULimbicPuppeteer>()).LoadSynchronous();
 }
