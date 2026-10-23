@@ -13,7 +13,8 @@ public class KzGameplayLimbic : ModuleRules
 			{
 				"Core",
 				"GameplayTags",
-				"KzGameplay"
+				"KzGameplay",
+				"KzLib"
 			}
 			);
 

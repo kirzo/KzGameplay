@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/KzDatabase.h"
 #include "Equipment/KzEquipListener.h"
 #include "GameplayTagContainer.h"
 #include "Items/KzItemFragment.h"
@@ -27,9 +28,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Pose", meta = (Categories = "Limbic.Slot"))
 	FGameplayTag Slot;
 
-	/** Puppeteer held while the item is equipped. */
+	/** Puppeteer held while the item is equipped, unless the holder's database answers PuppeteerQuery with its own. */
 	UPROPERTY(EditAnywhere, Category = "Pose")
 	TSoftObjectPtr<ULimbicPuppeteer> Puppeteer;
+
+	/** Asks the holder's database for its puppeteer for this item, such as RequireTags Pose.Hold.Bucket; the holder's state picks the variant. Empty asks nothing. */
+	UPROPERTY(EditAnywhere, Category = "Pose")
+	FKzDatabaseQuery PuppeteerQuery;
 
 	UPROPERTY(EditAnywhere, Category = "Pose", meta = (ClampMin = "0", Units = "Seconds"))
 	float BlendIn = 0.25f;

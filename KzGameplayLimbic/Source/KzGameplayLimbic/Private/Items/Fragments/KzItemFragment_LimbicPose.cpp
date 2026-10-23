@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Items/Fragments/KzItemFragment_LimbicPose.h"
+#include "Components/KzDatabaseComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
@@ -32,7 +33,12 @@ void UKzItemFragment_LimbicPose::GetRequiredFragments(TArray<TSubclassOf<UKzItem
 void UKzItemFragment_LimbicPose::OnEquipped_Implementation(const FKzEquipEvent& Event) const
 {
 	USkeletalMeshComponent* Mesh = GetPosedMesh(Event);
-	ULimbicPuppeteer* Pose = Puppeteer.LoadSynchronous();
+	const AActor* Holder = Event.Equipment ? Event.Equipment->GetOwner() : nullptr;
+	ULimbicPuppeteer* Pose = UKzDatabaseComponent::ResolveFor(Holder, PuppeteerQuery, Puppeteer).LoadSynchronous();
+	if (!Pose)
+	{
+		Pose = Puppeteer.LoadSynchronous();
+	}
 	if (Mesh && Pose)
 	{
 		ULimbicSlotLibrary::SetLimbicSlot(Mesh, Slot, Pose, BlendIn);
