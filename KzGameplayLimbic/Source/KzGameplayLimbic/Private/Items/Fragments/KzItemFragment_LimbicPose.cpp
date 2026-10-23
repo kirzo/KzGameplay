@@ -48,6 +48,14 @@ void UKzItemFragment_LimbicPoseBase::OnUnequipped_Implementation(const FKzEquipE
 	}
 }
 
+void UKzItemFragment_LimbicPose::GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const
+{
+	if (!Puppeteer.IsNull())
+	{
+		OutPaths.AddUnique(Puppeteer.ToSoftObjectPath());
+	}
+}
+
 ULimbicPuppeteer* UKzItemFragment_LimbicPose::GetPuppeteer(const FKzEquipEvent& Event) const
 {
 	return Puppeteer.LoadSynchronous();

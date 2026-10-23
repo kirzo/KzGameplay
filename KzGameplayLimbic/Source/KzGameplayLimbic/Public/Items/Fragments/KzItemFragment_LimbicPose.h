@@ -54,6 +54,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Pose")
 	TSoftObjectPtr<ULimbicPuppeteer> Puppeteer;
 
+	virtual void GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const override;
+
 protected:
 	virtual ULimbicPuppeteer* GetPuppeteer(const FKzEquipEvent& Event) const override;
 };

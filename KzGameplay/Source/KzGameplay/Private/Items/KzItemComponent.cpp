@@ -2,12 +2,14 @@
 
 #include "Items/KzItemComponent.h"
 #include "Items/KzItemDefinition.h"
+#include "Items/KzItemFragment.h"
 #include "Items/Fragments/KzItemFragment_Storable.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Inventory/KzInventoryComponent.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "Interaction/KzInteractorComponent.h"
 #include "GameFramework/Actor.h"
+#include "Engine/AssetManager.h"
 
 UKzItemComponent::UKzItemComponent()
 {
@@ -42,8 +44,35 @@ void UKzItemComponent::BeginPlay()
 			}
 		}
 	}
+
+	// On every machine, since what the fragments load, such as a held pose, plays on all of them.
+	if (const UKzItemDefinition* Item = ItemInstance.ItemDef)
+	{
+		TArray<FSoftObjectPath> Paths;
+		for (const UKzItemFragment* Fragment : Item->Fragments)
+		{
+			if (Fragment)
+			{
+				Fragment->GetPreloadPaths(Paths);
+			}
+		}
+		if (!Paths.IsEmpty())
+		{
+			PreloadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(MoveTemp(Paths));
+		}
+	}
 }
 
+void UKzItemComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (PreloadHandle.IsValid())
+	{
+		PreloadHandle->ReleaseHandle();
+		PreloadHandle.Reset();
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
 bool UKzItemComponent::CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
 	return !EquipperActor.IsValid();

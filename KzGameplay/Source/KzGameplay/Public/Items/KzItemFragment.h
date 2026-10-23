@@ -31,6 +31,9 @@ public:
 	 */
 	virtual void GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const {}
 
+	/** Soft assets the item uses in play, such as the pose it is held in; its world actor loads them in the background, so using the item doesn't hitch. */
+	virtual void GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const {}
+
 protected:
 	/** Blueprint-implementable event for OnInstanceCreated. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Item Fragment", meta = (DisplayName = "On Instance Created"))

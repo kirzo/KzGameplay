@@ -21,6 +21,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Database", meta = (ShowOnlyInnerProperties))
 	FKzDatabaseSet Databases;
 
+	/** The tables' soft values, parents included. */
+	virtual void GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const override { Databases.GetSoftValuePaths(OutPaths); }
+
 	//~ IKzDatabaseOwner
 	virtual const FKzDatabaseSet& GetDatabaseSet() const override { return Databases; }
 

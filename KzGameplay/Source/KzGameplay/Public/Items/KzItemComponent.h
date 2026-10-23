@@ -11,6 +11,7 @@
 #include "KzItemComponent.generated.h"
 
 class UKzItemDefinition;
+struct FStreamableHandle;
 class UKzInteractorComponent;
 class UKzInteractableComponent;
 
@@ -101,9 +102,14 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Native implementation of the interaction interface */
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 	virtual EKzInteractionResult GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) override;
+
+private:
+	/** Keeps what the item's fragments preload in memory while the actor plays. */
+	TSharedPtr<FStreamableHandle> PreloadHandle;
 };
