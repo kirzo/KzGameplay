@@ -28,7 +28,8 @@ public class KzGameplayEditor : ModuleRules
 				"Projects",
 				"ApplicationCore",
 				"BlueprintGraph",
-				"ToolWidgets"
+				"ToolWidgets",
+				"AdvancedPreviewScene"
 			});
 	}
 }

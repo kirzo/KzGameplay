@@ -5,7 +5,12 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "KzGraph.h"
+#include "UObject/SoftObjectPtr.h"
 #include "KzComboGraph.generated.h"
+
+class AActor;
+class UKzItemDefinition;
+class USkeletalMesh;
 
 /** A combo: which attack follows which, by the input pressed and whether the attack hit. Shared by everyone who plays it; each play keeps its own count. */
 UCLASS(BlueprintType)
@@ -21,6 +26,20 @@ public:
 	/** How long before a combo window opens a press is kept, to chain as soon as it opens. Zero takes only presses inside the window. */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (ClampMin = "0", Units = "Seconds"))
 	float InputBuffer = 0.15f;
+
+#if WITH_EDITORONLY_DATA
+	/** The character the editor previews attacks on: its mesh, and its database for By Query animations. */
+	UPROPERTY(EditAnywhere, Category = "Preview")
+	TSoftClassPtr<AActor> PreviewCharacter;
+
+	/** A mesh shown in place of the character's own, or alone without one. */
+	UPROPERTY(EditAnywhere, Category = "Preview")
+	TSoftObjectPtr<USkeletalMesh> PreviewMesh;
+
+	/** The weapon the preview attacks with, whose Database fragment By Query animations ask. */
+	UPROPERTY(EditAnywhere, Category = "Preview")
+	TSoftObjectPtr<UKzItemDefinition> PreviewItem;
+#endif
 
 #if WITH_EDITOR
 	virtual const UScriptStruct* GetNodeStruct() const override;

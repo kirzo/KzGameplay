@@ -10,8 +10,10 @@
 #include "Equipment/KzEquipmentLayout.h"
 #include "Input/KzInputProfile.h"
 #include "Capabilities/KzCapabilitySet.h"
+#include "Animation/KzAnimationPreview.h"
+#include "Animation/KzAnimationSource.h"
+#include "Combat/KzComboEditor.h"
 #include "Combat/KzComboGraph.h"
-#include "KzGraphEditor.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -100,11 +102,13 @@ void FKzGameplayEditorModule::OnStartupModule()
 	// Keyed by tag rather than an array, so the plain details editor fits it better than the array editor
 	RegisterAssetTypeAction<UKzCapabilitySet>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") });
 
-	RegisterAssetTypeAction<UKzComboGraph, FKzGraphEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
+	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
+	KzAnimationPreview::RegisterMontagePreview();
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
 {
+	KzAnimationPreview::Unregister(UKzAnimationSource_MontageBase::StaticClass());
 	FKzGameplayEditorStyle::Shutdown();
 }
 

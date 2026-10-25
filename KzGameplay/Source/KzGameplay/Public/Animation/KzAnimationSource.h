@@ -6,6 +6,7 @@
 #include "Core/KzDatabase.h"
 #include "KzAnimationSource.generated.h"
 
+class AActor;
 class UAnimMontage;
 class UKzAnimationNotifyState;
 class UKzItemDefinition;
