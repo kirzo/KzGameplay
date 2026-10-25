@@ -18,6 +18,7 @@ public class KzGameplay : ModuleRules
 				"GameplayAbilities",
 				"GameplayTasks",
 				"KzLib",
+				"KzGraph",
 				"ScriptableFramework"
 			}
 			);

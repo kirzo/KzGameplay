@@ -11,7 +11,8 @@ public class KzGameplayEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"KzGameplay",
-				"KzLibEditor"
+				"KzLibEditor",
+				"KzGraphEditor"
 			});
 
 		PrivateDependencyModuleNames.AddRange(

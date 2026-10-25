@@ -10,6 +10,8 @@
 #include "Equipment/KzEquipmentLayout.h"
 #include "Input/KzInputProfile.h"
 #include "Capabilities/KzCapabilitySet.h"
+#include "Combat/KzComboGraph.h"
+#include "KzGraphEditor.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -97,6 +99,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 	// Keyed by tag rather than an array, so the plain details editor fits it better than the array editor
 	RegisterAssetTypeAction<UKzCapabilitySet>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") });
+
+	RegisterAssetTypeAction<UKzComboGraph, FKzGraphEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
