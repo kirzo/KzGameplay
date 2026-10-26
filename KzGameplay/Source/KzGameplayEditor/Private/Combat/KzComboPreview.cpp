@@ -20,10 +20,6 @@
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
-#include "Math/Geometry/Shapes/KzBox.h"
-#include "Math/Geometry/Shapes/KzCapsule.h"
-#include "Math/Geometry/Shapes/KzCylinder.h"
-#include "Math/Geometry/Shapes/KzSphere.h"
 #include "SceneManagement.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
@@ -57,30 +53,6 @@ namespace
 			{
 				Primitive->SetVisibility(false);
 			}
-		}
-	}
-
-	void DrawShape(FPrimitiveDrawInterface* PDI, const FKzShapeInstance& Shape, const FTransform& Transform, const FLinearColor& Color, float Thickness)
-	{
-		const FVector Origin = Transform.GetLocation();
-		const FVector X = Transform.GetUnitAxis(EAxis::X);
-		const FVector Y = Transform.GetUnitAxis(EAxis::Y);
-		const FVector Z = Transform.GetUnitAxis(EAxis::Z);
-		if (const FKzBox* Box = Shape.TryAs<FKzBox>())
-		{
-			DrawOrientedWireBox(PDI, Origin, X, Y, Z, Box->HalfSize, Color, SDPG_Foreground, Thickness);
-		}
-		else if (const FKzSphere* Sphere = Shape.TryAs<FKzSphere>())
-		{
-			DrawWireSphere(PDI, Origin, Color, Sphere->Radius, 24, SDPG_Foreground, Thickness);
-		}
-		else if (const FKzCapsule* Capsule = Shape.TryAs<FKzCapsule>())
-		{
-			DrawWireCapsule(PDI, Origin, X, Y, Z, Color, Capsule->Radius, Capsule->HalfHeight, 16, SDPG_Foreground, Thickness);
-		}
-		else if (const FKzCylinder* Cylinder = Shape.TryAs<FKzCylinder>())
-		{
-			DrawWireCylinder(PDI, Origin, X, Y, Z, Color, Cylinder->Radius, Cylinder->HalfHeight, 16, SDPG_Foreground, Thickness);
 		}
 	}
 
@@ -133,8 +105,9 @@ namespace
 			{
 				return FReply::Unhandled();
 			}
+			// Without this the editor stops ticking viewports while the mouse is held, and the pose only follows on release.
 			ScrubTo(MyGeometry, MouseEvent);
-			return FReply::Handled().CaptureMouse(SharedThis(this));
+			return FReply::Handled().CaptureMouse(SharedThis(this)).PreventThrottling();
 		}
 
 		virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
@@ -239,13 +212,13 @@ void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 		{
 			for (const FTrailSample& Sample : Trails[Index])
 			{
-				DrawShape(PDI, Hitbox.Shape, Sample.Transform, TrailColor, 0.0f);
+				Hitbox.Shape.DrawWire(PDI, Sample.Transform, TrailColor, 0.0f, SDPG_Foreground);
 			}
 		}
 
 		if (const TOptional<FTransform> Transform = GetHitboxTransform(Hitbox))
 		{
-			DrawShape(PDI, Hitbox.Shape, *Transform, bHitting ? HitColor : IdleColor, bHitting ? 1.5f : 0.75f);
+			Hitbox.Shape.DrawWire(PDI, *Transform, bHitting ? HitColor : IdleColor, bHitting ? 1.5f : 0.75f, SDPG_Foreground);
 		}
 	}
 }
