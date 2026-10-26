@@ -211,7 +211,7 @@ TSharedPtr<SWidget> FKzComboPreview::MakeBottomPanel()
 					.Image_Lambda([Weak]()
 					{
 						const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
-						return FAppStyle::GetBrush(Pinned && Pinned->IsPlaying() ? "Icons.Pause" : "Icons.Play");
+						return FAppStyle::GetBrush(Pinned && Pinned->IsPlaying() ? "Animation.Pause" : "Animation.Forward");
 					})
 				]
 			]
