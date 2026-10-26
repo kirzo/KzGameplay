@@ -13,7 +13,7 @@ class UKzItemDefinition;
 class USkeletalMesh;
 
 /** A combo: which attack follows which, by the input pressed and whether the attack hit. Shared by everyone who plays it; each play keeps its own count. */
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, meta = (DisplayName = "Combo Graph"))
 class KZGAMEPLAY_API UKzComboGraph : public UKzGraph
 {
 	GENERATED_BODY()

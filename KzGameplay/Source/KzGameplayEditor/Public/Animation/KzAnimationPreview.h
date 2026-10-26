@@ -19,6 +19,9 @@ public:
 	virtual void SetTime(float Time) = 0;
 	virtual bool IsPlaying() const = 0;
 	virtual void SetPlaying(bool bPlaying) = 0;
+
+	/** Why it may not look as in game, such as an animation made for another skeleton. */
+	virtual FText GetProblem() const { return FText::GetEmpty(); }
 };
 
 DECLARE_DELEGATE_RetVal_ThreeParams(TSharedPtr<FKzAnimationPreview>, FKzMakeAnimationPreview, const UKzAnimationSource& /*Source*/, const FKzAnimationContext& /*Context*/, USkeletalMeshComponent& /*Mesh*/);

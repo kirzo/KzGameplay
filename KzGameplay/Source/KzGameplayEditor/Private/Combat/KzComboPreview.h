@@ -11,6 +11,8 @@
 class FKzAnimationPreview;
 class UKzComboGraph;
 class UKzEdGraphNode;
+class UKzItemDefinition;
+class UMeshComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 struct FKzComboNode_Attack;
@@ -45,6 +47,9 @@ private:
 	/** Puts the character the combo's settings name in the scene. */
 	void ShowCharacter();
 
+	/** Hangs the preview item on the character as equipping it would. */
+	void ShowItem();
+
 	/** Plays the selected attack's animation on the character, keeping the playhead where it was. */
 	void ShowAnimation();
 
@@ -54,6 +59,11 @@ private:
 	FAdvancedPreviewScene* Scene = nullptr;
 	TObjectPtr<AActor> Character;
 	TObjectPtr<USkeletalMeshComponent> Mesh;
+
+	/** The preview item, as an actor or as a mesh, as its Equippable fragment spawns it. */
+	TObjectPtr<AActor> Weapon;
+	TObjectPtr<UMeshComponent> WeaponMesh;
+
 	TWeakObjectPtr<UKzEdGraphNode> SelectedNode;
 	TSharedPtr<FKzAnimationPreview> Animation;
 	TArray<FKzAnimationNotifySpan> Notifies;
@@ -61,4 +71,5 @@ private:
 	/** The settings the character was made from, to make it again when they change. */
 	TSoftClassPtr<AActor> ShownCharacter;
 	TSoftObjectPtr<USkeletalMesh> ShownMesh;
+	TSoftObjectPtr<UKzItemDefinition> ShownItem;
 };

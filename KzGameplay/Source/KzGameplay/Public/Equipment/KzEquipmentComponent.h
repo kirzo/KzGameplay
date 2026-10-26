@@ -12,6 +12,7 @@
 #include "KzEquipmentComponent.generated.h"
 
 class UKzEquipmentComponent;
+class UKzItemFragment_Equippable;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, Item);
 
@@ -172,6 +173,9 @@ public:
 
 	/** Resolves what items in a slot hang from: the slot AttachComponent, or the owner skeletal mesh when it is empty. */
 	USceneComponent* GetAttachParentForSlot(FGameplayTag SlotID) const;
+
+	/** Where equipping would hang an item now: the component and socket of the slot it would go to, its own socket first. Null without a layout. */
+	USceneComponent* FindAttachmentForItem(const UKzItemFragment_Equippable& Equippable, FName& OutSocket) const;
 
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

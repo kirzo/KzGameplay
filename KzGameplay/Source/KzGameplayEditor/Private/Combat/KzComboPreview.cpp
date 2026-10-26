@@ -8,10 +8,14 @@
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Equipment/KzEquipmentComponent.h"
 #include "GameFramework/Character.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
 #include "Styling/AppStyle.h"
@@ -114,6 +118,7 @@ void FKzComboPreview::Initialize(FAdvancedPreviewScene& InScene)
 {
 	Scene = &InScene;
 	ShowCharacter();
+	ShowItem();
 	ShowAnimation();
 }
 
@@ -131,9 +136,14 @@ void FKzComboPreview::OnSelectionChanged(const TSet<UObject*>& Selection)
 void FKzComboPreview::OnGraphChanged()
 {
 	const UKzComboGraph* Asset = Combo.Get();
-	if (Asset && (Asset->PreviewCharacter != ShownCharacter || Asset->PreviewMesh != ShownMesh))
+	const bool bNewCharacter = Asset && (Asset->PreviewCharacter != ShownCharacter || Asset->PreviewMesh != ShownMesh);
+	if (bNewCharacter)
 	{
 		ShowCharacter();
+	}
+	if (Asset && (bNewCharacter || Asset->PreviewItem != ShownItem))
+	{
+		ShowItem();
 	}
 	ShowAnimation();
 }
@@ -157,6 +167,10 @@ void FKzComboPreview::DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas&
 	if (!Message.IsEmpty())
 	{
 		Canvas.DrawShadowedString(10.0f, 40.0f, *Message.ToString(), GEngine->GetSmallFont(), FLinearColor::White);
+	}
+	else if (const FText Problem = Animation->GetProblem(); !Problem.IsEmpty())
+	{
+		Canvas.DrawShadowedString(10.0f, 40.0f, *Problem.ToString(), GEngine->GetSmallFont(), FLinearColor(1.0f, 0.8f, 0.2f));
 	}
 }
 
@@ -228,6 +242,8 @@ void FKzComboPreview::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(Character);
 	Collector.AddReferencedObject(Mesh);
+	Collector.AddReferencedObject(Weapon);
+	Collector.AddReferencedObject(WeaponMesh);
 }
 
 float FKzComboPreview::GetLength() const
@@ -320,6 +336,81 @@ void FKzComboPreview::ShowCharacter()
 	// Its own AnimBlueprint gives way to the attacks played on it.
 	Mesh->SetUpdateAnimationInEditor(true);
 	Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+}
+
+void FKzComboPreview::ShowItem()
+{
+	if (Weapon)
+	{
+		Weapon->Destroy();
+	}
+	if (WeaponMesh && Scene)
+	{
+		Scene->RemoveComponent(WeaponMesh);
+	}
+	Weapon = nullptr;
+	WeaponMesh = nullptr;
+
+	const UKzComboGraph* Asset = Combo.Get();
+	ShownItem = Asset ? Asset->PreviewItem : TSoftObjectPtr<UKzItemDefinition>();
+	const UKzItemDefinition* Item = ShownItem.LoadSynchronous();
+	const UKzItemFragment_Equippable* Equippable = Item ? Item->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+	if (!Scene || !Mesh || !Equippable)
+	{
+		return;
+	}
+
+	// Where the character's equipment would hang it; without equipment, from the mesh by the item's own socket.
+	FName Socket = Equippable->SocketOverride;
+	const UKzEquipmentComponent* Equipment = Character ? Character->FindComponentByClass<UKzEquipmentComponent>() : nullptr;
+	USceneComponent* Parent = Equipment ? Equipment->FindAttachmentForItem(*Equippable, Socket) : nullptr;
+	if (!Parent)
+	{
+		Parent = Mesh;
+	}
+
+	if (Equippable->EquipmentSpawnMode == EKzEquipmentSpawnMode::SpawnMesh)
+	{
+		UStreamableRenderAsset* MeshAsset = Equippable->EquipmentMesh.LoadSynchronous();
+		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshAsset))
+		{
+			UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
+			Component->SetStaticMesh(StaticMesh);
+			WeaponMesh = Component;
+		}
+		else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(MeshAsset))
+		{
+			USkeletalMeshComponent* Component = NewObject<USkeletalMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
+			Component->SetSkeletalMeshAsset(SkeletalMesh);
+			WeaponMesh = Component;
+		}
+
+		if (WeaponMesh)
+		{
+			Scene->AddComponent(WeaponMesh, FTransform::Identity);
+			WeaponMesh->AttachToComponent(Parent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+			WeaponMesh->SetRelativeTransform(Equippable->AttachmentOffset);
+		}
+		return;
+	}
+
+	if (UClass* Class = Equippable->GetEquippedActorClass(Item->WorldActorClass).LoadSynchronous())
+	{
+		FActorSpawnParameters Params;
+		Params.ObjectFlags = RF_Transient;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Weapon = Scene->GetWorld()->SpawnActor<AActor>(Class, FTransform::Identity, Params);
+		if (Weapon)
+		{
+			Weapon->SetActorEnableCollision(false);
+			if (UPrimitiveComponent* Root = Cast<UPrimitiveComponent>(Weapon->GetRootComponent()))
+			{
+				Root->SetSimulatePhysics(false);
+			}
+			Weapon->AttachToComponent(Parent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+			Weapon->SetActorRelativeTransform(Equippable->AttachmentOffset);
+		}
+	}
 }
 
 void FKzComboPreview::ShowAnimation()

@@ -138,6 +138,19 @@ USceneComponent* UKzEquipmentComponent::GetAttachParentForSlot(FGameplayTag Slot
 	return GetOwner() ? GetOwner()->FindComponentByClass<USkeletalMeshComponent>() : nullptr;
 }
 
+USceneComponent* UKzEquipmentComponent::FindAttachmentForItem(const UKzItemFragment_Equippable& Equippable, FName& OutSocket) const
+{
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!Layout)
+	{
+		return nullptr;
+	}
+
+	const FGameplayTag SlotID = Layout->ResolveSlotID(Equippable.TargetSlot);
+	OutSocket = Equippable.SocketOverride.IsNone() ? Layout->GetSocketForSlot(SlotID) : Equippable.SocketOverride;
+	return GetAttachParentForSlot(SlotID);
+}
+
 void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 {
 	// Drop any existing local visual first, so swaps recreate cleanly.

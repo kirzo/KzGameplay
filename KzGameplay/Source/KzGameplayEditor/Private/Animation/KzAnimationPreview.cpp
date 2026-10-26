@@ -4,7 +4,11 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Animation/KzAnimationSource.h"
+#include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
+
+#define LOCTEXT_NAMESPACE "KzAnimationPreview"
 
 namespace
 {
@@ -13,7 +17,7 @@ namespace
 	class FKzMontagePreview : public FKzAnimationPreview
 	{
 	public:
-		FKzMontagePreview(UAnimSingleNodeInstance& InInstance, UAnimMontage& InMontage) : Instance(&InInstance), Montage(&InMontage) {}
+		FKzMontagePreview(UAnimSingleNodeInstance& InInstance, UAnimMontage& InMontage, const FText& InProblem) : Instance(&InInstance), Montage(&InMontage), Problem(InProblem) {}
 
 		virtual float GetLength() const override
 		{
@@ -51,9 +55,15 @@ namespace
 			}
 		}
 
+		virtual FText GetProblem() const override
+		{
+			return Problem;
+		}
+
 	private:
 		TWeakObjectPtr<UAnimSingleNodeInstance> Instance;
 		TWeakObjectPtr<UAnimMontage> Montage;
+		FText Problem;
 	};
 
 	TSharedPtr<FKzAnimationPreview> MakeMontagePreview(const UKzAnimationSource& Source, const FKzAnimationContext& Context, USkeletalMeshComponent& Mesh)
@@ -73,7 +83,17 @@ namespace
 		}
 
 		Instance->SetPlayRate(MontageSource.PlayRate);
-		return MakeShared<FKzMontagePreview>(*Instance, *Montage);
+
+		// On another skeleton only the bones named alike move, and the rest keeps its rest pose.
+		FText Problem;
+		const USkeleton* AnimationSkeleton = Montage->GetSkeleton();
+		const USkeletalMesh* MeshAsset = Mesh.GetSkeletalMeshAsset();
+		const USkeleton* MeshSkeleton = MeshAsset ? MeshAsset->GetSkeleton() : nullptr;
+		if (AnimationSkeleton && MeshSkeleton && AnimationSkeleton != MeshSkeleton)
+		{
+			Problem = FText::Format(LOCTEXT("OtherSkeleton", "{0} is made for {1}, but the preview mesh uses {2}."), FText::FromString(Montage->GetName()), FText::FromString(AnimationSkeleton->GetName()), FText::FromString(MeshSkeleton->GetName()));
+		}
+		return MakeShared<FKzMontagePreview>(*Instance, *Montage, Problem);
 	}
 }
 
@@ -103,3 +123,5 @@ void KzAnimationPreview::RegisterMontagePreview()
 {
 	Register(UKzAnimationSource_MontageBase::StaticClass(), FKzMakeAnimationPreview::CreateStatic(&MakeMontagePreview));
 }
+
+#undef LOCTEXT_NAMESPACE
