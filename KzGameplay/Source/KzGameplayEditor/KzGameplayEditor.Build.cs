@@ -18,6 +18,7 @@ public class KzGameplayEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
+				"KzLib",
 				"CoreUObject",
 				"Engine",
 				"Slate",
