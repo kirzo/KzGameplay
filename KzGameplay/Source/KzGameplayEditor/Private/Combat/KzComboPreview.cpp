@@ -5,6 +5,7 @@
 #include "Animation/KzAnimationNotifyState.h"
 #include "Animation/KzAnimationPreview.h"
 #include "CanvasTypes.h"
+#include "Combat/KzCombatNotifies.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -14,13 +15,20 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Equipment/KzEquipmentComponent.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Character.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
+#include "Math/Geometry/Shapes/KzBox.h"
+#include "Math/Geometry/Shapes/KzCapsule.h"
+#include "Math/Geometry/Shapes/KzCylinder.h"
+#include "Math/Geometry/Shapes/KzSphere.h"
+#include "SceneManagement.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SLeafWidget.h"
@@ -30,6 +38,52 @@
 
 namespace
 {
+	constexpr float StepSeconds = 1.0f / 60.0f;
+
+	// Short of the end, where an animation that loops starts over.
+	constexpr float EndMargin = 1.0f / 120.0f;
+
+	const FLinearColor HitColor(1.0f, 0.2f, 0.15f);
+	const FLinearColor IdleColor(1.0f, 0.75f, 0.2f);
+	const FLinearColor TrailColor(0.55f, 0.12f, 0.08f);
+
+	// Collision shapes, arrows and the like get in the way of the attack.
+	void ShowMeshesOnly(AActor& Actor)
+	{
+		TInlineComponentArray<UPrimitiveComponent*> Primitives(&Actor);
+		for (UPrimitiveComponent* Primitive : Primitives)
+		{
+			if (!Primitive->IsA<UMeshComponent>())
+			{
+				Primitive->SetVisibility(false);
+			}
+		}
+	}
+
+	void DrawShape(FPrimitiveDrawInterface* PDI, const FKzShapeInstance& Shape, const FTransform& Transform, const FLinearColor& Color, float Thickness)
+	{
+		const FVector Origin = Transform.GetLocation();
+		const FVector X = Transform.GetUnitAxis(EAxis::X);
+		const FVector Y = Transform.GetUnitAxis(EAxis::Y);
+		const FVector Z = Transform.GetUnitAxis(EAxis::Z);
+		if (const FKzBox* Box = Shape.TryAs<FKzBox>())
+		{
+			DrawOrientedWireBox(PDI, Origin, X, Y, Z, Box->HalfSize, Color, SDPG_Foreground, Thickness);
+		}
+		else if (const FKzSphere* Sphere = Shape.TryAs<FKzSphere>())
+		{
+			DrawWireSphere(PDI, Origin, Color, Sphere->Radius, 24, SDPG_Foreground, Thickness);
+		}
+		else if (const FKzCapsule* Capsule = Shape.TryAs<FKzCapsule>())
+		{
+			DrawWireCapsule(PDI, Origin, X, Y, Z, Color, Capsule->Radius, Capsule->HalfHeight, 16, SDPG_Foreground, Thickness);
+		}
+		else if (const FKzCylinder* Cylinder = Shape.TryAs<FKzCylinder>())
+		{
+			DrawWireCylinder(PDI, Origin, X, Y, Z, Color, Cylinder->Radius, Cylinder->HalfHeight, 16, SDPG_Foreground, Thickness);
+		}
+	}
+
 	// The attack's length with its windows as bands in their notify's color, and the playhead; dragging scrubs.
 	class SKzComboTrack : public SLeafWidget
 	{
@@ -150,9 +204,49 @@ void FKzComboPreview::OnGraphChanged()
 
 void FKzComboPreview::Tick(float DeltaTime)
 {
-	if (Animation)
+	if (!Animation)
 	{
-		Animation->Tick(DeltaTime);
+		return;
+	}
+
+	Animation->Tick(DeltaTime);
+
+	// Without the loop, an attack that went round stops at its end.
+	const float Time = Animation->GetTime();
+	if (!bLooping && Animation->IsPlaying() && Time < LastTime)
+	{
+		Animation->SetPlaying(false);
+		Animation->SetTime(FMath::Max(Animation->GetLength() - EndMargin, 0.0f));
+	}
+	LastTime = Animation->GetTime();
+
+	RecordTrails();
+}
+
+void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	const FKzComboNode_Attack* Attack = GetSelectedAttack();
+	if (!Attack)
+	{
+		return;
+	}
+
+	const bool bHitting = Animation && IsInHitWindow(Animation->GetTime());
+	for (int32 Index = 0; Index < Attack->Hitboxes.Num(); ++Index)
+	{
+		const FKzComboHitbox& Hitbox = Attack->Hitboxes[Index];
+		if (Trails.IsValidIndex(Index))
+		{
+			for (const FTrailSample& Sample : Trails[Index])
+			{
+				DrawShape(PDI, Hitbox.Shape, Sample.Transform, TrailColor, 0.0f);
+			}
+		}
+
+		if (const TOptional<FTransform> Transform = GetHitboxTransform(Hitbox))
+		{
+			DrawShape(PDI, Hitbox.Shape, *Transform, bHitting ? HitColor : IdleColor, bHitting ? 1.5f : 0.75f);
+		}
 	}
 }
 
@@ -189,60 +283,158 @@ FBox FKzComboPreview::GetBounds() const
 
 TSharedPtr<SWidget> FKzComboPreview::MakeBottomPanel()
 {
+	return SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+		.Padding(FMargin(6.0f, 2.0f))
+		[
+			MakeTransportBar()
+		];
+}
+
+TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
+{
 	const TSharedRef<FKzComboPreview> Self = StaticCastSharedRef<FKzComboPreview>(AsShared());
 	const TWeakPtr<FKzComboPreview> Weak = Self;
 
-	return SNew(SBorder)
-		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-		.Padding(4.0f)
+	auto Run = [Weak](TFunction<void(FKzComboPreview&)> Action)
+	{
+		return FOnClicked::CreateLambda([Weak, Action]()
+		{
+			if (const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin())
+			{
+				Action(*Pinned);
+			}
+			return FReply::Handled();
+		});
+	};
+	auto While = [Weak](TFunction<bool(const FKzComboPreview&)> Test)
+	{
+		return TAttribute<bool>::CreateLambda([Weak, Test]()
+		{
+			const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+			return Pinned && Test(*Pinned);
+		});
+	};
+	auto TransportButton = [](const FText& Tooltip, const TAttribute<const FSlateBrush*>& Image, const FOnClicked& OnClicked, const TAttribute<bool>& bEnabled)
+	{
+		return SNew(SButton)
+			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.IsFocusable(false)
+			.ContentPadding(FMargin(6.0f, 4.0f))
+			.ToolTipText(Tooltip)
+			.IsEnabled(bEnabled)
+			.OnClicked(OnClicked)
+			[
+				SNew(SImage)
+				.Image(Image)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+			];
+	};
+	const auto HasAnimation = [](const FKzComboPreview& Preview) { return Preview.Animation.IsValid(); };
+
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(0.0f, 0.0f, 4.0f, 0.0f)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-				.ToolTipText(LOCTEXT("PlayTooltip", "Plays or pauses the attack."))
-				.OnClicked_Lambda([Weak]()
-				{
-					if (const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin())
-					{
-						Pinned->TogglePlay();
-					}
-					return FReply::Handled();
-				})
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image_Lambda([Weak]()
-					{
-						const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
-						return FAppStyle::GetBrush(Pinned && Pinned->IsPlaying() ? "Animation.Pause" : "Animation.Forward");
-					})
-				]
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SKzComboTrack, Self)
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.Padding(8.0f, 0.0f, 0.0f, 0.0f)
+			TransportButton(LOCTEXT("RestartTooltip", "Back to the attack's start."), FAppStyle::GetBrush("Animation.Backward_End"), Run([](FKzComboPreview& Preview) { Preview.Animation->SetTime(0.0f); }), While(HasAnimation))
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			TransportButton(LOCTEXT("PlayTooltip", "Play or pause the attack."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
+			{
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				return FAppStyle::GetBrush(Pinned && Pinned->IsPlaying() ? "Animation.Pause" : "Animation.Forward");
+			}), Run([](FKzComboPreview& Preview) { Preview.TogglePlay(); }), While(HasAnimation))
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			TransportButton(LOCTEXT("StepTooltip", "Move the paused attack on by one frame."), FAppStyle::GetBrush("Animation.Forward_Step"), Run([](FKzComboPreview& Preview)
+			{
+				Preview.ScrubTo(FMath::Min(Preview.GetTime() + StepSeconds, Preview.GetLength() - EndMargin));
+			}), While([](const FKzComboPreview& Preview) { return Preview.Animation.IsValid() && !Preview.IsPlaying(); }))
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			TransportButton(LOCTEXT("EndTooltip", "Pause the attack at its end."), FAppStyle::GetBrush("Animation.Forward_End"), Run([](FKzComboPreview& Preview)
+			{
+				Preview.ScrubTo(FMath::Max(Preview.GetLength() - EndMargin, 0.0f));
+			}), While(HasAnimation))
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		[
+			TransportButton(LOCTEXT("LoopTooltip", "Play the attack over and over; off, it stops at its end."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
+			{
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				return FAppStyle::GetBrush(Pinned && Pinned->bLooping ? "Animation.Loop.Enabled" : "Animation.Loop.Disabled");
+			}), Run([](FKzComboPreview& Preview) { Preview.bLooping = !Preview.bLooping; }), true)
+		]
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.0f)
+		.VAlign(VAlign_Center)
+		.Padding(6.0f, 0.0f)
+		[
+			SNew(SKzComboTrack, Self)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([Weak]()
+			{
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				FNumberFormattingOptions Format;
+				Format.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
+				return FText::Format(LOCTEXT("Time", "{0} / {1} s"), FText::AsNumber(Pinned ? Pinned->GetTime() : 0.0f, &Format), FText::AsNumber(Pinned ? Pinned->GetLength() : 0.0f, &Format));
+			})
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SComboButton)
+			.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+			.ToolTipText(LOCTEXT("RateTooltip", "How fast the preview plays; below 1 in slow motion."))
+			.ButtonContent()
 			[
 				SNew(STextBlock)
 				.Text_Lambda([Weak]()
 				{
 					const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
-					FNumberFormattingOptions Format;
-					Format.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
-					return FText::Format(LOCTEXT("Time", "{0} / {1} s"), FText::AsNumber(Pinned ? Pinned->GetTime() : 0.0f, &Format), FText::AsNumber(Pinned ? Pinned->GetLength() : 0.0f, &Format));
+					return FText::Format(LOCTEXT("Rate", "{0}x"), FText::AsNumber(Pinned ? Pinned->Rate : 1.0f));
 				})
 			]
+			.OnGetMenuContent_Lambda([Weak]()
+			{
+				FMenuBuilder Menu(true, nullptr);
+				for (const float Option : { 0.1f, 0.25f, 0.5f, 1.0f, 2.0f })
+				{
+					Menu.AddMenuEntry(FText::Format(LOCTEXT("Rate", "{0}x"), FText::AsNumber(Option)), FText::GetEmpty(), FSlateIcon(), FUIAction(
+						FExecuteAction::CreateLambda([Weak, Option]()
+						{
+							if (const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin())
+							{
+								Pinned->Rate = Option;
+								if (Pinned->Animation)
+								{
+									Pinned->Animation->SetRate(Option);
+								}
+							}
+						}),
+						FCanExecuteAction(),
+						FIsActionChecked::CreateLambda([Weak, Option]()
+						{
+							const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+							return Pinned && Pinned->Rate == Option;
+						})), NAME_None, EUserInterfaceActionType::RadioButton);
+				}
+				return Menu.MakeWidget();
+			})
 		];
 }
 
@@ -317,6 +509,10 @@ void FKzComboPreview::ShowCharacter()
 		Character = Scene->GetWorld()->SpawnActor<AActor>(Class, FTransform::Identity, Params);
 		const ACharacter* AsCharacter = Cast<ACharacter>(Character);
 		Mesh = AsCharacter ? AsCharacter->GetMesh() : nullptr;
+		if (Character)
+		{
+			ShowMeshesOnly(*Character);
+		}
 	}
 
 	USkeletalMesh* MeshAsset = ShownMesh.LoadSynchronous();
@@ -417,6 +613,7 @@ void FKzComboPreview::ShowItem()
 			}
 			Weapon->AttachToComponent(Parent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
 			Weapon->SetActorRelativeTransform(Equippable->AttachmentOffset);
+			ShowMeshesOnly(*Weapon);
 		}
 	}
 }
@@ -427,6 +624,7 @@ void FKzComboPreview::ShowAnimation()
 	const bool bPlaying = !Animation || Animation->IsPlaying();
 	Animation.Reset();
 	Notifies.Reset();
+	Trails.Reset();
 
 	const FKzComboNode_Attack* Attack = GetSelectedAttack();
 	const UKzComboGraph* Asset = Combo.Get();
@@ -444,8 +642,10 @@ void FKzComboPreview::ShowAnimation()
 	if (Animation)
 	{
 		Attack->Animation->GetTimeline(Context, Notifies);
+		Animation->SetRate(Rate);
 		Animation->SetTime(FMath::Min(Time, Animation->GetLength()));
 		Animation->SetPlaying(bPlaying);
+		LastTime = Animation->GetTime();
 	}
 }
 
@@ -453,6 +653,58 @@ const FKzComboNode_Attack* FKzComboPreview::GetSelectedAttack() const
 {
 	const UKzEdGraphNode* Node = SelectedNode.Get();
 	return Node ? Node->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
+}
+
+TOptional<FTransform> FKzComboPreview::GetHitboxTransform(const FKzComboHitbox& Hitbox) const
+{
+	USceneComponent* WeaponRoot = Weapon ? Weapon->GetRootComponent() : WeaponMesh.Get();
+	const USceneComponent* Parent = Hitbox.FindParent(Mesh, WeaponRoot);
+	return Parent ? Hitbox.GetTransform(*Parent) : TOptional<FTransform>();
+}
+
+bool FKzComboPreview::IsInHitWindow(float Time) const
+{
+	return Notifies.ContainsByPredicate([Time](const FKzAnimationNotifySpan& Span)
+	{
+		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && Time >= Span.Start && Time <= Span.End;
+	});
+}
+
+void FKzComboPreview::RecordTrails()
+{
+	const FKzComboNode_Attack* Attack = GetSelectedAttack();
+	if (!Attack || !Animation)
+	{
+		return;
+	}
+
+	Trails.SetNum(Attack->Hitboxes.Num());
+	const float Time = Animation->GetTime();
+	if (!IsInHitWindow(Time))
+	{
+		return;
+	}
+
+	for (int32 Index = 0; Index < Attack->Hitboxes.Num(); ++Index)
+	{
+		const TOptional<FTransform> Transform = GetHitboxTransform(Attack->Hitboxes[Index]);
+		if (!Transform)
+		{
+			continue;
+		}
+
+		// One sample per frame of the animation, the latest kept, so playing the window again does not pile them up.
+		TArray<FTrailSample>& Trail = Trails[Index];
+		FTrailSample* Same = Trail.FindByPredicate([Time](const FTrailSample& Sample) { return FMath::Abs(Sample.Time - Time) < StepSeconds * 0.5f; });
+		if (Same)
+		{
+			Same->Transform = *Transform;
+		}
+		else
+		{
+			Trail.Add({ Time, *Transform });
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

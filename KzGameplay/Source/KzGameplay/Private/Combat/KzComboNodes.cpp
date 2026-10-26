@@ -3,10 +3,35 @@
 #include "Combat/KzComboNodes.h"
 #include "Animation/KzAnimationSource.h"
 #include "Combat/KzComboGraph.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/Actor.h"
 
 #define LOCTEXT_NAMESPACE "KzComboNodes"
 
 const FName FKzComboNode_Entry::EntryName(TEXT("Entry"));
+
+USceneComponent* FKzComboHitbox::FindParent(USkeletalMeshComponent* AnimatedMesh, USceneComponent* WeaponRoot) const
+{
+	if (AttachTo == EKzComboHitboxAttach::Avatar)
+	{
+		return AnimatedMesh;
+	}
+
+	const AActor* Weapon = WeaponRoot ? WeaponRoot->GetOwner() : nullptr;
+	if (Component.IsNone() || !Weapon || Weapon->GetRootComponent() != WeaponRoot)
+	{
+		return WeaponRoot;
+	}
+
+	TInlineComponentArray<USceneComponent*> Components(Weapon);
+	USceneComponent* const* Found = Components.FindByPredicate([this](const USceneComponent* Each) { return Each->GetFName() == Component; });
+	return Found ? *Found : nullptr;
+}
+
+FTransform FKzComboHitbox::GetTransform(const USceneComponent& Parent) const
+{
+	return Offset * Parent.GetSocketTransform(Socket);
+}
 
 #if WITH_EDITOR
 namespace

@@ -64,8 +64,14 @@ namespace
 			bPlaying = bInPlaying;
 			if (Mesh.IsValid())
 			{
-				Mesh->GlobalAnimRateScale = bPlaying ? PlayRate : 0.0f;
+				Mesh->GlobalAnimRateScale = bPlaying ? PlayRate * Rate : 0.0f;
 			}
+		}
+
+		virtual void SetRate(float InRate) override
+		{
+			Rate = InRate;
+			SetPlaying(bPlaying);
 		}
 
 		virtual void Tick(float DeltaTime) override
@@ -87,6 +93,7 @@ namespace
 		TWeakObjectPtr<ULimbicPreviewInstance> Instance;
 		TWeakObjectPtr<const ULimbicPuppeteer> Puppeteer;
 		float PlayRate = 1.0f;
+		float Rate = 1.0f;
 		FText Problem;
 		bool bPlaying = true;
 	};

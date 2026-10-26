@@ -17,7 +17,10 @@ namespace
 	class FKzMontagePreview : public FKzAnimationPreview
 	{
 	public:
-		FKzMontagePreview(UAnimSingleNodeInstance& InInstance, UAnimMontage& InMontage, const FText& InProblem) : Instance(&InInstance), Montage(&InMontage), Problem(InProblem) {}
+		FKzMontagePreview(UAnimSingleNodeInstance& InInstance, UAnimMontage& InMontage, float InPlayRate, const FText& InProblem) : Instance(&InInstance), Montage(&InMontage), PlayRate(InPlayRate), Problem(InProblem)
+		{
+			SetRate(1.0f);
+		}
 
 		virtual float GetLength() const override
 		{
@@ -55,6 +58,14 @@ namespace
 			}
 		}
 
+		virtual void SetRate(float Rate) override
+		{
+			if (Instance.IsValid())
+			{
+				Instance->SetPlayRate(PlayRate * Rate);
+			}
+		}
+
 		virtual FText GetProblem() const override
 		{
 			return Problem;
@@ -63,6 +74,7 @@ namespace
 	private:
 		TWeakObjectPtr<UAnimSingleNodeInstance> Instance;
 		TWeakObjectPtr<UAnimMontage> Montage;
+		float PlayRate = 1.0f;
 		FText Problem;
 	};
 
@@ -82,8 +94,6 @@ namespace
 			return nullptr;
 		}
 
-		Instance->SetPlayRate(MontageSource.PlayRate);
-
 		// On another skeleton only the bones named alike move, and the rest keeps its rest pose.
 		FText Problem;
 		const USkeleton* AnimationSkeleton = Montage->GetSkeleton();
@@ -93,7 +103,7 @@ namespace
 		{
 			Problem = FText::Format(LOCTEXT("OtherSkeleton", "{0} is made for {1}, but the preview mesh uses {2}."), FText::FromString(Montage->GetName()), FText::FromString(AnimationSkeleton->GetName()), FText::FromString(MeshSkeleton->GetName()));
 		}
-		return MakeShared<FKzMontagePreview>(*Instance, *Montage, Problem);
+		return MakeShared<FKzMontagePreview>(*Instance, *Montage, MontageSource.PlayRate, Problem);
 	}
 }
 

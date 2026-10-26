@@ -9,6 +9,8 @@
 #include "KzComboNodes.generated.h"
 
 class UKzAnimationSource;
+class USceneComponent;
+class USkeletalMeshComponent;
 
 /** Base of combo nodes. */
 USTRUCT()
@@ -68,6 +70,12 @@ struct KZGAMEPLAY_API FKzComboHitbox
 
 	UPROPERTY(EditAnywhere, Category = "Hitbox")
 	FTransform Offset;
+
+	/** What it hangs from: the animated mesh, or the weapon's root, or the component named Component when the weapon is an actor. */
+	USceneComponent* FindParent(USkeletalMeshComponent* AnimatedMesh, USceneComponent* WeaponRoot) const;
+
+	/** Where it is, hanging from Parent. */
+	FTransform GetTransform(const USceneComponent& Parent) const;
 };
 
 /** One attack: how it is animated, its damage and the hitboxes its Hit Windows sweep. Its outputs say where each input leads once it hit or missed. */

@@ -20,6 +20,9 @@ public:
 	virtual bool IsPlaying() const = 0;
 	virtual void SetPlaying(bool bPlaying) = 0;
 
+	/** How fast the preview plays, on top of the source's own play rate; below 1 in slow motion. */
+	virtual void SetRate(float Rate) = 0;
+
 	/** Runs every frame of the preview, for what does not loop on its own. */
 	virtual void Tick(float DeltaTime) {}
 
