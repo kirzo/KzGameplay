@@ -20,6 +20,9 @@ public:
 	virtual bool IsPlaying() const = 0;
 	virtual void SetPlaying(bool bPlaying) = 0;
 
+	/** Runs every frame of the preview, for what does not loop on its own. */
+	virtual void Tick(float DeltaTime) {}
+
 	/** Why it may not look as in game, such as an animation made for another skeleton. */
 	virtual FText GetProblem() const { return FText::GetEmpty(); }
 };

@@ -26,6 +26,7 @@ public:
 	virtual void Initialize(FAdvancedPreviewScene& InScene) override;
 	virtual void OnSelectionChanged(const TSet<UObject*>& Selection) override;
 	virtual void OnGraphChanged() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas& Canvas) override;
 	virtual FBox GetBounds() const override;
 	virtual TSharedPtr<SWidget> MakeBottomPanel() override;

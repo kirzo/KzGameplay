@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "KzGameplay - Limbic Integration",
-	"Description": "Drives Limbic procedural animation from KzGameplay, such as an item fragment that holds a pose while the item is equipped. Requires the Limbic plugin.",
+	"Description": "Drives Limbic procedural animation from KzGameplay, such as an item fragment that holds a pose while the item is equipped, and Limbic actions as animation sources for attacks. Requires the Limbic plugin.",
 	"Category": "Gameplay",
 	"CreatedBy": "kirzo",
 	"CreatedByURL": "https://kirzo.dev",
@@ -20,6 +20,11 @@
 			"Name": "KzGameplayLimbic",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "KzGameplayLimbicEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	],
 	"Plugins": [

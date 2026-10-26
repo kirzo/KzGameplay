@@ -148,6 +148,14 @@ void FKzComboPreview::OnGraphChanged()
 	ShowAnimation();
 }
 
+void FKzComboPreview::Tick(float DeltaTime)
+{
+	if (Animation)
+	{
+		Animation->Tick(DeltaTime);
+	}
+}
+
 void FKzComboPreview::DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas& Canvas)
 {
 	FText Message;
