@@ -99,7 +99,6 @@ void FKzComboNodeRenderer::Tick(float DeltaTime)
 
 		if (!Prepare(*Node))
 		{
-			Shown.Remove(Target);
 			continue;
 		}
 
@@ -119,7 +118,6 @@ void FKzComboNodeRenderer::Tick(float DeltaTime)
 		Scene->GetWorld()->Tick(LEVELTICK_All, PoseDeltaTime);
 		Capture->TextureTarget = Target;
 		Capture->CaptureScene();
-		Shown.Add(Target);
 	}
 }
 

@@ -34,9 +34,6 @@ public:
 	/** Renders the node's attack into Target on the next editor tick: at Time, looping, or unset at the moment that shows it best. */
 	void Request(const UKzEdGraphNode& Node, TOptional<float> Time, UTextureRenderTarget2D& Target);
 
-	/** Whether Target got the attack it asked for, false when there was nothing to show. */
-	bool HasShown(const UTextureRenderTarget2D& Target) const { return Shown.Contains(&Target); }
-
 	/** Forgets what the node played, after it changed. */
 	void Invalidate(const UKzEdGraphNode& Node);
 
@@ -74,6 +71,5 @@ private:
 	TArray<FKzAnimationNotifySpan> Notifies;
 
 	TMap<TWeakObjectPtr<UTextureRenderTarget2D>, FRequest> Requests;
-	TSet<TWeakObjectPtr<const UTextureRenderTarget2D>> Shown;
 	TSet<TWeakObjectPtr<const UObject>> Selected;
 };
