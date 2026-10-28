@@ -97,9 +97,15 @@ public:
 	/** The animation's length and its routed notify states, in its own time. */
 	virtual float GetTimeline(const FKzAnimationContext& Context, TArray<FKzAnimationNotifySpan>& OutNotifies) const { return 0.0f; }
 
+	/** The asset it plays in the context, such as a montage, for editors to show and open. */
+	virtual UObject* GetAsset(const FKzAnimationContext& Context) const { return nullptr; }
+
 #if WITH_EDITOR
 	/** What it plays, for the nodes that show it. */
 	virtual FText GetDescription() const { return FText::GetEmpty(); }
+
+	/** Plays Asset from now on, for nodes made by dropping an asset; false for assets it cannot play. */
+	virtual bool SetAsset(UObject& Asset) { return false; }
 #endif
 };
 
@@ -119,6 +125,7 @@ public:
 
 	virtual TSharedPtr<FKzAnimationPlay> Play(const FKzAnimationContext& Context) const override;
 	virtual float GetTimeline(const FKzAnimationContext& Context, TArray<FKzAnimationNotifySpan>& OutNotifies) const override;
+	virtual UObject* GetAsset(const FKzAnimationContext& Context) const override;
 
 	/** The montage played in the context. */
 	virtual UAnimMontage* GetMontage(const FKzAnimationContext& Context) const PURE_VIRTUAL(UKzAnimationSource_MontageBase::GetMontage, return nullptr;);
@@ -138,6 +145,7 @@ public:
 
 #if WITH_EDITOR
 	virtual FText GetDescription() const override;
+	virtual bool SetAsset(UObject& Asset) override;
 #endif
 };
 

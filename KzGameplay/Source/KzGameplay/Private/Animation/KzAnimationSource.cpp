@@ -178,10 +178,25 @@ float UKzAnimationSource_MontageBase::GetTimeline(const FKzAnimationContext& Con
 	return Montage->GetPlayLength();
 }
 
+UObject* UKzAnimationSource_MontageBase::GetAsset(const FKzAnimationContext& Context) const
+{
+	return GetMontage(Context);
+}
+
 #if WITH_EDITOR
 FText UKzAnimationSource_Montage::GetDescription() const
 {
 	return Montage ? FText::FromString(Montage->GetName()) : LOCTEXT("NoMontage", "No montage");
+}
+
+bool UKzAnimationSource_Montage::SetAsset(UObject& Asset)
+{
+	UAnimMontage* AsMontage = Cast<UAnimMontage>(&Asset);
+	if (AsMontage)
+	{
+		Montage = AsMontage;
+	}
+	return AsMontage != nullptr;
 }
 #endif
 

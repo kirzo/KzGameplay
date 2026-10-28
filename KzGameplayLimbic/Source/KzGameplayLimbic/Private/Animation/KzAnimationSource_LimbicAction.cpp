@@ -119,10 +119,25 @@ float UKzAnimationSource_LimbicActionBase::GetTimeline(const FKzAnimationContext
 	return Puppeteer->Duration;
 }
 
+UObject* UKzAnimationSource_LimbicActionBase::GetAsset(const FKzAnimationContext& Context) const
+{
+	return GetPuppeteer(Context);
+}
+
 #if WITH_EDITOR
 FText UKzAnimationSource_LimbicAction::GetDescription() const
 {
 	return Puppeteer ? FText::FromString(Puppeteer->GetName()) : LOCTEXT("NoPuppeteer", "No puppeteer");
+}
+
+bool UKzAnimationSource_LimbicAction::SetAsset(UObject& Asset)
+{
+	ULimbicPuppeteer* AsPuppeteer = Cast<ULimbicPuppeteer>(&Asset);
+	if (AsPuppeteer)
+	{
+		Puppeteer = AsPuppeteer;
+	}
+	return AsPuppeteer != nullptr;
 }
 #endif
 

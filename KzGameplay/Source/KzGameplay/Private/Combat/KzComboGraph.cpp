@@ -1,11 +1,37 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzComboGraph.h"
+#include "Animation/KzAnimationSource.h"
 #include "Combat/KzComboNodes.h"
+#include "UObject/UObjectHash.h"
 
 #define LOCTEXT_NAMESPACE "KzComboGraph"
 
 #if WITH_EDITOR
+bool UKzComboGraph::MakeNodeForAsset(UObject& Asset, TInstancedStruct<FKzGraphNode>& OutNode) const
+{
+	TArray<UClass*> Sources;
+	GetDerivedClasses(UKzAnimationSource::StaticClass(), Sources);
+	for (UClass* Class : Sources)
+	{
+		if (Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+		{
+			continue;
+		}
+
+		// The schema gives the new node its own copy of the source.
+		UKzAnimationSource* Source = NewObject<UKzAnimationSource>(GetTransientPackage(), Class);
+		if (Source->SetAsset(Asset))
+		{
+			FKzComboNode_Attack Attack;
+			Attack.Animation = Source;
+			OutNode.InitializeAs<FKzComboNode_Attack>(Attack);
+			return true;
+		}
+	}
+	return false;
+}
+
 const UScriptStruct* UKzComboGraph::GetNodeStruct() const
 {
 	return FKzComboNode::StaticStruct();

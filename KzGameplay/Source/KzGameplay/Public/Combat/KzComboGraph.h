@@ -59,5 +59,8 @@ public:
 	virtual int32 GetMaxLinksPerOutput() const override { return 1; }
 	virtual void GetDefaultNodes(TArray<const UScriptStruct*>& OutNodes) const override;
 	virtual void ValidateGraph(const FKzGraphData& InData, TArray<FKzValidationIssue>& OutIssues) const override;
+
+	/** An animation asset dropped on the graph, such as a montage, makes an attack that plays it. */
+	virtual bool MakeNodeForAsset(UObject& Asset, TInstancedStruct<FKzGraphNode>& OutNode) const override;
 #endif
 };

@@ -30,6 +30,7 @@ public:
 
 	virtual TSharedPtr<FKzAnimationPlay> Play(const FKzAnimationContext& Context) const override;
 	virtual float GetTimeline(const FKzAnimationContext& Context, TArray<FKzAnimationNotifySpan>& OutNotifies) const override;
+	virtual UObject* GetAsset(const FKzAnimationContext& Context) const override;
 
 	/** The puppeteer played in the context. */
 	virtual ULimbicPuppeteer* GetPuppeteer(const FKzAnimationContext& Context) const PURE_VIRTUAL(UKzAnimationSource_LimbicActionBase::GetPuppeteer, return nullptr;);
@@ -49,6 +50,7 @@ public:
 
 #if WITH_EDITOR
 	virtual FText GetDescription() const override;
+	virtual bool SetAsset(UObject& Asset) override;
 #endif
 };
 
