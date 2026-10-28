@@ -8,11 +8,13 @@
 #include "Combat/KzCombatNotifies.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
+#include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "HAL/IConsoleManager.h"
+#include "Items/Fragments/KzItemFragment_Defense.h"
 #include "Items/KzItemDefinition.h"
 #include "KzDrawDebugHelpers.h"
 #include "Scoring/KzTargetScoringLibrary.h"
@@ -26,7 +28,6 @@ namespace
 	constexpr float MaxStepAngle = UE_DOUBLE_PI / 18.0;
 	constexpr int32 MaxSteps = 8;
 
-	// Zero would stop the actor's tick from advancing anything, timers on it included.
 	constexpr float HitStopDilation = 0.01f;
 
 	FVector Flatten(const FVector& Vector)
@@ -106,15 +107,6 @@ UWorld* UKzComboInstance::GetWorld() const
 
 void UKzComboInstance::Tick(float DeltaTime)
 {
-	if (HitStopLeft > 0.0f)
-	{
-		HitStopLeft -= DeltaTime;
-		if (HitStopLeft <= 0.0f)
-		{
-			EndHitStop();
-		}
-	}
-
 	const float UserDeltaTime = DeltaTime * (Context.User ? Context.User->CustomTimeDilation : 1.0f);
 	Clock += UserDeltaTime;
 
@@ -308,7 +300,7 @@ void UKzComboInstance::SweepHitboxes()
 
 				FKzComboHit ComboHit;
 				ComboHit.Hit = Hit;
-				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, Attack->AttackTags);
+				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, Attack->AttackTags, ComboHit.Defense);
 				ComboHit.DamageMultiplier = Attack->DamageMultiplier;
 				ComboHit.Reaction = Reaction;
 				ComboHit.AttackTags = Attack->AttackTags;
@@ -322,10 +314,7 @@ void UKzComboInstance::SweepHitboxes()
 
 				HitActors.Add(HitActor);
 				bHit = true;
-				if (ComboHit.Result == EKzHitResult::Hit && Attack->HitStop > 0.0f)
-				{
-					StartHitStop(HitActor, Attack->HitStop);
-				}
+				DilateTime(ComboHit, *HitActor);
 				OnHit.Broadcast(ComboHit);
 
 				// Whoever heard it may have stopped the combo or chained another attack.
@@ -440,30 +429,40 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 	}
 }
 
-void UKzComboInstance::StartHitStop(AActor* HitTarget, float Duration)
+void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)
 {
-	for (AActor* Actor : { static_cast<AActor*>(Context.User), HitTarget })
+	UWorld* World = GetWorld();
+	UKzTimeDilationSubsystem* TimeDilation = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
+	const FKzComboNode_Attack* Attack = GetAttack();
+	if (!TimeDilation || !Attack)
 	{
-		if (Actor && !Frozen.ContainsByPredicate([Actor](const TPair<TWeakObjectPtr<AActor>, float>& Each) { return Each.Key == Actor; }))
-		{
-			Frozen.Emplace(Actor, Actor->CustomTimeDilation);
-			Actor->CustomTimeDilation = HitStopDilation;
-		}
+		return;
 	}
-	HitStopLeft = FMath::Max(HitStopLeft, Duration);
-}
 
-void UKzComboInstance::EndHitStop()
-{
-	for (const TPair<TWeakObjectPtr<AActor>, float>& Each : Frozen)
+	const UKzItemFragment_Defense* Defense = Hit.Defense.Item ? Hit.Defense.Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
+	float HitStop = 0.0f;
+	switch (Hit.Result)
 	{
-		if (AActor* Actor = Each.Key.Get())
+	case EKzHitResult::Hit:
+		HitStop = Attack->HitStop;
+		break;
+	case EKzHitResult::Blocked:
+	case EKzHitResult::GuardBroken:
+		HitStop = Defense ? Defense->BlockHitStop : 0.0f;
+		break;
+	case EKzHitResult::Parried:
+		HitStop = Defense ? Defense->ParryHitStop : 0.0f;
+		if (Defense)
 		{
-			Actor->CustomTimeDilation = Each.Value;
+			TimeDilation->Dilate(Context.User, Defense->ParrySlowDilation, Defense->ParrySlowDuration);
 		}
+		break;
+	default:
+		break;
 	}
-	Frozen.Reset();
-	HitStopLeft = 0.0f;
+
+	TimeDilation->Dilate(Context.User, HitStopDilation, HitStop);
+	TimeDilation->Dilate(&HitActor, HitStopDilation, HitStop);
 }
 
 void UKzComboInstance::SetCancelWindows(int32 Count)
@@ -490,7 +489,6 @@ void UKzComboInstance::End(bool bInterrupted)
 	CancelWindows = 0;
 	bComboWindow = false;
 	Warp.Reset();
-	EndHitStop();
 	OnEnded.Broadcast(bInterrupted);
 }
 

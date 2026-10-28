@@ -131,9 +131,8 @@ private:
 	/** Closes in on the target while a Warp Window is open. */
 	void UpdateWarp(float DeltaTime);
 
-	/** Freezes attacker and target for the attack's Hit Stop. */
-	void StartHitStop(AActor* HitTarget, float Duration);
-	void EndHitStop();
+	/** Freezes attacker and target for the hit's Hit Stop, the attack's or the defending item's, and slows a parried attacker. */
+	void DilateTime(const FKzComboHit& Hit, AActor& HitActor);
 
 	void SetCancelWindows(int32 Count);
 	void End(bool bInterrupted);
@@ -186,8 +185,4 @@ private:
 
 	/** What the Hit Window has hit, so each target takes one hit. */
 	TSet<TWeakObjectPtr<AActor>> HitActors;
-
-	/** Actors frozen by a Hit Stop, with the dilation they had, and the real time it has left. */
-	TArray<TPair<TWeakObjectPtr<AActor>, float>> Frozen;
-	float HitStopLeft = 0.0f;
 };
