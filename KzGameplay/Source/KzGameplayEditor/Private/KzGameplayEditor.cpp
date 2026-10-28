@@ -13,6 +13,7 @@
 #include "Animation/KzAnimationPreview.h"
 #include "Animation/KzAnimationSource.h"
 #include "Combat/KzComboEditor.h"
+#include "Combat/KzComboNodeBodies.h"
 #include "Combat/KzComboGraph.h"
 
 #include "Editors/KzArrayAssetEditor.h"
@@ -104,11 +105,13 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
 	KzAnimationPreview::RegisterMontagePreview();
+	KzComboNodeBodies::Register();
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
 {
 	KzAnimationPreview::Unregister(UKzAnimationSource_MontageBase::StaticClass());
+	KzComboNodeBodies::Unregister();
 	FKzGameplayEditorStyle::Shutdown();
 }
 
