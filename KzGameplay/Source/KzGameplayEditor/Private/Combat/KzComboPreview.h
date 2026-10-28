@@ -34,6 +34,7 @@ public:
 	virtual void Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	virtual void DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas& Canvas) override;
 	virtual FBox GetBounds() const override;
+	virtual TOptional<FRotator> GetViewRotation() const override { return (-FKzComboStage::GetViewDirection()).Rotation(); }
 	virtual TSharedPtr<SWidget> MakeBottomPanel() override;
 	virtual bool HandleClick(HHitProxy* HitProxy) override;
 	virtual TOptional<FTransform> GetGizmoTransform() const override;

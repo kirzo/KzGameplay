@@ -75,11 +75,27 @@ bool FKzComboNodeRenderer::IsSelected(const UKzEdGraphNode& Node) const
 void FKzComboNodeRenderer::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Stage.AddReferencedObjects(Collector);
-	Collector.AddReferencedObject(Capture);
+	for (TPair<TWeakObjectPtr<UTextureRenderTarget2D>, TObjectPtr<USceneCaptureComponent2D>>& Pair : Captures)
+	{
+		Collector.AddReferencedObject(Pair.Value);
+	}
 }
 
 void FKzComboNodeRenderer::Tick(float DeltaTime)
 {
+	// The cameras of nodes that are gone go with them.
+	for (auto It = Captures.CreateIterator(); It; ++It)
+	{
+		if (!It.Key().IsValid())
+		{
+			if (Scene && It.Value())
+			{
+				Scene->RemoveComponent(It.Value());
+			}
+			It.RemoveCurrent();
+		}
+	}
+
 	if (Requests.IsEmpty())
 	{
 		return;
@@ -116,8 +132,7 @@ void FKzComboNodeRenderer::Tick(float DeltaTime)
 
 		Animation->SetTime(Time);
 		Scene->GetWorld()->Tick(LEVELTICK_All, PoseDeltaTime);
-		Capture->TextureTarget = Target;
-		Capture->CaptureScene();
+		GetCapture(*Target).CaptureScene();
 	}
 }
 
@@ -139,17 +154,6 @@ bool FKzComboNodeRenderer::Prepare(const UKzEdGraphNode& Node)
 	{
 		Scene = MakeUnique<FAdvancedPreviewScene>(FPreviewScene::ConstructionValues());
 		Scene->GetWorld()->GetWorldSettings()->MinUndilatedFrameTime = 0.0f;
-
-		// Captured on demand only, without the temporal effects a single frame cannot settle.
-		Capture = NewObject<USceneCaptureComponent2D>(GetTransientPackage(), NAME_None, RF_Transient);
-		Capture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
-		Capture->bCaptureEveryFrame = false;
-		Capture->bCaptureOnMovement = false;
-		Capture->bAlwaysPersistRenderingState = true;
-		Capture->FOVAngle = FieldOfView;
-		Capture->ShowFlags.SetTemporalAA(false);
-		Capture->ShowFlags.SetMotionBlur(false);
-		Scene->AddComponent(Capture, FTransform::Identity);
 	}
 
 	if (Stage.Update(*Scene, *Asset))
@@ -187,7 +191,7 @@ bool FKzComboNodeRenderer::Prepare(const UKzEdGraphNode& Node)
 void FKzComboNodeRenderer::Frame()
 {
 	const USkeletalMeshComponent* Mesh = Stage.GetMesh();
-	if (!Mesh || !Capture)
+	if (!Mesh)
 	{
 		return;
 	}
@@ -196,6 +200,34 @@ void FKzComboNodeRenderer::Frame()
 	const FBoxSphereBounds Bounds = Mesh->CalcBounds(Mesh->GetComponentTransform());
 	const float HalfHeightAngle = FMath::Atan(FMath::Tan(FMath::DegreesToRadians(FieldOfView * 0.5f)) * static_cast<float>(Height) / Width);
 	const float Distance = Bounds.SphereRadius * 1.1f / FMath::Sin(HalfHeightAngle);
-	const FVector Direction = FVector(1.0, 0.6, 0.3).GetSafeNormal();
-	Capture->SetWorldLocationAndRotation(Bounds.Origin + Direction * Distance, (-Direction).Rotation());
+	const FVector Direction = FKzComboStage::GetViewDirection();
+	CameraTransform = FTransform((-Direction).Rotation(), Bounds.Origin + Direction * Distance);
+
+	for (const TPair<TWeakObjectPtr<UTextureRenderTarget2D>, TObjectPtr<USceneCaptureComponent2D>>& Pair : Captures)
+	{
+		if (Pair.Value)
+		{
+			Pair.Value->SetWorldTransform(CameraTransform);
+		}
+	}
+}
+
+USceneCaptureComponent2D& FKzComboNodeRenderer::GetCapture(UTextureRenderTarget2D& Target)
+{
+	TObjectPtr<USceneCaptureComponent2D>& Capture = Captures.FindOrAdd(&Target);
+	if (!Capture)
+	{
+		// Captured on demand, its rendering state kept between captures so exposure and the temporal effects can settle.
+		Capture = NewObject<USceneCaptureComponent2D>(GetTransientPackage(), NAME_None, RF_Transient);
+		Capture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+		Capture->bCaptureEveryFrame = false;
+		Capture->bCaptureOnMovement = false;
+		Capture->bAlwaysPersistRenderingState = true;
+		Capture->FOVAngle = FieldOfView;
+		Capture->ShowFlags.SetTemporalAA(false);
+		Capture->ShowFlags.SetMotionBlur(false);
+		Capture->TextureTarget = &Target;
+		Scene->AddComponent(Capture, CameraTransform);
+	}
+	return *Capture;
 }

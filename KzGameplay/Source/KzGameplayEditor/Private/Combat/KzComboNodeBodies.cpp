@@ -29,6 +29,7 @@
 namespace
 {
 	constexpr int32 BodyWidth = FKzComboNodeRenderer::Width;
+	constexpr int32 SettleFrames = 30;
 	const FLinearColor ChipTextColor(FColor(0xDD, 0xE1, 0xE6));
 	const FLinearColor WarningColor(0.95f, 0.45f, 0.2f);
 
@@ -82,16 +83,18 @@ namespace
 				return;
 			}
 
+			// One capture comes out dark and grainy until exposure and the temporal effects settle, so the rest pose is shot for a while.
 			const bool bLive = IsHovered() || Renderer->IsSelected(*EdNode);
 			if (bLive)
 			{
 				Time = bWasLive ? Time + InDeltaTime : 0.0f;
 				Renderer->Request(*EdNode, Time, *Target);
+				PoseFrames = 0;
 			}
-			else if (bWasLive || !bPosed)
+			else if (PoseFrames < SettleFrames)
 			{
 				Renderer->Request(*EdNode, TOptional<float>(), *Target);
-				bPosed = true;
+				PoseFrames++;
 			}
 			bWasLive = bLive;
 		}
@@ -119,7 +122,7 @@ namespace
 		FSlateBrush Brush;
 		float Time = 0.0f;
 		bool bWasLive = false;
-		bool bPosed = false;
+		int32 PoseFrames = 0;
 	};
 
 	/** The attack's windows along its length, one lane per kind, as the viewport's track shows them. */

@@ -22,6 +22,9 @@ public:
 	/** Puts in the scene what the combo's preview settings name, if they changed since last time. True when it changed anything. */
 	bool Update(FPreviewScene& Scene, const UKzComboGraph& Combo);
 
+	/** Where the previews look at the character from: its front and a side, a little from above. */
+	static FVector GetViewDirection() { return FVector(1.0, 0.6, 0.3).GetSafeNormal(); }
+
 	AActor* GetCharacter() const { return Character; }
 	USkeletalMeshComponent* GetMesh() const { return Mesh; }
 

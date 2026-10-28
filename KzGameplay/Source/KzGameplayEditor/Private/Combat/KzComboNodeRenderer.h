@@ -58,13 +58,17 @@ private:
 	/** Poses the node's attack on the stage; false when it has nothing to show. */
 	bool Prepare(const UKzEdGraphNode& Node);
 
-	/** Puts the camera on the character, seen from the front and a side. */
+	/** Puts the cameras on the character, seen from the front and a side. */
 	void Frame();
+
+	/** Target's own camera, which keeps its own rendering history so the frames it settles over are its own. */
+	USceneCaptureComponent2D& GetCapture(UTextureRenderTarget2D& Target);
 
 	TWeakObjectPtr<UKzComboGraph> Combo;
 	TUniquePtr<FAdvancedPreviewScene> Scene;
 	FKzComboStage Stage;
-	TObjectPtr<USceneCaptureComponent2D> Capture;
+	TMap<TWeakObjectPtr<UTextureRenderTarget2D>, TObjectPtr<USceneCaptureComponent2D>> Captures;
+	FTransform CameraTransform;
 
 	TWeakObjectPtr<const UKzEdGraphNode> PreparedNode;
 	TSharedPtr<FKzAnimationPreview> Animation;
