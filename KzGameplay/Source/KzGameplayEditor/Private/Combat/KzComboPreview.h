@@ -4,19 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationSource.h"
+#include "Combat/KzComboStage.h"
 #include "KzGraphPreview.h"
 #include "ScopedTransaction.h"
 #include "UObject/GCObject.h"
-#include "UObject/SoftObjectPtr.h"
 
 class FKzAnimationPreview;
+class FKzComboNodeRenderer;
 class UKzComboGraph;
 class UKzEdGraphNode;
-class UKzItemDefinition;
-class UMeshComponent;
 class USceneComponent;
-class USkeletalMesh;
-class USkeletalMeshComponent;
 struct FKzComboHitbox;
 struct FKzComboNode_Attack;
 
@@ -65,12 +62,6 @@ private:
 		FTransform Transform;
 	};
 
-	/** Puts the character the combo's settings name in the scene. */
-	void ShowCharacter();
-
-	/** Hangs the preview item on the character as equipping it would. */
-	void ShowItem();
-
 	/** Plays the selected attack's animation on the character, keeping the playhead where it was. */
 	void ShowAnimation();
 
@@ -86,12 +77,10 @@ private:
 
 	TWeakObjectPtr<UKzComboGraph> Combo;
 	FAdvancedPreviewScene* Scene = nullptr;
-	TObjectPtr<AActor> Character;
-	TObjectPtr<USkeletalMeshComponent> Mesh;
+	FKzComboStage Stage;
 
-	/** The preview item, as an actor or as a mesh, as its Equippable fragment spawns it. */
-	TObjectPtr<AActor> Weapon;
-	TObjectPtr<UMeshComponent> WeaponMesh;
+	/** Renders the previews in the combo's nodes, kept while the editor is open so they know the selection. */
+	TSharedPtr<FKzComboNodeRenderer> NodeRenderer;
 
 	TWeakObjectPtr<UKzEdGraphNode> SelectedNode;
 	TSharedPtr<FKzAnimationPreview> Animation;
@@ -110,9 +99,4 @@ private:
 
 	/** The playhead on the last tick, to tell when it went round. */
 	float LastTime = 0.0f;
-
-	/** The settings the scene was made from, to make it again when they change. */
-	TSoftClassPtr<AActor> ShownCharacter;
-	TSoftObjectPtr<USkeletalMesh> ShownMesh;
-	TSoftObjectPtr<UKzItemDefinition> ShownItem;
 };

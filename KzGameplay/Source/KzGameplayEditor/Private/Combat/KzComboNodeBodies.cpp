@@ -3,32 +3,32 @@
 #include "Combat/KzComboNodeBodies.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Animation/KzAnimationSource.h"
-#include "AssetThumbnail.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Combat/KzComboGraph.h"
+#include "Combat/KzComboNodeRenderer.h"
 #include "Combat/KzComboNodes.h"
 #include "EdGraph/EdGraph.h"
 #include "Editor.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
 #include "KzGraphEditorUtils.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
 #include "Subsystems/AssetEditorSubsystem.h"
-#include "ThumbnailRendering/ThumbnailManager.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SLeafWidget.h"
 #include "Widgets/Text/STextBlock.h"
+#include "UObject/GCObject.h"
 
 #define LOCTEXT_NAMESPACE "KzComboNodeBodies"
 
 namespace
 {
-	constexpr int32 BodyWidth = 192;
-	constexpr int32 ThumbnailHeight = 108;
+	constexpr int32 BodyWidth = FKzComboNodeRenderer::Width;
 	const FLinearColor ChipTextColor(FColor(0xDD, 0xE1, 0xE6));
 	const FLinearColor WarningColor(0.95f, 0.45f, 0.2f);
 
@@ -46,6 +46,81 @@ namespace
 		Context.Item = Combo ? Combo->PreviewItem.LoadSynchronous() : nullptr;
 		return Context;
 	}
+
+	/** The attack on the combo's preview character: posed where it shows best, and playing while hovered or selected. */
+	class SKzAttackPreview : public SLeafWidget, public FGCObject
+	{
+	public:
+		SLATE_BEGIN_ARGS(SKzAttackPreview) {}
+		SLATE_END_ARGS()
+
+		void Construct(const FArguments& InArgs, const UKzEdGraphNode& InNode, const TSharedRef<FKzComboNodeRenderer>& InRenderer)
+		{
+			Node = &InNode;
+			Renderer = InRenderer;
+			Renderer->Invalidate(InNode);
+
+			Target = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+			Target->ClearColor = FLinearColor(0.015f, 0.015f, 0.015f);
+			Target->InitCustomFormat(FKzComboNodeRenderer::Width, FKzComboNodeRenderer::Height, PF_B8G8R8A8, false);
+			Target->UpdateResourceImmediate(true);
+
+			Brush.SetResourceObject(Target);
+			Brush.ImageSize = FVector2D(FKzComboNodeRenderer::Width, FKzComboNodeRenderer::Height);
+		}
+
+		virtual FVector2D ComputeDesiredSize(float) const override
+		{
+			return FVector2D(FKzComboNodeRenderer::Width, FKzComboNodeRenderer::Height);
+		}
+
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override
+		{
+			const UKzEdGraphNode* EdNode = Node.Get();
+			if (!EdNode || !Target)
+			{
+				return;
+			}
+
+			const bool bLive = IsHovered() || Renderer->IsSelected(*EdNode);
+			if (bLive)
+			{
+				Time = bWasLive ? Time + InDeltaTime : 0.0f;
+				Renderer->Request(*EdNode, Time, *Target);
+			}
+			else if (bWasLive || !bPosed)
+			{
+				Renderer->Request(*EdNode, TOptional<float>(), *Target);
+				bPosed = true;
+			}
+			bWasLive = bLive;
+		}
+
+		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+		{
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), &Brush);
+			return LayerId;
+		}
+
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+		{
+			Collector.AddReferencedObject(Target);
+		}
+
+		virtual FString GetReferencerName() const override
+		{
+			return TEXT("SKzAttackPreview");
+		}
+
+	private:
+		TWeakObjectPtr<const UKzEdGraphNode> Node;
+		TSharedPtr<FKzComboNodeRenderer> Renderer;
+		TObjectPtr<UTextureRenderTarget2D> Target;
+		FSlateBrush Brush;
+		float Time = 0.0f;
+		bool bWasLive = false;
+		bool bPosed = false;
+	};
 
 	/** The attack's windows along its length, one lane per kind, as the viewport's track shows them. */
 	class SKzAttackWindows : public SLeafWidget
@@ -132,27 +207,17 @@ namespace
 		}
 
 		const FKzAnimationContext Context = MakeContext(Node);
-		UObject* Asset = Attack->Animation ? Attack->Animation->GetAsset(Context) : nullptr;
 		TArray<FKzAnimationNotifySpan> Spans;
 		const float Length = Attack->Animation ? Attack->Animation->GetTimeline(Context, Spans) : 0.0f;
 
 		const TSharedRef<SVerticalBox> Body = SNew(SVerticalBox);
-		if (Asset)
+		if (UKzComboGraph* Combo = Attack->Animation ? Cast<UKzComboGraph>(KzGraphEditor::GetGraphAsset(Node.GetGraph())) : nullptr)
 		{
-			// Hovering it renders it live.
-			const TSharedRef<FAssetThumbnail> Thumbnail = MakeShared<FAssetThumbnail>(Asset, BodyWidth, ThumbnailHeight, UThumbnailManager::Get().GetSharedThumbnailPool());
-			FAssetThumbnailConfig Config;
-			Config.ThumbnailLabel = EThumbnailLabel::NoLabel;
 			Body->AddSlot()
 			.AutoHeight()
 			.Padding(0.0f, 0.0f, 0.0f, 4.0f)
 			[
-				SNew(SBox)
-				.WidthOverride(BodyWidth)
-				.HeightOverride(ThumbnailHeight)
-				[
-					Thumbnail->MakeThumbnailWidget(Config)
-				]
+				SNew(SKzAttackPreview, Node, FKzComboNodeRenderer::Get(*Combo))
 			];
 		}
 
