@@ -33,15 +33,31 @@ FTransform FKzComboHitbox::GetTransform(const USceneComponent& Parent) const
 	return Offset * Parent.GetSocketTransform(Socket);
 }
 
+FName FKzComboOpener::GetOutputName() const
+{
+	return FName(FString::Printf(TEXT("%s(%s)"), *Input.ToString(), *RequiredTags.ToStringSimple()));
+}
+
+FName FKzComboNode_Entry::GetOutputName(FGameplayTag Input, const FGameplayTagContainer& AttackerTags) const
+{
+	const FKzComboOpener* Opener = Openers.FindByPredicate([&](const FKzComboOpener& Each) { return Each.Input == Input && AttackerTags.HasAll(Each.RequiredTags); });
+	return Opener ? Opener->GetOutputName() : Input.GetTagName();
+}
+
 #if WITH_EDITOR
 namespace
 {
-	FText GetInputLabel(FGameplayTag Input)
+	FString GetLeaf(FGameplayTag Tag)
 	{
-		const FString Path = Input.ToString();
+		const FString Path = Tag.ToString();
 		FString Leaf = Path;
 		Path.Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		return FText::FromString(Leaf);
+		return Leaf;
+	}
+
+	FText GetInputLabel(FGameplayTag Input)
+	{
+		return FText::FromString(GetLeaf(Input));
 	}
 }
 
@@ -59,6 +75,22 @@ void FKzComboNode_Entry::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPin
 		{
 			OutPins.Add({ Input.GetTagName(), GetInputLabel(Input), NAME_None, LOCTEXT("EntryOutputTooltip", "The attack this input starts the combo with.") });
 		}
+	}
+
+	for (const FKzComboOpener& Opener : Openers)
+	{
+		if (!Opener.Input.IsValid())
+		{
+			continue;
+		}
+
+		TArray<FString> States;
+		for (const FGameplayTag Tag : Opener.RequiredTags)
+		{
+			States.Add(GetLeaf(Tag));
+		}
+		const FText Label = FText::Format(LOCTEXT("OpenerLabel", "{0} ({1})"), GetInputLabel(Opener.Input), FText::FromString(FString::Join(States, TEXT(", "))));
+		OutPins.Add({ Opener.GetOutputName(), Label, NAME_None, FText::Format(LOCTEXT("OpenerTooltip", "The attack this input starts the combo with while the attacker has {0}."), FText::FromString(Opener.RequiredTags.ToStringSimple())) });
 	}
 }
 

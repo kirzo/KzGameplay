@@ -1,15 +1,22 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzComboInstance.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemGlobals.h"
 #include "Animation/KzAnimationSource.h"
+#include "Combat/KzCombatLibrary.h"
 #include "Combat/KzCombatNotifies.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "Items/KzItemDefinition.h"
 #include "KzDrawDebugHelpers.h"
+#include "Scoring/KzTargetScoringLibrary.h"
+#include "Sensors/KzSensorComponent.h"
 
 namespace
 {
@@ -18,9 +25,17 @@ namespace
 	// A swing turns what holds the hitbox this much at most between two sweeps, so the sweep follows the arc instead of cutting across it.
 	constexpr float MaxStepAngle = UE_DOUBLE_PI / 18.0;
 	constexpr int32 MaxSteps = 8;
+
+	// Zero would stop the actor's tick from advancing anything, timers on it included.
+	constexpr float HitStopDilation = 0.01f;
+
+	FVector Flatten(const FVector& Vector)
+	{
+		return FVector(Vector.X, Vector.Y, 0.0);
+	}
 }
 
-UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzComboContext& Context, FGameplayTag Input)
+UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzComboContext& Context, FGameplayTag Input, FVector Direction)
 {
 	if (!Combo || !Context.Mesh)
 	{
@@ -29,8 +44,22 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 
 	const FKzGraphData& Data = Combo->GetData();
 	const int32 Entry = Data.FindEntry(FKzComboNode_Entry::EntryName);
-	const int32 Output = Entry != INDEX_NONE ? Data.FindOutput(Entry, Input.GetTagName()) : INDEX_NONE;
-	const TConstArrayView<FKzGraphLink> Links = Output != INDEX_NONE ? Data.GetLinks(Entry, Output) : TConstArrayView<FKzGraphLink>();
+	const FKzComboNode_Entry* EntryNode = Entry != INDEX_NONE ? Data.GetNode<FKzComboNode_Entry>(Entry) : nullptr;
+	if (!EntryNode)
+	{
+		return nullptr;
+	}
+
+	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User);
+	const int32 Opener = Data.FindOutput(Entry, EntryNode->GetOutputName(Input, ASC ? ASC->GetOwnedGameplayTags() : FGameplayTagContainer()));
+	const int32 Plain = Data.FindOutput(Entry, Input.GetTagName());
+
+	// An opener left unlinked starts as the input does.
+	TConstArrayView<FKzGraphLink> Links = Opener != INDEX_NONE ? Data.GetLinks(Entry, Opener) : TConstArrayView<FKzGraphLink>();
+	if (Links.IsEmpty() && Plain != INDEX_NONE)
+	{
+		Links = Data.GetLinks(Entry, Plain);
+	}
 	if (Links.IsEmpty())
 	{
 		return nullptr;
@@ -40,10 +69,10 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	Instance->Combo = Combo;
 	Instance->Context = Context;
 	Instance->bRunning = true;
-	return Instance->PlayAttack(Links[0].Node) ? Instance : nullptr;
+	return Instance->PlayAttack(Links[0].Node, Direction) ? Instance : nullptr;
 }
 
-void UKzComboInstance::Press(FGameplayTag Input)
+void UKzComboInstance::Press(FGameplayTag Input, FVector Direction)
 {
 	if (!bRunning)
 	{
@@ -52,12 +81,13 @@ void UKzComboInstance::Press(FGameplayTag Input)
 
 	if (bComboWindow)
 	{
-		Chain(Input);
+		Chain(Input, Direction);
 		return;
 	}
 
 	KeptInput = Input;
-	KeptAt = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+	KeptDirection = Direction;
+	KeptAt = Clock;
 }
 
 void UKzComboInstance::Stop(float BlendOut)
@@ -76,6 +106,20 @@ UWorld* UKzComboInstance::GetWorld() const
 
 void UKzComboInstance::Tick(float DeltaTime)
 {
+	if (HitStopLeft > 0.0f)
+	{
+		HitStopLeft -= DeltaTime;
+		if (HitStopLeft <= 0.0f)
+		{
+			EndHitStop();
+		}
+	}
+
+	const float UserDeltaTime = DeltaTime * (Context.User ? Context.User->CustomTimeDilation : 1.0f);
+	Clock += UserDeltaTime;
+
+	UpdateFacing(UserDeltaTime);
+	UpdateWarp(UserDeltaTime);
 	if (HitWindows > 0)
 	{
 		SweepHitboxes();
@@ -87,7 +131,7 @@ TStatId UKzComboInstance::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UKzComboInstance, STATGROUP_Tickables);
 }
 
-bool UKzComboInstance::PlayAttack(int32 NodeIndex)
+bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 {
 	const FKzComboNode_Attack* Attack = Combo->GetData().GetNode<FKzComboNode_Attack>(NodeIndex);
 	FKzAnimationContext AnimationContext;
@@ -108,32 +152,43 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex)
 	bHit = false;
 	bComboWindow = false;
 	HitWindows = 0;
+	bOpenedHitWindow = false;
+	Reaction = FGameplayTag();
 	KeptInput = FGameplayTag();
+	Warp.Reset();
 	HitActors.Reset();
 	PreviousParents.Init(TOptional<FTransform>(), Attack->Hitboxes.Num());
+	SetCancelWindows(0);
+
+	FacingDirection = Flatten(Direction.IsNearlyZero() && Context.User ? Context.User->GetActorForwardVector() : Direction);
+	Target = FindTarget(FacingDirection);
+	UpdateFacing(0.0f);
 
 	Play->OnNotify.AddUObject(this, &UKzComboInstance::OnNotify);
 	Play->OnEnded.AddUObject(this, &UKzComboInstance::OnAttackEnded);
 	return true;
 }
 
-bool UKzComboInstance::Chain(FGameplayTag Input)
+bool UKzComboInstance::Chain(FGameplayTag Input, const FVector& Direction)
 {
 	const FKzComboNode_Attack* Attack = GetAttack();
 	const FKzGraphData& Data = Combo->GetData();
 	const int32 Output = Attack ? Data.FindOutput(Node, Attack->GetOutputName(Input, bHit)) : INDEX_NONE;
 	const TConstArrayView<FKzGraphLink> Links = Output != INDEX_NONE ? Data.GetLinks(Node, Output) : TConstArrayView<FKzGraphLink>();
-	return !Links.IsEmpty() && PlayAttack(Links[0].Node);
+	return !Links.IsEmpty() && PlayAttack(Links[0].Node, Direction);
 }
 
-void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin)
+void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration)
 {
-	if (Notify->IsA<UKzAnimNotifyState_HitWindow>())
+	if (const UKzAnimNotifyState_HitWindow* HitWindow = Cast<UKzAnimNotifyState_HitWindow>(Notify))
 	{
-		// Each window sweeps from where it opens, and once more as it closes, for the stretch since the last tick.
+		// Each window hits each target once, sweeping from where it opens, and once more as it closes, for the stretch since the last tick.
 		if (bBegin)
 		{
 			HitWindows++;
+			bOpenedHitWindow = true;
+			Reaction = HitWindow->Reaction;
+			HitActors.Reset();
 			PreviousParents.Init(TOptional<FTransform>(), PreviousParents.Num());
 			SweepHitboxes();
 		}
@@ -152,12 +207,32 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 	if (Notify->IsA<UKzAnimNotifyState_ComboWindow>())
 	{
 		bComboWindow = bBegin;
-		const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
-		if (bBegin && KeptInput.IsValid() && Now - KeptAt <= Combo->InputBuffer)
+		if (bBegin && KeptInput.IsValid() && Clock - KeptAt <= Combo->InputBuffer)
 		{
 			const FGameplayTag Input = KeptInput;
 			KeptInput = FGameplayTag();
-			Chain(Input);
+			Chain(Input, KeptDirection);
+		}
+		return;
+	}
+
+	if (Notify->IsA<UKzAnimNotifyState_CancelWindow>())
+	{
+		SetCancelWindows(FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0));
+		return;
+	}
+
+	if (Notify->IsA<UKzAnimNotifyState_WarpWindow>())
+	{
+		if (bBegin)
+		{
+			Warp = Notify;
+			WarpTimeLeft = Duration;
+			WarpMoved = 0.0f;
+		}
+		else if (Warp == Notify)
+		{
+			Warp.Reset();
 		}
 	}
 }
@@ -225,18 +300,32 @@ void UKzComboInstance::SweepHitboxes()
 
 			for (const FHitResult& Hit : Hits)
 			{
-				AActor* Target = Hit.GetActor();
-				if (!Target || HitActors.Contains(Target))
+				AActor* HitActor = Hit.GetActor();
+				if (!HitActor || HitActors.Contains(HitActor))
 				{
 					continue;
 				}
 
-				HitActors.Add(Target);
-				bHit = true;
-
 				FKzComboHit ComboHit;
 				ComboHit.Hit = Hit;
+				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, Attack->AttackTags);
 				ComboHit.DamageMultiplier = Attack->DamageMultiplier;
+				ComboHit.Reaction = Reaction;
+				ComboHit.AttackTags = Attack->AttackTags;
+				ComboHit.ImpactCue = Attack->ImpactCue;
+
+				// Ignored targets can still be hit if they stop being invulnerable while the window lasts.
+				if (!ComboHit.Counts())
+				{
+					continue;
+				}
+
+				HitActors.Add(HitActor);
+				bHit = true;
+				if (ComboHit.Result == EKzHitResult::Hit && Attack->HitStop > 0.0f)
+				{
+					StartHitStop(HitActor, Attack->HitStop);
+				}
 				OnHit.Broadcast(ComboHit);
 
 				// Whoever heard it may have stopped the combo or chained another attack.
@@ -247,6 +336,143 @@ void UKzComboInstance::SweepHitboxes()
 			}
 			Previous = Current;
 		}
+	}
+}
+
+AActor* UKzComboInstance::FindTarget(const FVector& Direction) const
+{
+	if (Context.Target)
+	{
+		return Context.Target;
+	}
+
+	const AActor* User = Context.User;
+	if (!Context.Sensor || !User)
+	{
+		return nullptr;
+	}
+
+	const FVector Origin = User->GetActorLocation();
+	const double MinDot = FMath::Cos(FMath::DegreesToRadians(Combo->TargetAngle));
+	const FKzTransformSource OriginSource(FTransform(Direction.Rotation(), Origin));
+
+	AActor* Best = nullptr;
+	double BestScore = -UE_BIG_NUMBER;
+	for (const FKzOverlapResult& Overlap : Context.Sensor->GetOverlapInfos())
+	{
+		AActor* Candidate = Overlap.Actor.Get();
+		const FVector ToCandidate = Flatten(Candidate ? Candidate->GetActorLocation() - Origin : FVector::ZeroVector);
+		if (!Candidate || Candidate == User || ToCandidate.IsNearlyZero() || FVector::DotProduct(ToCandidate.GetSafeNormal(), Direction.GetSafeNormal()) < MinDot)
+		{
+			continue;
+		}
+
+		const double Score = Combo->TargetScoring.Entries.IsEmpty() ? -ToCandidate.Size() : UKzTargetScoringLibrary::EvaluateTarget(OriginSource, FKzTransformSource(Candidate), Combo->TargetScoring);
+		if (Score > BestScore)
+		{
+			BestScore = Score;
+			Best = Candidate;
+		}
+	}
+	return Best;
+}
+
+void UKzComboInstance::UpdateFacing(float DeltaTime)
+{
+	const FKzComboNode_Attack* Attack = GetAttack();
+	AActor* User = Context.User;
+	if (!Attack || !Attack->bFaceTarget || bOpenedHitWindow || !User)
+	{
+		return;
+	}
+
+	const AActor* TargetActor = Target.Get();
+	const FVector Direction = TargetActor ? Flatten(TargetActor->GetActorLocation() - User->GetActorLocation()) : FacingDirection;
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	const FRotator Current = User->GetActorRotation();
+	const float Desired = Direction.Rotation().Yaw;
+	const float Yaw = Combo->TurnRate > 0.0f ? FMath::FixedTurn(Current.Yaw, Desired, Combo->TurnRate * DeltaTime) : Desired;
+	User->SetActorRotation(FRotator(Current.Pitch, Yaw, Current.Roll));
+}
+
+void UKzComboInstance::UpdateWarp(float DeltaTime)
+{
+	const UKzAnimNotifyState_WarpWindow* Window = Cast<UKzAnimNotifyState_WarpWindow>(Warp.Get());
+	AActor* User = Context.User;
+	const AActor* TargetActor = Target.Get();
+	if (!Window || !User || !TargetActor || DeltaTime <= 0.0f)
+	{
+		return;
+	}
+
+	const FVector ToTarget = Flatten(TargetActor->GetActorLocation() - User->GetActorLocation());
+	const float Gap = ToTarget.Size() - User->GetSimpleCollisionRadius() - TargetActor->GetSimpleCollisionRadius() - Window->StopDistance;
+	const float Allowed = FMath::Min(Gap, Window->MaxDistance - WarpMoved);
+	if (Allowed <= 0.0f)
+	{
+		return;
+	}
+
+	// What is left spreads over what is left of the window, so a moving target is followed.
+	const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(WarpTimeLeft, DeltaTime));
+	WarpTimeLeft -= DeltaTime;
+	WarpMoved += Step;
+	const FVector Delta = ToTarget.GetSafeNormal() * Step;
+
+	const APawn* Pawn = Cast<APawn>(User);
+	UPawnMovementComponent* Movement = Pawn ? Pawn->GetMovementComponent() : nullptr;
+	if (Movement && Movement->UpdatedComponent)
+	{
+		FHitResult Blocked;
+		Movement->SafeMoveUpdatedComponent(Delta, Movement->UpdatedComponent->GetComponentQuat(), true, Blocked);
+		if (Blocked.IsValidBlockingHit())
+		{
+			Movement->SlideAlongSurface(Delta, 1.0f - Blocked.Time, Blocked.Normal, Blocked);
+		}
+	}
+	else
+	{
+		User->AddActorWorldOffset(Delta, true);
+	}
+}
+
+void UKzComboInstance::StartHitStop(AActor* HitTarget, float Duration)
+{
+	for (AActor* Actor : { static_cast<AActor*>(Context.User), HitTarget })
+	{
+		if (Actor && !Frozen.ContainsByPredicate([Actor](const TPair<TWeakObjectPtr<AActor>, float>& Each) { return Each.Key == Actor; }))
+		{
+			Frozen.Emplace(Actor, Actor->CustomTimeDilation);
+			Actor->CustomTimeDilation = HitStopDilation;
+		}
+	}
+	HitStopLeft = FMath::Max(HitStopLeft, Duration);
+}
+
+void UKzComboInstance::EndHitStop()
+{
+	for (const TPair<TWeakObjectPtr<AActor>, float>& Each : Frozen)
+	{
+		if (AActor* Actor = Each.Key.Get())
+		{
+			Actor->CustomTimeDilation = Each.Value;
+		}
+	}
+	Frozen.Reset();
+	HitStopLeft = 0.0f;
+}
+
+void UKzComboInstance::SetCancelWindows(int32 Count)
+{
+	const bool bWasCancelable = IsCancelable();
+	CancelWindows = Count;
+	if (bWasCancelable != IsCancelable())
+	{
+		OnCancelable.Broadcast(IsCancelable());
 	}
 }
 
@@ -261,7 +487,10 @@ void UKzComboInstance::End(bool bInterrupted)
 	Play.Reset();
 	Node = INDEX_NONE;
 	HitWindows = 0;
+	CancelWindows = 0;
 	bComboWindow = false;
+	Warp.Reset();
+	EndHitStop();
 	OnEnded.Broadcast(bInterrupted);
 }
 

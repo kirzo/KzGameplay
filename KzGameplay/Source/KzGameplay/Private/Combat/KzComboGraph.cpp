@@ -38,9 +38,36 @@ void UKzComboGraph::ValidateGraph(const FKzGraphData& InData, TArray<FKzValidati
 		}
 	}
 
-	if (InData.FindEntry(FKzComboNode_Entry::EntryName) == INDEX_NONE)
+	const int32 Entry = InData.FindEntry(FKzComboNode_Entry::EntryName);
+	if (Entry == INDEX_NONE)
 	{
 		OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("NoEntry", "The combo has no Entry."), NAME_None));
+		return;
+	}
+
+	const FKzComboNode_Entry* EntryNode = InData.GetNode<FKzComboNode_Entry>(Entry);
+	if (!EntryNode)
+	{
+		return;
+	}
+
+	TSet<FName> Openers;
+	for (const FKzComboOpener& Opener : EntryNode->Openers)
+	{
+		bool bListed = false;
+		Openers.Add(Opener.GetOutputName(), &bListed);
+		if (!Inputs.Contains(Opener.Input))
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("OpenerInput", "An opener uses {0}, which is not one of the combo's inputs."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
+		}
+		else if (Opener.RequiredTags.IsEmpty())
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Warning, FText::Format(LOCTEXT("OpenerNoTags", "An opener of {0} requires no tags, so it always wins over the input's own output."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
+		}
+		else if (bListed)
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateOpener", "Two openers of {0} require the same tags."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
+		}
 	}
 }
 #endif

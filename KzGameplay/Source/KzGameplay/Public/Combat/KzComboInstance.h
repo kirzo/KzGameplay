@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/KzCombatTypes.h"
 #include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "Tickable.h"
@@ -12,6 +13,7 @@ class FKzAnimationPlay;
 class UKzAnimationNotifyState;
 class UKzComboGraph;
 class UKzItemDefinition;
+class UKzSensorComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
 struct FKzComboNode_Attack;
@@ -26,13 +28,13 @@ struct KZGAMEPLAY_API FKzComboContext
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<USkeletalMeshComponent> Mesh;
 
-	/** Who attacks: their database answers By Query animations, and their own attacks never hit them. */
+	/** Who attacks: their database answers By Query animations, their tags pick the Entry's openers, and their own attacks never hit them. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> User;
 
 	/** The weapon's item, whose Database fragment answers By Query animations. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
-	TObjectPtr<UKzItemDefinition> Item;
+	TObjectPtr<const UKzItemDefinition> Item;
 
 	/** The weapon in the world, which its hitboxes hang from: the root of its actor, or the mesh equipment spawned for it. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
@@ -41,27 +43,22 @@ struct KZGAMEPLAY_API FKzComboContext
 	/** What hitboxes hit; empty hits every dynamic object, such as pawns, physics bodies and destructibles. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-};
 
-/** Something an attack hit, once per attack. */
-USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzComboHit
-{
-	GENERATED_BODY()
+	/** Finds the targets attacks turn to and close in on. */
+	UPROPERTY(BlueprintReadWrite, Category = "Combo")
+	TObjectPtr<UKzSensorComponent> Sensor;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Combo")
-	FHitResult Hit;
-
-	/** Times the weapon's base damage, as the attack sets it. */
-	UPROPERTY(BlueprintReadOnly, Category = "Combo")
-	float DamageMultiplier = 1.0f;
+	/** The target, for drivers that already know it, such as an AI; it takes the sensor's place. */
+	UPROPERTY(BlueprintReadWrite, Category = "Combo")
+	TObjectPtr<AActor> Target;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzOnComboHit, const FKzComboHit&, Hit);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzOnComboEnded, bool, bInterrupted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzOnComboCancelable, bool, bCancelable);
 
 /**
- * One play of a combo: it keeps the count and reads the graph. It plays each attack, hears its Hit and Combo Windows, sweeps its hitboxes,
+ * One play of a combo: it keeps the count and reads the graph. It plays each attack, turns it to its target, hears its windows, sweeps its hitboxes,
  * and chains the next attack when a press comes inside a Combo Window, or a moment before one opens. Whoever drives it, such as the combo ability,
  * an AI or a Blueprint, starts it, hands it presses, and hears what it hit and when it ended.
  */
@@ -71,13 +68,13 @@ class KZGAMEPLAY_API UKzComboInstance : public UObject, public FTickableGameObje
 	GENERATED_BODY()
 
 public:
-	/** Starts the combo with the input that started it, playing the attack the Entry leads to for it. Null when it leads nowhere. */
+	/** Starts the combo with the input that started it, playing the attack the Entry leads to for it. Direction is where the input points, for picking the target. Null when it leads nowhere. */
 	UFUNCTION(BlueprintCallable, Category = "Combo")
-	static UKzComboInstance* StartCombo(UKzComboGraph* Combo, const FKzComboContext& Context, FGameplayTag Input);
+	static UKzComboInstance* StartCombo(UKzComboGraph* Combo, const FKzComboContext& Context, FGameplayTag Input, FVector Direction);
 
 	/** A press of one of the combo's inputs: chains the attack it leads to inside a Combo Window, or is kept a moment in case one opens. */
 	UFUNCTION(BlueprintCallable, Category = "Combo")
-	void Press(FGameplayTag Input);
+	void Press(FGameplayTag Input, FVector Direction);
 
 	/** Stops the attack and ends the combo, interrupted. */
 	UFUNCTION(BlueprintCallable, Category = "Combo")
@@ -86,12 +83,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combo")
 	bool IsRunning() const { return bRunning; }
 
+	/** Whether a Cancel Window of the attack playing is open. */
+	UFUNCTION(BlueprintPure, Category = "Combo")
+	bool IsCancelable() const { return CancelWindows > 0; }
+
+	/** Who the attack playing goes for, if anyone. */
+	UFUNCTION(BlueprintPure, Category = "Combo")
+	AActor* GetTarget() const { return Target.Get(); }
+
 	UPROPERTY(BlueprintAssignable, Category = "Combo")
 	FKzOnComboHit OnHit;
 
 	/** The last attack ended with nothing chained, something cut it, or it was stopped. */
 	UPROPERTY(BlueprintAssignable, Category = "Combo")
 	FKzOnComboEnded OnEnded;
+
+	/** A Cancel Window opened, or the last one closed. */
+	UPROPERTY(BlueprintAssignable, Category = "Combo")
+	FKzOnComboCancelable OnCancelable;
 
 	virtual UWorld* GetWorld() const override;
 	virtual void Tick(float DeltaTime) override;
@@ -102,17 +111,31 @@ public:
 
 private:
 	/** Plays an attack node in place of the one playing; a node that plays nothing ends the combo. */
-	bool PlayAttack(int32 NodeIndex);
+	bool PlayAttack(int32 NodeIndex, const FVector& Direction);
 
 	/** Plays the attack the input leads to from the current one, given whether it hit. False when it leads nowhere. */
-	bool Chain(FGameplayTag Input);
+	bool Chain(FGameplayTag Input, const FVector& Direction);
 
-	void OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin);
+	void OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration);
 	void OnAttackEnded(bool bInterrupted);
 
 	/** Sweeps every hitbox of the attack from where it was to where it is. */
 	void SweepHitboxes();
 
+	/** The best target the sensor finds around Direction, or the context's own. */
+	AActor* FindTarget(const FVector& Direction) const;
+
+	/** Turns the attacker towards the target, or the direction pressed, until the first Hit Window opens. */
+	void UpdateFacing(float DeltaTime);
+
+	/** Closes in on the target while a Warp Window is open. */
+	void UpdateWarp(float DeltaTime);
+
+	/** Freezes attacker and target for the attack's Hit Stop. */
+	void StartHitStop(AActor* HitTarget, float Duration);
+	void EndHitStop();
+
+	void SetCancelWindows(int32 Count);
 	void End(bool bInterrupted);
 
 	const FKzComboNode_Attack* GetAttack() const;
@@ -127,19 +150,44 @@ private:
 	int32 Node = INDEX_NONE;
 	bool bRunning = false;
 
+	/** The attacker's own time, which stops with it during a Hit Stop. */
+	double Clock = 0.0;
+
 	/** The attack playing has hit something. */
 	bool bHit = false;
 
 	bool bComboWindow = false;
 	int32 HitWindows = 0;
+	int32 CancelWindows = 0;
+
+	/** The attack playing opened a Hit Window, which ends its turning. */
+	bool bOpenedHitWindow = false;
+
+	/** The reaction of the last Hit Window that opened. */
+	FGameplayTag Reaction;
 
 	/** A press that came with no Combo Window open, and when, in case one opens within the combo's InputBuffer. */
 	FGameplayTag KeptInput;
+	FVector KeptDirection = FVector::ZeroVector;
 	double KeptAt = 0.0;
+
+	TWeakObjectPtr<AActor> Target;
+
+	/** Where the attack playing turns to without a target. */
+	FVector FacingDirection = FVector::ZeroVector;
+
+	/** The Warp Window open, if any, how long it has left and how far it moved. */
+	TWeakObjectPtr<const UKzAnimationNotifyState> Warp;
+	float WarpTimeLeft = 0.0f;
+	float WarpMoved = 0.0f;
 
 	/** Per hitbox, where what it hangs from was on the last sweep. */
 	TArray<TOptional<FTransform>> PreviousParents;
 
-	/** What the attack playing has hit, so each target takes one hit. */
+	/** What the Hit Window has hit, so each target takes one hit. */
 	TSet<TWeakObjectPtr<AActor>> HitActors;
+
+	/** Actors frozen by a Hit Stop, with the dilation they had, and the real time it has left. */
+	TArray<TPair<TWeakObjectPtr<AActor>, float>> Frozen;
+	float HitStopLeft = 0.0f;
 };

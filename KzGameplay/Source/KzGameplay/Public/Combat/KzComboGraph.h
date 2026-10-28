@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "KzGraph.h"
+#include "Scoring/KzTargetScoringProfile.h"
 #include "UObject/SoftObjectPtr.h"
 #include "KzComboGraph.generated.h"
 
@@ -26,6 +27,18 @@ public:
 	/** How long before a combo window opens a press is kept, to chain as soon as it opens. Zero takes only presses inside the window. */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (ClampMin = "0", Units = "Seconds"))
 	float InputBuffer = 0.15f;
+
+	/** How far to each side of the direction pressed a target is taken. */
+	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (ClampMin = "0", ClampMax = "180", Units = "Degrees"))
+	float TargetAngle = 60.0f;
+
+	/** Picks among the targets inside that angle; empty takes the closest. */
+	UPROPERTY(EditAnywhere, Category = "Targeting")
+	FKzTargetScoringProfile TargetScoring;
+
+	/** How fast attacks turn to their target; zero turns at once. */
+	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (ClampMin = "0", Units = "DegreesPerSecond"))
+	float TurnRate = 0.0f;
 
 #if WITH_EDITORONLY_DATA
 	/** The character the editor previews attacks on: its mesh, and its database for By Query animations. */

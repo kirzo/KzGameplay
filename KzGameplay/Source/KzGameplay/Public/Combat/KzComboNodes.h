@@ -19,7 +19,23 @@ struct KZGAMEPLAY_API FKzComboNode : public FKzGraphNode
 	GENERATED_BODY()
 };
 
-/** Where a combo starts: one output per input, followed by the input that started it. */
+/** A way to start a combo only in a state, such as attacking while blocking. */
+USTRUCT()
+struct KZGAMEPLAY_API FKzComboOpener
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Opener", meta = (Categories = "Input"))
+	FGameplayTag Input;
+
+	/** What the attacker must have, such as State.Blocking. */
+	UPROPERTY(EditAnywhere, Category = "Opener")
+	FGameplayTagContainer RequiredTags;
+
+	FName GetOutputName() const;
+};
+
+/** Where a combo starts: one output per input, followed by the input that started it, and one per opener. */
 USTRUCT(meta = (DisplayName = "Entry", Hidden))
 struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 {
@@ -27,7 +43,14 @@ struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 
 	static const FName EntryName;
 
+	/** Outputs taken instead of an input's own while the attacker has their tags; the first that matches wins. */
+	UPROPERTY(EditAnywhere, Category = "Entry", meta = (TitleProperty = "Input"))
+	TArray<FKzComboOpener> Openers;
+
 	virtual FName GetEntryName() const override { return EntryName; }
+
+	/** The output an input starts through, given the attacker's tags. */
+	FName GetOutputName(FGameplayTag Input, const FGameplayTagContainer& AttackerTags) const;
 
 #if WITH_EDITOR
 	virtual void GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override {}
@@ -91,12 +114,28 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Attack", meta = (ClampMin = "0"))
 	float DamageMultiplier = 1.0f;
 
+	/** Sent with each hit, for defenses and reactions: Attack.Unblockable, Attack.Undodgeable, Attack.GuardBreak. */
+	UPROPERTY(EditAnywhere, Category = "Attack", meta = (Categories = "Attack"))
+	FGameplayTagContainer AttackTags;
+
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	TArray<FKzComboHitbox> Hitboxes;
 
 	/** Whether each input leads one way when the attack hit and another when it missed. Off, each input has a single output. */
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	bool bBranchOnHit = true;
+
+	/** Turns to the target, or to the direction pressed without one, until the first Hit Window opens. */
+	UPROPERTY(EditAnywhere, Category = "Attack")
+	bool bFaceTarget = true;
+
+	/** How long attacker and target freeze when it hits. */
+	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Seconds"))
+	float HitStop = 0.0f;
+
+	/** Executed on the target when it hits: particles, sound, camera shake, slow motion. */
+	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
+	FGameplayTag ImpactCue;
 
 	/** The output an input leads through once the attack hit or missed. */
 	FName GetOutputName(FGameplayTag Input, bool bHit) const;
