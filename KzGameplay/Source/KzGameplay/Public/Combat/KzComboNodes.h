@@ -56,6 +56,7 @@ struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 	virtual void GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override {}
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual FLinearColor GetColor() const override;
+	virtual FSlateIcon GetIcon() const override;
 	virtual bool CanUserDelete() const override { return false; }
 	virtual bool CanDuplicate() const override { return false; }
 #endif
@@ -144,6 +145,7 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual FText GetSubtitle() const override;
 	virtual FLinearColor GetColor() const override;
+	virtual FSlateIcon GetIcon() const override;
 	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 #endif
 };

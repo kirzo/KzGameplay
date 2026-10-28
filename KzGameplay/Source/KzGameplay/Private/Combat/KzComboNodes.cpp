@@ -55,6 +55,11 @@ namespace
 		return Leaf;
 	}
 
+	FSlateIcon NodeIcon(const TCHAR* Node)
+	{
+		return FSlateIcon(TEXT("KzGameplayEditorStyle"), *FString::Printf(TEXT("KzGameplay.Combo.Node.%s"), Node));
+	}
+
 	FText GetInputLabel(FGameplayTag Input)
 	{
 		return FText::FromString(GetLeaf(Input));
@@ -92,6 +97,11 @@ void FKzComboNode_Entry::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPin
 		const FText Label = FText::Format(LOCTEXT("OpenerLabel", "{0} ({1})"), GetInputLabel(Opener.Input), FText::FromString(FString::Join(States, TEXT(", "))));
 		OutPins.Add({ Opener.GetOutputName(), Label, NAME_None, FText::Format(LOCTEXT("OpenerTooltip", "The attack this input starts the combo with while the attacker has {0}."), FText::FromString(Opener.RequiredTags.ToStringSimple())) });
 	}
+}
+
+FSlateIcon FKzComboNode_Entry::GetIcon() const
+{
+	return NodeIcon(TEXT("Entry"));
 }
 
 FLinearColor FKzComboNode_Entry::GetColor() const
@@ -142,6 +152,11 @@ void FKzComboNode_Attack::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPi
 FText FKzComboNode_Attack::GetSubtitle() const
 {
 	return Animation ? Animation->GetDescription() : LOCTEXT("NoAnimation", "No animation");
+}
+
+FSlateIcon FKzComboNode_Attack::GetIcon() const
+{
+	return NodeIcon(TEXT("Attack"));
 }
 
 FLinearColor FKzComboNode_Attack::GetColor() const

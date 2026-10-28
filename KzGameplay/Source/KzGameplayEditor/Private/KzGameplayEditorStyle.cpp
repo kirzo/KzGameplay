@@ -51,6 +51,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	const TCHAR* const Fragments[][2] = {
 		{ TEXT("KzItemFragment"), TEXT("ItemFragment") },
 		{ TEXT("KzItemFragment_MeleeWeapon"), TEXT("MeleeWeapon") },
+		{ TEXT("KzItemFragment_Defense"), TEXT("Defense") },
 		{ TEXT("KzItemFragment_InitialStats"), TEXT("InitialStats") },
 		{ TEXT("KzItemFragment_Equippable"), TEXT("EquipmentLayout") },
 		{ TEXT("KzItemFragment_Storable"), TEXT("Inventory") },
@@ -59,6 +60,10 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
+
+	// Combo graph nodes, on their title: an attack is the Melee Weapon's sword
+	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	Set("KzGameplay.Combo.Node.Attack", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/MeleeWeapon"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 
 	// The Database fragment wears KzLib's database
 	if (const TSharedPtr<IPlugin> KzLibPlugin = IPluginManager::Get().FindEnabledPlugin(TEXT("KzLib")))
