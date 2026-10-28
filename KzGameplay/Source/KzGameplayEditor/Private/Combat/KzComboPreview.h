@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationSource.h"
 #include "KzGraphPreview.h"
+#include "ScopedTransaction.h"
 #include "UObject/GCObject.h"
 #include "UObject/SoftObjectPtr.h"
 
@@ -21,7 +22,8 @@ struct FKzComboNode_Attack;
 
 /**
  * The combo editor's viewport: the selected attack's animation on the combo's preview character, holding the preview item, with the attack's hitboxes
- * and the trail they sweep through its Hit Windows. A transport bar under it plays, pauses, steps and scrubs, with the windows as bands.
+ * and the trail they sweep through its Hit Windows. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses,
+ * steps and scrubs, with the windows as bands.
  */
 class FKzComboPreview : public FKzGraphPreview, public FGCObject
 {
@@ -36,6 +38,11 @@ public:
 	virtual void DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas& Canvas) override;
 	virtual FBox GetBounds() const override;
 	virtual TSharedPtr<SWidget> MakeBottomPanel() override;
+	virtual bool HandleClick(HHitProxy* HitProxy) override;
+	virtual TOptional<FTransform> GetGizmoTransform() const override;
+	virtual void MoveGizmo(const FVector& Drag, const FRotator& Rotation) override;
+	virtual void BeginGizmoDrag() override;
+	virtual void EndGizmoDrag() override;
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("FKzComboPreview"); }
@@ -68,6 +75,7 @@ private:
 	void ShowAnimation();
 
 	const FKzComboNode_Attack* GetSelectedAttack() const;
+	const USceneComponent* GetHitboxParent(const FKzComboHitbox& Hitbox) const;
 	TOptional<FTransform> GetHitboxTransform(const FKzComboHitbox& Hitbox) const;
 	bool IsInHitWindow(float Time) const;
 
@@ -87,7 +95,12 @@ private:
 
 	TWeakObjectPtr<UKzEdGraphNode> SelectedNode;
 	TSharedPtr<FKzAnimationPreview> Animation;
+
 	TArray<FKzAnimationNotifySpan> Notifies;
+
+	/** The hitbox of the selected attack the gizmo is on. */
+	int32 SelectedHitbox = INDEX_NONE;
+	TUniquePtr<FScopedTransaction> GizmoTransaction;
 
 	/** Per hitbox of the selected attack, where it went through the Hit Windows played so far. */
 	TArray<TArray<FTrailSample>> Trails;

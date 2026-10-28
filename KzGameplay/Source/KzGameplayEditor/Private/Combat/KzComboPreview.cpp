@@ -17,6 +17,7 @@
 #include "Equipment/KzEquipmentComponent.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Character.h"
+#include "HitProxies.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
@@ -32,6 +33,19 @@
 
 #define LOCTEXT_NAMESPACE "KzComboPreview"
 
+struct HKzComboHitboxProxy : public HHitProxy
+{
+	DECLARE_HIT_PROXY();
+
+	explicit HKzComboHitboxProxy(int32 InIndex) : HHitProxy(HPP_UI), Index(InIndex) {}
+
+	virtual EMouseCursor::Type GetMouseCursor() override { return EMouseCursor::Crosshairs; }
+
+	int32 Index = INDEX_NONE;
+};
+
+IMPLEMENT_HIT_PROXY(HKzComboHitboxProxy, HHitProxy);
+
 namespace
 {
 	constexpr float StepSeconds = 1.0f / 60.0f;
@@ -41,6 +55,7 @@ namespace
 
 	const FLinearColor HitColor(1.0f, 0.2f, 0.15f);
 	const FLinearColor IdleColor(1.0f, 0.75f, 0.2f);
+	const FLinearColor SelectedColor(0.3f, 0.8f, 1.0f);
 	const FLinearColor TrailColor(0.55f, 0.12f, 0.08f);
 
 	// Collision shapes, arrows and the like get in the way of the attack.
@@ -70,7 +85,7 @@ namespace
 
 		virtual FVector2D ComputeDesiredSize(float) const override
 		{
-			return FVector2D(100.0, 22.0);
+			return FVector2D(100.0, 28.0);
 		}
 
 		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
@@ -86,12 +101,21 @@ namespace
 				return LayerId;
 			}
 
+			// One lane per kind of window, so overlapping ones stay readable.
+			TArray<const UClass*> Lanes;
+			for (const FKzAnimationNotifySpan& Span : Pinned->GetNotifies())
+			{
+				Lanes.AddUnique(Span.Notify ? Span.Notify->GetClass() : nullptr);
+			}
+			const float LaneHeight = (Size.Y - 4.0f) / FMath::Max(Lanes.Num(), 1);
+
 			for (const FKzAnimationNotifySpan& Span : Pinned->GetNotifies())
 			{
 				const float Start = Size.X * FMath::Clamp(Span.Start / Length, 0.0f, 1.0f);
 				const float End = Size.X * FMath::Clamp(Span.End / Length, 0.0f, 1.0f);
+				const float Top = 2.0f + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
 				const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
-				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(End - Start, 2.0f), Size.Y - 6.0f), FSlateLayoutTransform(FVector2f(Start, 3.0f))), White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(0.7f));
+				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(End - Start, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(Start, Top))), White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(0.7f));
 			}
 
 			const float Playhead = Size.X * FMath::Clamp(Pinned->GetTime() / Length, 0.0f, 1.0f);
@@ -155,6 +179,10 @@ void FKzComboPreview::OnSelectionChanged(const TSet<UObject*>& Selection)
 	UKzEdGraphNode* Node = Selection.Num() == 1 ? Cast<UKzEdGraphNode>(*Selection.CreateConstIterator()) : nullptr;
 	if (Node && Node->Node.GetPtr<FKzComboNode_Attack>())
 	{
+		if (Node != SelectedNode.Get())
+		{
+			SelectedHitbox = INDEX_NONE;
+		}
 		SelectedNode = Node;
 		ShowAnimation();
 	}
@@ -218,7 +246,12 @@ void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 
 		if (const TOptional<FTransform> Transform = GetHitboxTransform(Hitbox))
 		{
-			Hitbox.Shape.DrawWire(PDI, *Transform, bHitting ? HitColor : IdleColor, bHitting ? 1.5f : 0.75f, SDPG_Foreground);
+			// Thick lines while picking, so a thin outline is easy to click.
+			const bool bSelected = Index == SelectedHitbox;
+			const float Thickness = PDI->IsHitTesting() ? 6.0f : (bSelected || bHitting ? 1.5f : 0.75f);
+			PDI->SetHitProxy(new HKzComboHitboxProxy(Index));
+			Hitbox.Shape.DrawWire(PDI, *Transform, bSelected ? SelectedColor : (bHitting ? HitColor : IdleColor), Thickness, SDPG_Foreground);
+			PDI->SetHitProxy(nullptr);
 		}
 	}
 }
@@ -628,11 +661,74 @@ const FKzComboNode_Attack* FKzComboPreview::GetSelectedAttack() const
 	return Node ? Node->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
 }
 
+const USceneComponent* FKzComboPreview::GetHitboxParent(const FKzComboHitbox& Hitbox) const
+{
+	return Hitbox.FindParent(Mesh, Weapon ? Weapon->GetRootComponent() : WeaponMesh.Get());
+}
+
 TOptional<FTransform> FKzComboPreview::GetHitboxTransform(const FKzComboHitbox& Hitbox) const
 {
-	USceneComponent* WeaponRoot = Weapon ? Weapon->GetRootComponent() : WeaponMesh.Get();
-	const USceneComponent* Parent = Hitbox.FindParent(Mesh, WeaponRoot);
+	const USceneComponent* Parent = GetHitboxParent(Hitbox);
 	return Parent ? Hitbox.GetTransform(*Parent) : TOptional<FTransform>();
+}
+
+bool FKzComboPreview::HandleClick(HHitProxy* HitProxy)
+{
+	if (const HKzComboHitboxProxy* Proxy = HitProxyCast<HKzComboHitboxProxy>(HitProxy))
+	{
+		SelectedHitbox = Proxy->Index;
+		return true;
+	}
+	SelectedHitbox = INDEX_NONE;
+	return false;
+}
+
+TOptional<FTransform> FKzComboPreview::GetGizmoTransform() const
+{
+	const FKzComboNode_Attack* Attack = GetSelectedAttack();
+	return Attack && Attack->Hitboxes.IsValidIndex(SelectedHitbox) ? GetHitboxTransform(Attack->Hitboxes[SelectedHitbox]) : TOptional<FTransform>();
+}
+
+void FKzComboPreview::MoveGizmo(const FVector& Drag, const FRotator& Rotation)
+{
+	UKzEdGraphNode* Node = SelectedNode.Get();
+	FKzComboNode_Attack* Attack = Node ? Node->Node.GetMutablePtr<FKzComboNode_Attack>() : nullptr;
+	if (!Attack || !Attack->Hitboxes.IsValidIndex(SelectedHitbox))
+	{
+		return;
+	}
+
+	FKzComboHitbox& Hitbox = Attack->Hitboxes[SelectedHitbox];
+	const USceneComponent* Parent = GetHitboxParent(Hitbox);
+	if (!Parent)
+	{
+		return;
+	}
+
+	const FTransform ParentTransform = Parent->GetSocketTransform(Hitbox.Socket);
+	FTransform World = Hitbox.Offset * ParentTransform;
+	World.AddToTranslation(Drag);
+	World.SetRotation(Rotation.Quaternion() * World.GetRotation());
+	Hitbox.Offset = World.GetRelativeTransform(ParentTransform);
+	Trails.Reset();
+}
+
+void FKzComboPreview::BeginGizmoDrag()
+{
+	GizmoTransaction = MakeUnique<FScopedTransaction>(LOCTEXT("MoveHitbox", "Move Hitbox"));
+	if (UKzEdGraphNode* Node = SelectedNode.Get())
+	{
+		Node->Modify();
+	}
+}
+
+void FKzComboPreview::EndGizmoDrag()
+{
+	if (UKzEdGraphNode* Node = SelectedNode.Get())
+	{
+		Node->PostEditChange();
+	}
+	GizmoTransaction.Reset();
 }
 
 bool FKzComboPreview::IsInHitWindow(float Time) const
