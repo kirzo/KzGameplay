@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "KzGameplayEditorStyle.h"
+#include "Misc/Paths.h"
 
 FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	: TKzEditorStyle_Base(FName("KzGameplayEditorStyle"))
@@ -65,15 +66,19 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	Set("KzGameplay.Combo.Node.Attack", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/MeleeWeapon"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 
+	// Animation sources wear what they play: the engine's montage here, Limbic's puppeteer below
+	Set("ClassIcon.KzAnimationSource_MontageBase", new FSlateVectorImageBrush(FPaths::EngineContentDir() / TEXT("Editor/Slate/Starship/AssetIcons/AnimMontage_16.svg"), FVector2D(16.0f, 16.0f)));
+
 	// The Database fragment wears KzLib's database
 	if (const TSharedPtr<IPlugin> KzLibPlugin = IPluginManager::Get().FindEnabledPlugin(TEXT("KzLib")))
 	{
 		Set("ClassIcon.KzItemFragment_Database", new FSlateVectorImageBrush(KzLibPlugin->GetBaseDir() / TEXT("Resources/Icons/Database.svg"), FVector2D(16.0f, 16.0f)));
 	}
 
-	// KzGameplayLimbic's pose fragments, direct and by query, wear Limbic's puppeteer through their base
+	// KzGameplayLimbic's pose fragments and actions, direct and by query, wear Limbic's puppeteer through their bases
 	if (const TSharedPtr<IPlugin> Limbic = IPluginManager::Get().FindEnabledPlugin(TEXT("Limbic")))
 	{
 		Set("ClassIcon.KzItemFragment_LimbicPoseBase", new FSlateVectorImageBrush(Limbic->GetBaseDir() / TEXT("Resources/Icons/Puppeteer.svg"), FVector2D(16.0f, 16.0f)));
+		Set("ClassIcon.KzAnimationSource_LimbicActionBase", new FSlateVectorImageBrush(Limbic->GetBaseDir() / TEXT("Resources/Icons/Puppeteer.svg"), FVector2D(16.0f, 16.0f)));
 	}
 }
