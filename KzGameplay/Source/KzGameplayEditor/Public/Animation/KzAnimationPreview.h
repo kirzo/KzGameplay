@@ -23,6 +23,9 @@ public:
 	/** How fast the preview plays, on top of the source's own play rate; below 1 in slow motion. */
 	virtual void SetRate(float Rate) = 0;
 
+	/** The source's own play rate, for editors that move the time themselves at the game's pace. */
+	virtual float GetPlayRate() const { return 1.0f; }
+
 	/** Runs every frame of the preview, for what does not loop on its own. */
 	virtual void Tick(float DeltaTime) {}
 

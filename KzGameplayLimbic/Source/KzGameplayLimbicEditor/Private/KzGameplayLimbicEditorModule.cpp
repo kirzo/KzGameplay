@@ -74,6 +74,11 @@ namespace
 			SetPlaying(bPlaying);
 		}
 
+		virtual float GetPlayRate() const override
+		{
+			return PlayRate;
+		}
+
 		virtual void Tick(float DeltaTime) override
 		{
 			// An action holds at its end; the preview plays it again.

@@ -32,6 +32,7 @@ namespace
 	constexpr int32 SettleFrames = 30;
 	const FLinearColor ChipTextColor(FColor(0xDD, 0xE1, 0xE6));
 	const FLinearColor WarningColor(0.95f, 0.45f, 0.2f);
+	const FLinearColor PlayingColor(FColor(0x34, 0xD1, 0xE0));
 
 	const FSlateBrush* GetChipBrush()
 	{
@@ -102,7 +103,18 @@ namespace
 		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
 		{
 			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), &Brush);
-			return LayerId;
+
+			// The attack the viewport is playing in a whole combo, framed so the graph shows how far it went.
+			const UKzEdGraphNode* EdNode = Node.Get();
+			if (!EdNode || !Renderer->IsPlaying(*EdNode))
+			{
+				return LayerId;
+			}
+
+			const FVector2f Size = AllottedGeometry.GetLocalSize();
+			const TArray<FVector2f> Frame{ FVector2f(1.0f, 1.0f), FVector2f(Size.X - 1.0f, 1.0f), FVector2f(Size.X - 1.0f, Size.Y - 1.0f), FVector2f(1.0f, Size.Y - 1.0f), FVector2f(1.0f, 1.0f) };
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Frame, ESlateDrawEffect::None, PlayingColor, true, 2.0f);
+			return LayerId + 1;
 		}
 
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override

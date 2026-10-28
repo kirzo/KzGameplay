@@ -41,6 +41,10 @@ public:
 	void SetSelection(const TSet<UObject*>& Selection);
 	bool IsSelected(const UKzEdGraphNode& Node) const;
 
+	/** The attack the editor's viewport is playing in a whole combo, which its node marks; none outside one. */
+	void SetPlayingNode(const UKzEdGraphNode* Node);
+	bool IsPlaying(const UKzEdGraphNode& Node) const;
+
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override { return TEXT("FKzComboNodeRenderer"); }
 
@@ -76,4 +80,5 @@ private:
 
 	TMap<TWeakObjectPtr<UTextureRenderTarget2D>, FRequest> Requests;
 	TSet<TWeakObjectPtr<const UObject>> Selected;
+	TWeakObjectPtr<const UKzEdGraphNode> PlayingNode;
 };

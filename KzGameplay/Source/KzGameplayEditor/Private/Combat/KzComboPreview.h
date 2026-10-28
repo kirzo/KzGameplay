@@ -19,12 +19,28 @@ struct FKzComboNode_Attack;
 
 /**
  * The combo editor's viewport: the selected attack's animation on the combo's preview character, holding the preview item, with the attack's hitboxes
- * and the trail they sweep through its Hit Windows. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses,
- * steps and scrubs, with the windows as bands.
+ * and the trail they sweep through its Hit Windows. In combo mode it plays the attacks from the Entry up to the selected one instead, chaining each at
+ * the combo's preview timing. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses, steps and scrubs,
+ * with the windows as bands.
  */
 class FKzComboPreview : public FKzGraphPreview, public FGCObject
 {
 public:
+	/** One attack of what plays, laid on the preview's timeline, in animation time. */
+	struct FStep
+	{
+		TWeakObjectPtr<UKzEdGraphNode> Node;
+		float Start = 0.0f;
+
+		/** When the next attack takes over, or this one ends for the last. */
+		float End = 0.0f;
+		float Length = 0.0f;
+		TArray<FKzAnimationNotifySpan> Notifies;
+
+		/** Chained at its end for want of a Combo Window, which in game would stop the combo there. */
+		bool bNoComboWindow = false;
+	};
+
 	explicit FKzComboPreview(UKzComboGraph& InCombo) : Combo(&InCombo) {}
 
 	virtual void Initialize(FAdvancedPreviewScene& InScene) override;
@@ -46,16 +62,23 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("FKzComboPreview"); }
 
 	float GetLength() const;
-	float GetTime() const;
-	bool IsPlaying() const;
+	float GetTime() const { return Time; }
+	bool IsPlaying() const { return bPlaying; }
 	void TogglePlay();
 
-	/** Pauses and poses the animation at Time, as dragging a playhead does. */
-	void ScrubTo(float Time);
+	/** Pauses and poses the attacks at Time, as dragging a playhead does. */
+	void ScrubTo(float InTime);
 
-	const TArray<FKzAnimationNotifySpan>& GetNotifies() const { return Notifies; }
+	const TArray<FStep>& GetSteps() const { return Steps; }
 
 private:
+	/** A way from the Entry to the selected attack, and the outputs it takes. */
+	struct FPath
+	{
+		TArray<TWeakObjectPtr<UKzEdGraphNode>> Nodes;
+		FText Label;
+	};
+
 	/** A hitbox where it was at a time of the animation. */
 	struct FTrailSample
 	{
@@ -63,13 +86,24 @@ private:
 		FTransform Transform;
 	};
 
-	/** Plays the selected attack's animation on the character, keeping the playhead where it was. */
-	void ShowAnimation();
+	/** Lays out what plays: the selected attack, or in combo mode the attacks of the chosen way to it. Keeps the playhead where it was. */
+	void BuildSteps();
 
-	const FKzComboNode_Attack* GetSelectedAttack() const;
+	/** Every way from the Entry to the selected attack that passes no attack twice, shortest first. */
+	void FindPaths();
+
+	/** Poses the character at Time, putting on the animation of the attack playing then. */
+	void PoseAt(float InTime);
+
+	FKzAnimationContext MakeContext() const;
+	const FStep* GetCurrentStep() const;
+	UKzEdGraphNode* GetShownNode() const;
+	const FKzComboNode_Attack* GetShownAttack() const;
 	const USceneComponent* GetHitboxParent(const FKzComboHitbox& Hitbox) const;
 	TOptional<FTransform> GetHitboxTransform(const FKzComboHitbox& Hitbox) const;
-	bool IsInHitWindow(float Time) const;
+
+	/** Whether the attack playing is inside a Hit Window at its own time LocalTime. */
+	bool IsInHitWindow(float LocalTime) const;
 
 	/** Remembers where the hitboxes are while a Hit Window plays, one sample per frame of the animation. */
 	void RecordTrails();
@@ -80,24 +114,31 @@ private:
 	FAdvancedPreviewScene* Scene = nullptr;
 	FKzComboStage Stage;
 
-	/** Renders the previews in the combo's nodes, kept while the editor is open so they know the selection. */
+	/** Renders the previews in the combo's nodes, kept while the editor is open so they know the selection and the attack playing. */
 	TSharedPtr<FKzComboNodeRenderer> NodeRenderer;
 
 	TWeakObjectPtr<UKzEdGraphNode> SelectedNode;
+
+	/** Whether it plays the way to the selected attack rather than the attack alone, and which way. */
+	bool bComboMode = false;
+	TArray<FPath> Paths;
+	int32 PathIndex = 0;
+
+	TArray<FStep> Steps;
+	int32 CurrentStep = INDEX_NONE;
+
+	/** The animation of the attack playing, posed at each time rather than left to play, so the preview runs the whole timeline. */
 	TSharedPtr<FKzAnimationPreview> Animation;
 
-	TArray<FKzAnimationNotifySpan> Notifies;
-
-	/** The hitbox of the selected attack the gizmo is on. */
-	int32 SelectedHitbox = INDEX_NONE;
-	TUniquePtr<FScopedTransaction> GizmoTransaction;
-
-	/** Per hitbox of the selected attack, where it went through the Hit Windows played so far. */
-	TArray<TArray<FTrailSample>> Trails;
-
+	float Time = 0.0f;
+	bool bPlaying = true;
 	bool bLooping = true;
 	float Rate = 1.0f;
 
-	/** The playhead on the last tick, to tell when it went round. */
-	float LastTime = 0.0f;
+	/** The hitbox of the attack playing the gizmo is on. */
+	int32 SelectedHitbox = INDEX_NONE;
+	TUniquePtr<FScopedTransaction> GizmoTransaction;
+
+	/** Per hitbox of the attack playing, where it went through the Hit Windows played so far. */
+	TArray<TArray<FTrailSample>> Trails;
 };

@@ -72,6 +72,16 @@ bool FKzComboNodeRenderer::IsSelected(const UKzEdGraphNode& Node) const
 	return Selected.Contains(&Node);
 }
 
+void FKzComboNodeRenderer::SetPlayingNode(const UKzEdGraphNode* Node)
+{
+	PlayingNode = Node;
+}
+
+bool FKzComboNodeRenderer::IsPlaying(const UKzEdGraphNode& Node) const
+{
+	return PlayingNode == &Node;
+}
+
 void FKzComboNodeRenderer::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Stage.AddReferencedObjects(Collector);

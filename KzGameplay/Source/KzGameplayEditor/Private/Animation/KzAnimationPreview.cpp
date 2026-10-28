@@ -66,6 +66,11 @@ namespace
 			}
 		}
 
+		virtual float GetPlayRate() const override
+		{
+			return PlayRate;
+		}
+
 		virtual FText GetProblem() const override
 		{
 			return Problem;

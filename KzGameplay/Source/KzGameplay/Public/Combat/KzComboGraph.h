@@ -52,6 +52,10 @@ public:
 	/** The weapon the preview attacks with, whose Database fragment By Query animations ask. */
 	UPROPERTY(EditAnywhere, Category = "Preview")
 	TSoftObjectPtr<UKzItemDefinition> PreviewItem;
+
+	/** Where in each Combo Window the preview of a whole combo presses to chain: 0 as it opens, the fastest combo; 1 as it closes, the slowest. */
+	UPROPERTY(EditAnywhere, Category = "Preview", meta = (ClampMin = "0", ClampMax = "1"))
+	float PreviewChainTiming = 0.0f;
 #endif
 
 #if WITH_EDITOR

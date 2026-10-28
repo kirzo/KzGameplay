@@ -10,15 +10,18 @@
 #include "Combat/KzComboNodeRenderer.h"
 #include "Combat/KzComboNodes.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "EdGraph/EdGraph.h"
 #include "Engine/Engine.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HitProxies.h"
 #include "Items/KzItemDefinition.h"
 #include "KzEdGraphNode.h"
+#include "KzGraphEditorUtils.h"
 #include "SceneManagement.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
@@ -47,12 +50,21 @@ namespace
 	// Short of the end, where an animation that loops starts over.
 	constexpr float EndMargin = 1.0f / 120.0f;
 
+	// Enough ways to a node for any combo a person draws, without walking a tangled graph forever.
+	constexpr int32 MaxPaths = 16;
+	constexpr int32 MaxDepth = 32;
+
 	const FLinearColor HitColor(1.0f, 0.2f, 0.15f);
 	const FLinearColor IdleColor(1.0f, 0.75f, 0.2f);
 	const FLinearColor SelectedColor(0.3f, 0.8f, 1.0f);
 	const FLinearColor TrailColor(0.55f, 0.12f, 0.08f);
 
-	// The attack's length with its windows as bands in their notify's color, and the playhead; dragging scrubs.
+	bool IsComboWindow(const FKzAnimationNotifySpan& Span)
+	{
+		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_ComboWindow>();
+	}
+
+	// The attacks one after another, each with its windows as bands in their notify's color, and the playhead; dragging scrubs.
 	class SKzComboTrack : public SLeafWidget
 	{
 	public:
@@ -84,24 +96,44 @@ namespace
 
 			// One lane per kind of window, so overlapping ones stay readable.
 			TArray<const UClass*> Lanes;
-			for (const FKzAnimationNotifySpan& Span : Pinned->GetNotifies())
+			for (const FKzComboPreview::FStep& Step : Pinned->GetSteps())
 			{
-				Lanes.AddUnique(Span.Notify ? Span.Notify->GetClass() : nullptr);
+				for (const FKzAnimationNotifySpan& Span : Step.Notifies)
+				{
+					Lanes.AddUnique(Span.Notify ? Span.Notify->GetClass() : nullptr);
+				}
 			}
 			const float LaneHeight = (Size.Y - 4.0f) / FMath::Max(Lanes.Num(), 1);
+			auto ToX = [&Size, Length](float Time) { return Size.X * FMath::Clamp(Time / Length, 0.0f, 1.0f); };
 
-			for (const FKzAnimationNotifySpan& Span : Pinned->GetNotifies())
+			const TArray<FKzComboPreview::FStep>& Steps = Pinned->GetSteps();
+			for (int32 Index = 0; Index < Steps.Num(); ++Index)
 			{
-				const float Start = Size.X * FMath::Clamp(Span.Start / Length, 0.0f, 1.0f);
-				const float End = Size.X * FMath::Clamp(Span.End / Length, 0.0f, 1.0f);
-				const float Top = 2.0f + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
-				const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
-				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(End - Start, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(Start, Top))), White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(0.7f));
+				// Each attack shows until the next one takes over.
+				const FKzComboPreview::FStep& Step = Steps[Index];
+				for (const FKzAnimationNotifySpan& Span : Step.Notifies)
+				{
+					const float Start = ToX(FMath::Min(Step.Start + Span.Start, Step.End));
+					const float End = ToX(FMath::Min(Step.Start + Span.End, Step.End));
+					if (End <= Start)
+					{
+						continue;
+					}
+					const float Top = 2.0f + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
+					const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
+					FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(End - Start, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(Start, Top))), White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(0.7f));
+				}
+
+				if (Index > 0)
+				{
+					const float X = ToX(Step.Start);
+					FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(X, 0.0f), FVector2f(X, Size.Y) }, ESlateDrawEffect::None, FLinearColor(1.0f, 1.0f, 1.0f, 0.35f), true, 1.0f);
+				}
 			}
 
-			const float Playhead = Size.X * FMath::Clamp(Pinned->GetTime() / Length, 0.0f, 1.0f);
-			FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(Playhead, 0.0f), FVector2f(Playhead, Size.Y) }, ESlateDrawEffect::None, FLinearColor::White, true, 2.0f);
-			return LayerId + 2;
+			const float Playhead = ToX(Pinned->GetTime());
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(Playhead, 0.0f), FVector2f(Playhead, Size.Y) }, ESlateDrawEffect::None, FLinearColor::White, true, 2.0f);
+			return LayerId + 3;
 		}
 
 		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
@@ -154,7 +186,7 @@ void FKzComboPreview::Initialize(FAdvancedPreviewScene& InScene)
 		NodeRenderer = FKzComboNodeRenderer::Get(*Asset);
 		Stage.Update(InScene, *Asset);
 	}
-	ShowAnimation();
+	BuildSteps();
 }
 
 void FKzComboPreview::OnSelectionChanged(const TSet<UObject*>& Selection)
@@ -164,69 +196,74 @@ void FKzComboPreview::OnSelectionChanged(const TSet<UObject*>& Selection)
 		NodeRenderer->SetSelection(Selection);
 	}
 
-	// Picking anything other than an attack keeps the last one shown, paused; picking one plays it.
+	// Picking anything other than an attack keeps the last one shown, paused; picking one plays it from the start.
 	UKzEdGraphNode* Node = Selection.Num() == 1 ? Cast<UKzEdGraphNode>(*Selection.CreateConstIterator()) : nullptr;
 	if (!Node || !Node->Node.GetPtr<FKzComboNode_Attack>())
 	{
-		if (Animation)
-		{
-			Animation->SetPlaying(false);
-		}
+		bPlaying = false;
 		return;
 	}
 
 	if (Node != SelectedNode.Get())
 	{
-		SelectedHitbox = INDEX_NONE;
+		SelectedNode = Node;
+		PathIndex = 0;
+		Time = 0.0f;
 	}
-	SelectedNode = Node;
-	ShowAnimation();
-	if (Animation)
-	{
-		Animation->SetPlaying(true);
-	}
+	BuildSteps();
+	bPlaying = true;
 }
 
 void FKzComboPreview::OnGraphChanged()
 {
 	const UKzComboGraph* Asset = Combo.Get();
-	if (Scene && Asset && Stage.Update(*Scene, *Asset))
+	if (Scene && Asset)
 	{
-		Animation.Reset();
+		Stage.Update(*Scene, *Asset);
 	}
-	ShowAnimation();
+	BuildSteps();
 }
 
 void FKzComboPreview::Tick(float DeltaTime)
 {
-	if (!Animation)
+	if (Steps.IsEmpty())
 	{
 		return;
 	}
 
-	Animation->Tick(DeltaTime);
-
-	// Without the loop, an attack that went round stops at its end.
-	const float Time = Animation->GetTime();
-	if (!bLooping && Animation->IsPlaying() && Time < LastTime)
+	if (bPlaying)
 	{
-		Animation->SetPlaying(false);
-		Animation->SetTime(FMath::Max(Animation->GetLength() - EndMargin, 0.0f));
+		Time += DeltaTime * Rate * (Animation ? Animation->GetPlayRate() : 1.0f);
+		const float Length = GetLength();
+		if (Time >= Length)
+		{
+			if (bLooping)
+			{
+				Time = Length > 0.0f ? FMath::Fmod(Time, Length) : 0.0f;
+				Trails.Reset();
+			}
+			else
+			{
+				Time = FMath::Max(Length - EndMargin, 0.0f);
+				bPlaying = false;
+			}
+		}
 	}
-	LastTime = Animation->GetTime();
 
+	PoseAt(Time);
 	RecordTrails();
 }
 
 void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	const FKzComboNode_Attack* Attack = GetSelectedAttack();
-	if (!Attack)
+	const FKzComboNode_Attack* Attack = GetShownAttack();
+	const FStep* Step = GetCurrentStep();
+	if (!Attack || !Step)
 	{
 		return;
 	}
 
-	const bool bHitting = Animation && IsInHitWindow(Animation->GetTime());
+	const bool bHitting = Animation && IsInHitWindow(Time - Step->Start);
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num(); ++Index)
 	{
 		const FKzComboHitbox& Hitbox = Attack->Hitboxes[Index];
@@ -257,7 +294,7 @@ void FKzComboPreview::DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas&
 	{
 		Message = LOCTEXT("NoCharacter", "Pick a Preview Character or a Preview Mesh in the combo's details.");
 	}
-	else if (!GetSelectedAttack())
+	else if (!SelectedNode.IsValid())
 	{
 		Message = LOCTEXT("NoAttack", "Select an attack to preview it.");
 	}
@@ -269,10 +306,33 @@ void FKzComboPreview::DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas&
 	if (!Message.IsEmpty())
 	{
 		Canvas.DrawShadowedString(10.0f, 40.0f, *Message.ToString(), GEngine->GetSmallFont(), FLinearColor::White);
+		return;
 	}
-	else if (const FText Problem = Animation->GetProblem(); !Problem.IsEmpty())
+
+	TArray<FText> Warnings;
+	if (const FText Problem = Animation->GetProblem(); !Problem.IsEmpty())
 	{
-		Canvas.DrawShadowedString(10.0f, 40.0f, *Problem.ToString(), GEngine->GetSmallFont(), FLinearColor(1.0f, 0.8f, 0.2f));
+		Warnings.Add(Problem);
+	}
+	if (bComboMode && Paths.IsEmpty())
+	{
+		Warnings.Add(LOCTEXT("NoPath", "Nothing leads to this attack from the Entry, so it plays alone."));
+	}
+	for (const FStep& Step : Steps)
+	{
+		const UKzEdGraphNode* Node = Step.Node.Get();
+		const FKzComboNode_Attack* Attack = Node ? Node->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
+		if (Step.bNoComboWindow && Attack && Attack->Animation)
+		{
+			Warnings.Add(FText::Format(LOCTEXT("NoComboWindow", "{0} has no Combo Window: in game the combo stops there."), Attack->Animation->GetDescription()));
+		}
+	}
+
+	float Y = 40.0f;
+	for (const FText& Warning : Warnings)
+	{
+		Canvas.DrawShadowedString(10.0f, Y, *Warning.ToString(), GEngine->GetSmallFont(), FLinearColor(1.0f, 0.8f, 0.2f));
+		Y += 16.0f;
 	}
 }
 
@@ -331,47 +391,124 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 				.ColorAndOpacity(FSlateColor::UseForeground())
 			];
 	};
-	const auto HasAnimation = [](const FKzComboPreview& Preview) { return Preview.Animation.IsValid(); };
+	const auto HasSteps = [](const FKzComboPreview& Preview) { return !Preview.Steps.IsEmpty(); };
 
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("RestartTooltip", "Back to the attack's start."), FAppStyle::GetBrush("Animation.Backward_End"), Run([](FKzComboPreview& Preview) { Preview.Animation->SetTime(0.0f); }), While(HasAnimation))
+			TransportButton(LOCTEXT("RestartTooltip", "Back to the start."), FAppStyle::GetBrush("Animation.Backward_End"), Run([](FKzComboPreview& Preview) { Preview.Time = 0.0f; Preview.Trails.Reset(); }), While(HasSteps))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("PlayTooltip", "Play or pause the attack."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
+			TransportButton(LOCTEXT("PlayTooltip", "Play or pause."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
 			{
 				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
 				return FAppStyle::GetBrush(Pinned && Pinned->IsPlaying() ? "Animation.Pause" : "Animation.Forward");
-			}), Run([](FKzComboPreview& Preview) { Preview.TogglePlay(); }), While(HasAnimation))
+			}), Run([](FKzComboPreview& Preview) { Preview.TogglePlay(); }), While(HasSteps))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("StepTooltip", "Move the paused attack on by one frame."), FAppStyle::GetBrush("Animation.Forward_Step"), Run([](FKzComboPreview& Preview)
+			TransportButton(LOCTEXT("StepTooltip", "Move on by one frame while paused."), FAppStyle::GetBrush("Animation.Forward_Step"), Run([](FKzComboPreview& Preview)
 			{
 				Preview.ScrubTo(FMath::Min(Preview.GetTime() + StepSeconds, Preview.GetLength() - EndMargin));
-			}), While([](const FKzComboPreview& Preview) { return Preview.Animation.IsValid() && !Preview.IsPlaying(); }))
+			}), While([](const FKzComboPreview& Preview) { return !Preview.Steps.IsEmpty() && !Preview.IsPlaying(); }))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("EndTooltip", "Pause the attack at its end."), FAppStyle::GetBrush("Animation.Forward_End"), Run([](FKzComboPreview& Preview)
+			TransportButton(LOCTEXT("EndTooltip", "Pause at the end."), FAppStyle::GetBrush("Animation.Forward_End"), Run([](FKzComboPreview& Preview)
 			{
 				Preview.ScrubTo(FMath::Max(Preview.GetLength() - EndMargin, 0.0f));
-			}), While(HasAnimation))
+			}), While(HasSteps))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("LoopTooltip", "Play the attack over and over; off, it stops at its end."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
+			TransportButton(LOCTEXT("LoopTooltip", "Play over and over; off, it stops at the end."), TAttribute<const FSlateBrush*>::CreateLambda([Weak]()
 			{
 				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
 				return FAppStyle::GetBrush(Pinned && Pinned->bLooping ? "Animation.Loop.Enabled" : "Animation.Loop.Disabled");
 			}), Run([](FKzComboPreview& Preview) { Preview.bLooping = !Preview.bLooping; }), true)
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+			.ToolTipText(LOCTEXT("ComboTooltip", "Play the attacks from the Entry up to the selected one, chained at the combo's Preview Chain Timing; off, the selected attack alone."))
+			.IsChecked_Lambda([Weak]()
+			{
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				return Pinned && Pinned->bComboMode ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			})
+			.OnCheckStateChanged_Lambda([Weak](ECheckBoxState State)
+			{
+				if (const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin())
+				{
+					Pinned->bComboMode = State == ECheckBoxState::Checked;
+					Pinned->PathIndex = 0;
+					Pinned->Time = 0.0f;
+					Pinned->BuildSteps();
+				}
+			})
+			[
+				SNew(STextBlock)
+				.Margin(FMargin(6.0f, 2.0f))
+				.Text(LOCTEXT("Combo", "Combo"))
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
+		[
+			SNew(SComboButton)
+			.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+			.ToolTipText(LOCTEXT("PathTooltip", "Which way to the selected attack plays, by the outputs it takes."))
+			.Visibility_Lambda([Weak]()
+			{
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				return Pinned && Pinned->bComboMode && Pinned->Paths.Num() > 1 ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			.ButtonContent()
+			[
+				SNew(STextBlock)
+				.Text_Lambda([Weak]()
+				{
+					const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+					return Pinned && Pinned->Paths.IsValidIndex(Pinned->PathIndex) ? Pinned->Paths[Pinned->PathIndex].Label : FText::GetEmpty();
+				})
+			]
+			.OnGetMenuContent_Lambda([Weak]()
+			{
+				FMenuBuilder Menu(true, nullptr);
+				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+				for (int32 Index = 0; Pinned && Index < Pinned->Paths.Num(); ++Index)
+				{
+					Menu.AddMenuEntry(Pinned->Paths[Index].Label, FText::GetEmpty(), FSlateIcon(), FUIAction(
+						FExecuteAction::CreateLambda([Weak, Index]()
+						{
+							if (const TSharedPtr<FKzComboPreview> Chosen = Weak.Pin())
+							{
+								Chosen->PathIndex = Index;
+								Chosen->Time = 0.0f;
+								Chosen->BuildSteps();
+							}
+						}),
+						FCanExecuteAction(),
+						FIsActionChecked::CreateLambda([Weak, Index]()
+						{
+							const TSharedPtr<FKzComboPreview> Chosen = Weak.Pin();
+							return Chosen && Chosen->PathIndex == Index;
+						})), NAME_None, EUserInterfaceActionType::RadioButton);
+				}
+				return Menu.MakeWidget();
+			})
 		]
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
@@ -421,10 +558,6 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 							if (const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin())
 							{
 								Pinned->Rate = Option;
-								if (Pinned->Animation)
-								{
-									Pinned->Animation->SetRate(Option);
-								}
 							}
 						}),
 						FCanExecuteAction(),
@@ -446,71 +579,225 @@ void FKzComboPreview::AddReferencedObjects(FReferenceCollector& Collector)
 
 float FKzComboPreview::GetLength() const
 {
-	return Animation ? Animation->GetLength() : 0.0f;
-}
-
-float FKzComboPreview::GetTime() const
-{
-	return Animation ? Animation->GetTime() : 0.0f;
-}
-
-bool FKzComboPreview::IsPlaying() const
-{
-	return Animation && Animation->IsPlaying();
+	return Steps.IsEmpty() ? 0.0f : Steps.Last().End;
 }
 
 void FKzComboPreview::TogglePlay()
 {
-	if (Animation)
+	// Playing from the end starts over.
+	if (!bPlaying && Time >= GetLength() - EndMargin * 2.0f)
 	{
-		Animation->SetPlaying(!Animation->IsPlaying());
+		Time = 0.0f;
+		Trails.Reset();
 	}
+	bPlaying = !bPlaying;
 }
 
-void FKzComboPreview::ScrubTo(float Time)
+void FKzComboPreview::ScrubTo(float InTime)
 {
-	if (Animation)
-	{
-		Animation->SetPlaying(false);
-		Animation->SetTime(Time);
-	}
+	bPlaying = false;
+	Time = FMath::Clamp(InTime, 0.0f, FMath::Max(GetLength() - EndMargin, 0.0f));
+	PoseAt(Time);
 }
 
-void FKzComboPreview::ShowAnimation()
+void FKzComboPreview::BuildSteps()
 {
-	const float Time = Animation ? Animation->GetTime() : 0.0f;
-	const bool bPlaying = !Animation || Animation->IsPlaying();
+	Steps.Reset();
+	CurrentStep = INDEX_NONE;
 	Animation.Reset();
-	Notifies.Reset();
 	Trails.Reset();
+	Paths.Reset();
 
-	const FKzComboNode_Attack* Attack = GetSelectedAttack();
 	const UKzComboGraph* Asset = Combo.Get();
-	USkeletalMeshComponent* Mesh = Stage.GetMesh();
-	if (!Mesh || !Attack || !Attack->Animation || !Asset)
+	UKzEdGraphNode* Selected = SelectedNode.Get();
+	if (!Asset || !Stage.GetMesh() || !Selected)
 	{
 		return;
 	}
 
-	FKzAnimationContext Context;
-	Context.Mesh = Mesh;
-	Context.User = Stage.GetCharacter();
-	Context.Item = Asset->PreviewItem.LoadSynchronous();
+	TArray<TWeakObjectPtr<UKzEdGraphNode>> Nodes;
+	if (bComboMode)
+	{
+		FindPaths();
+		PathIndex = Paths.IsValidIndex(PathIndex) ? PathIndex : 0;
+		if (Paths.IsValidIndex(PathIndex))
+		{
+			Nodes = Paths[PathIndex].Nodes;
+		}
+	}
+	if (Nodes.IsEmpty())
+	{
+		Nodes.Add(Selected);
+	}
 
-	Animation = KzAnimationPreview::Make(*Attack->Animation, Context, *Mesh);
+	// Each attack gives way to the next where the preview's press lands in its Combo Window.
+	const FKzAnimationContext Context = MakeContext();
+	float Start = 0.0f;
+	for (int32 Index = 0; Index < Nodes.Num(); ++Index)
+	{
+		UKzEdGraphNode* Node = Nodes[Index].Get();
+		const FKzComboNode_Attack* Attack = Node ? Node->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
+		if (!Attack || !Attack->Animation)
+		{
+			break;
+		}
+
+		FStep& Step = Steps.AddDefaulted_GetRef();
+		Step.Node = Node;
+		Step.Start = Start;
+		Step.Length = Attack->Animation->GetTimeline(Context, Step.Notifies);
+		Step.End = Start + Step.Length;
+		if (Index < Nodes.Num() - 1)
+		{
+			const FKzAnimationNotifySpan* Window = Step.Notifies.FindByPredicate(&IsComboWindow);
+			Step.bNoComboWindow = !Window;
+			if (Window)
+			{
+				Step.End = Start + FMath::Lerp(Window->Start, Window->End, Asset->PreviewChainTiming);
+			}
+		}
+		Start = Step.End;
+	}
+
+	Time = FMath::Clamp(Time, 0.0f, FMath::Max(GetLength() - EndMargin, 0.0f));
+	PoseAt(Time);
+}
+
+void FKzComboPreview::FindPaths()
+{
+	Paths.Reset();
+	UKzEdGraphNode* Target = SelectedNode.Get();
+	const UKzComboGraph* Asset = Combo.Get();
+	const UEdGraph* Graph = Target ? Target->GetGraph() : nullptr;
+	if (!Graph || !Asset)
+	{
+		return;
+	}
+
+	UKzEdGraphNode* Entry = nullptr;
+	for (UEdGraphNode* Each : Graph->Nodes)
+	{
+		UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
+		if (Node && Node->Node.GetPtr<FKzComboNode_Entry>())
+		{
+			Entry = Node;
+			break;
+		}
+	}
+	if (!Entry)
+	{
+		return;
+	}
+
+	TArray<UKzEdGraphNode*> Walked;
+	TArray<FText> Outputs;
+	TFunction<void(UKzEdGraphNode&)> Walk;
+	Walk = [&](UKzEdGraphNode& From)
+	{
+		for (UEdGraphPin* Output : From.Pins)
+		{
+			if (Output->Direction != EGPD_Output || Paths.Num() >= MaxPaths)
+			{
+				continue;
+			}
+
+			TArray<UEdGraphPin*> Targets;
+			KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
+			for (UEdGraphPin* Input : Targets)
+			{
+				UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
+				if (!Next || Walked.Contains(Next) || !Next->Node.GetPtr<FKzComboNode_Attack>())
+				{
+					continue;
+				}
+
+				Walked.Add(Next);
+				Outputs.Add(Output->GetDisplayName());
+				if (Next == Target)
+				{
+					FPath& Path = Paths.AddDefaulted_GetRef();
+					Path.Nodes.Append(Walked);
+					Path.Label = FText::Join(FText::FromString(TEXT(" > ")), Outputs);
+				}
+				else if (Walked.Num() < MaxDepth)
+				{
+					Walk(*Next);
+				}
+				Walked.Pop();
+				Outputs.Pop();
+			}
+		}
+	};
+	Walk(*Entry);
+
+	Paths.StableSort([](const FPath& A, const FPath& B) { return A.Nodes.Num() < B.Nodes.Num(); });
+}
+
+void FKzComboPreview::PoseAt(float InTime)
+{
+	int32 Index = Steps.IndexOfByPredicate([InTime](const FStep& Step) { return InTime < Step.End; });
+	if (Index == INDEX_NONE)
+	{
+		Index = Steps.Num() - 1;
+	}
+	if (!Steps.IsValidIndex(Index))
+	{
+		return;
+	}
+
+	if (Index != CurrentStep || !Animation)
+	{
+		const UKzEdGraphNode* Shown = GetShownNode();
+		CurrentStep = Index;
+		Trails.Reset();
+		if (GetShownNode() != Shown)
+		{
+			SelectedHitbox = INDEX_NONE;
+		}
+
+		const FKzComboNode_Attack* Attack = GetShownAttack();
+		USkeletalMeshComponent* Mesh = Stage.GetMesh();
+		Animation = Attack && Attack->Animation && Mesh ? KzAnimationPreview::Make(*Attack->Animation, MakeContext(), *Mesh) : nullptr;
+		if (Animation)
+		{
+			Animation->SetPlaying(false);
+		}
+		if (NodeRenderer)
+		{
+			NodeRenderer->SetPlayingNode(bComboMode ? GetShownNode() : nullptr);
+		}
+	}
+
 	if (Animation)
 	{
-		Attack->Animation->GetTimeline(Context, Notifies);
-		Animation->SetRate(Rate);
-		Animation->SetTime(FMath::Min(Time, Animation->GetLength()));
-		Animation->SetPlaying(bPlaying);
-		LastTime = Animation->GetTime();
+		Animation->SetTime(InTime - Steps[Index].Start);
 	}
 }
 
-const FKzComboNode_Attack* FKzComboPreview::GetSelectedAttack() const
+FKzAnimationContext FKzComboPreview::MakeContext() const
 {
-	const UKzEdGraphNode* Node = SelectedNode.Get();
+	const UKzComboGraph* Asset = Combo.Get();
+	FKzAnimationContext Context;
+	Context.Mesh = Stage.GetMesh();
+	Context.User = Stage.GetCharacter();
+	Context.Item = Asset ? Asset->PreviewItem.LoadSynchronous() : nullptr;
+	return Context;
+}
+
+const FKzComboPreview::FStep* FKzComboPreview::GetCurrentStep() const
+{
+	return Steps.IsValidIndex(CurrentStep) ? &Steps[CurrentStep] : nullptr;
+}
+
+UKzEdGraphNode* FKzComboPreview::GetShownNode() const
+{
+	const FStep* Step = GetCurrentStep();
+	return Step ? Step->Node.Get() : nullptr;
+}
+
+const FKzComboNode_Attack* FKzComboPreview::GetShownAttack() const
+{
+	const UKzEdGraphNode* Node = GetShownNode();
 	return Node ? Node->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
 }
 
@@ -538,13 +825,13 @@ bool FKzComboPreview::HandleClick(HHitProxy* HitProxy)
 
 TOptional<FTransform> FKzComboPreview::GetGizmoTransform() const
 {
-	const FKzComboNode_Attack* Attack = GetSelectedAttack();
+	const FKzComboNode_Attack* Attack = GetShownAttack();
 	return Attack && Attack->Hitboxes.IsValidIndex(SelectedHitbox) ? GetHitboxTransform(Attack->Hitboxes[SelectedHitbox]) : TOptional<FTransform>();
 }
 
 void FKzComboPreview::MoveGizmo(const FVector& Drag, const FRotator& Rotation)
 {
-	UKzEdGraphNode* Node = SelectedNode.Get();
+	UKzEdGraphNode* Node = GetShownNode();
 	FKzComboNode_Attack* Attack = Node ? Node->Node.GetMutablePtr<FKzComboNode_Attack>() : nullptr;
 	if (!Attack || !Attack->Hitboxes.IsValidIndex(SelectedHitbox))
 	{
@@ -569,7 +856,7 @@ void FKzComboPreview::MoveGizmo(const FVector& Drag, const FRotator& Rotation)
 void FKzComboPreview::BeginGizmoDrag()
 {
 	GizmoTransaction = MakeUnique<FScopedTransaction>(LOCTEXT("MoveHitbox", "Move Hitbox"));
-	if (UKzEdGraphNode* Node = SelectedNode.Get())
+	if (UKzEdGraphNode* Node = GetShownNode())
 	{
 		Node->Modify();
 	}
@@ -577,32 +864,34 @@ void FKzComboPreview::BeginGizmoDrag()
 
 void FKzComboPreview::EndGizmoDrag()
 {
-	if (UKzEdGraphNode* Node = SelectedNode.Get())
+	if (UKzEdGraphNode* Node = GetShownNode())
 	{
 		Node->PostEditChange();
 	}
 	GizmoTransaction.Reset();
 }
 
-bool FKzComboPreview::IsInHitWindow(float Time) const
+bool FKzComboPreview::IsInHitWindow(float LocalTime) const
 {
-	return Notifies.ContainsByPredicate([Time](const FKzAnimationNotifySpan& Span)
+	const FStep* Step = GetCurrentStep();
+	return Step && Step->Notifies.ContainsByPredicate([LocalTime](const FKzAnimationNotifySpan& Span)
 	{
-		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && Time >= Span.Start && Time <= Span.End;
+		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && LocalTime >= Span.Start && LocalTime <= Span.End;
 	});
 }
 
 void FKzComboPreview::RecordTrails()
 {
-	const FKzComboNode_Attack* Attack = GetSelectedAttack();
-	if (!Attack || !Animation)
+	const FKzComboNode_Attack* Attack = GetShownAttack();
+	const FStep* Step = GetCurrentStep();
+	if (!Attack || !Step || !Animation)
 	{
 		return;
 	}
 
 	Trails.SetNum(Attack->Hitboxes.Num());
-	const float Time = Animation->GetTime();
-	if (!IsInHitWindow(Time))
+	const float LocalTime = Time - Step->Start;
+	if (!IsInHitWindow(LocalTime))
 	{
 		return;
 	}
@@ -617,14 +906,14 @@ void FKzComboPreview::RecordTrails()
 
 		// One sample per frame of the animation, the latest kept, so playing the window again does not pile them up.
 		TArray<FTrailSample>& Trail = Trails[Index];
-		FTrailSample* Same = Trail.FindByPredicate([Time](const FTrailSample& Sample) { return FMath::Abs(Sample.Time - Time) < StepSeconds * 0.5f; });
+		FTrailSample* Same = Trail.FindByPredicate([LocalTime](const FTrailSample& Sample) { return FMath::Abs(Sample.Time - LocalTime) < StepSeconds * 0.5f; });
 		if (Same)
 		{
 			Same->Transform = *Transform;
 		}
 		else
 		{
-			Trail.Add({ Time, *Transform });
+			Trail.Add({ LocalTime, *Transform });
 		}
 	}
 }
