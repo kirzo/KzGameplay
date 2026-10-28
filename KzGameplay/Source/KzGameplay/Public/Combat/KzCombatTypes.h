@@ -7,6 +7,9 @@
 #include "GameplayTagContainer.h"
 #include "KzCombatTypes.generated.h"
 
+class UKzItemDefinition;
+class USceneComponent;
+
 /** How a target takes a hit, by its defenses in this order. */
 UENUM(BlueprintType)
 enum class EKzHitResult : uint8
@@ -23,6 +26,20 @@ enum class EKzHitResult : uint8
 	GuardBroken,
 
 	Hit
+};
+
+/** What stopped a hit: the defender's item with the Defense fragment, and where it is in the world. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzHitDefense
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combo")
+	TObjectPtr<const UKzItemDefinition> Item;
+
+	/** The item's actor root or mesh, which the defense cues spawn on. */
+	UPROPERTY(BlueprintReadOnly, Category = "Combo")
+	TObjectPtr<USceneComponent> Component;
 };
 
 /** Something an attack hit, once per Hit Window. */
@@ -50,6 +67,10 @@ struct KZGAMEPLAY_API FKzComboHit
 
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	FGameplayTag ImpactCue;
+
+	/** Set when it was blocked or parried. */
+	UPROPERTY(BlueprintReadOnly, Category = "Combo")
+	FKzHitDefense Defense;
 
 	/** Whether it reached the target, for the attack's Hit and Miss outputs. */
 	bool Counts() const { return Result != EKzHitResult::Ignored; }

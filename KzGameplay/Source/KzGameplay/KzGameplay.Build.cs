@@ -27,7 +27,6 @@ public class KzGameplay : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
-				"DeveloperSettings",
 				"Engine",
 				"Slate",
 				"SlateCore",

@@ -16,11 +16,17 @@ class KZGAMEPLAY_API UKzCombatLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	/** How Target takes a hit from Attacker: State.Invulnerable, State.Parrying and State.Blocking in that order, the last two only from the front. Targets without an ability system are always hit. */
+	/**
+	 * How Target takes a hit from Attacker: State.Invulnerable, State.Parrying and State.Blocking in that order, the last two only within the angle of an
+	 * equipped item with the Defense fragment, which OutDefense names. Targets without an ability system are always hit.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Combat")
-	static EKzHitResult ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags);
+	static EKzHitResult ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags, FKzHitDefense& OutDefense);
 
-	/** Applies a combo hit as the combo ability does: the damage effect with BaseDamage times the hit's multiplier as Data.Damage, the reaction event to whoever reacts, and the cues. */
+	/**
+	 * Applies a combo hit as the combo ability does: the damage effect with BaseDamage times the hit's multiplier as Data.Damage, the reaction events
+	 * to defender and attacker, the attack's Impact Cue on a hit, and the defending item's cues on a block or a parry.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	static void ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, TSubclassOf<UGameplayEffect> DamageEffect, float BaseDamage, const UObject* SourceObject);
 

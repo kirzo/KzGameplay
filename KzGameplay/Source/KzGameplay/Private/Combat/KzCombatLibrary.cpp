@@ -4,13 +4,47 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
-#include "Combat/KzCombatSettings.h"
 #include "Combat/KzCombatTags.h"
+#include "Equipment/KzEquipmentComponent.h"
 #include "GameFramework/Actor.h"
 #include "GameplayEffect.h"
+#include "Items/Fragments/KzItemFragment_Defense.h"
+#include "Items/KzItemDefinition.h"
 
 namespace
 {
+	/** The equipped Defense item whose angle, as GetAngle reads it, is widest, if From lies within it. */
+	bool FindDefense(const AActor& Target, const FVector& From, TFunctionRef<float(const UKzItemFragment_Defense&)> GetAngle, FKzHitDefense& OutDefense)
+	{
+		const UKzEquipmentComponent* Equipment = Target.FindComponentByClass<UKzEquipmentComponent>();
+		if (!Equipment)
+		{
+			return false;
+		}
+
+		FKzHitDefense Best;
+		float BestAngle = 0.0f;
+		for (const FEquippedSlot& Slot : Equipment->GetSlots())
+		{
+			const UKzItemDefinition* Item = Slot.Instance.IsValid() ? Slot.Instance.ItemDef.Get() : nullptr;
+			const UKzItemFragment_Defense* Defense = Item ? Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
+			const float Angle = Defense ? GetAngle(*Defense) : 0.0f;
+			if (Angle > BestAngle)
+			{
+				BestAngle = Angle;
+				Best.Item = Item;
+				Best.Component = Slot.Instance.SpawnedActor ? Slot.Instance.SpawnedActor->GetRootComponent() : Slot.Instance.SpawnedComponent.Get();
+			}
+		}
+
+		if (BestAngle <= 0.0f || !UKzCombatLibrary::IsInFront(Target, From, BestAngle))
+		{
+			return false;
+		}
+		OutDefense = Best;
+		return true;
+	}
+
 	void SendReaction(AActor* Reactor, AActor* Instigator, FGameplayTag Reaction, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
 	{
 		UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Reactor);
@@ -32,9 +66,10 @@ namespace
 		ASC->HandleGameplayEvent(Reaction, &Payload);
 	}
 
-	void ExecuteCue(UAbilitySystemComponent* ASC, FGameplayTag Cue, AActor* Instigator, const FKzComboHit& Hit, const UObject* SourceObject)
+	/** The attack's cue, at the point it hit. */
+	void ExecuteImpactCue(UAbilitySystemComponent* ASC, AActor* Attacker, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
 	{
-		if (!ASC || !Cue.IsValid())
+		if (!ASC || !Hit.ImpactCue.IsValid())
 		{
 			return;
 		}
@@ -42,16 +77,35 @@ namespace
 		FGameplayCueParameters Parameters;
 		Parameters.Location = Hit.Hit.ImpactPoint;
 		Parameters.Normal = Hit.Hit.ImpactNormal;
-		Parameters.Instigator = Instigator;
-		Parameters.EffectCauser = Instigator;
+		Parameters.Instigator = Attacker;
+		Parameters.EffectCauser = Attacker;
 		Parameters.SourceObject = SourceObject;
 		Parameters.PhysicalMaterial = Hit.Hit.PhysMaterial.Get();
+		Parameters.RawMagnitude = Damage;
+		ASC->ExecuteGameplayCue(Hit.ImpactCue, Parameters);
+	}
+
+	/** A defense cue, on the defending item: no location, so the cue spawns at the item's socket rather than where the hitbox touched the body. */
+	void ExecuteDefenseCue(UAbilitySystemComponent* ASC, FGameplayTag Cue, AActor* Attacker, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
+	{
+		if (!ASC || !Cue.IsValid())
+		{
+			return;
+		}
+
+		FGameplayCueParameters Parameters;
+		Parameters.TargetAttachComponent = Hit.Defense.Component.Get();
+		Parameters.Instigator = Attacker;
+		Parameters.EffectCauser = Attacker;
+		Parameters.SourceObject = SourceObject;
+		Parameters.RawMagnitude = Damage;
 		ASC->ExecuteGameplayCue(Cue, Parameters);
 	}
 }
 
-EKzHitResult UKzCombatLibrary::ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags)
+EKzHitResult UKzCombatLibrary::ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags, FKzHitDefense& OutDefense)
 {
+	OutDefense = FKzHitDefense();
 	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
 	if (!ASC || !Attacker)
 	{
@@ -64,14 +118,13 @@ EKzHitResult UKzCombatLibrary::ResolveHit(const AActor* Attacker, const AActor* 
 		return EKzHitResult::Ignored;
 	}
 
-	const UKzCombatSettings* Settings = GetDefault<UKzCombatSettings>();
 	const FVector From = Attacker->GetActorLocation();
 	const bool bUnblockable = AttackTags.HasTag(Attack_Unblockable);
-	if (!bUnblockable && ASC->HasMatchingGameplayTag(State_Parrying) && IsInFront(*Target, From, Settings->ParryAngle))
+	if (!bUnblockable && ASC->HasMatchingGameplayTag(State_Parrying) && FindDefense(*Target, From, [](const UKzItemFragment_Defense& Defense) { return Defense.ParryAngle; }, OutDefense))
 	{
 		return EKzHitResult::Parried;
 	}
-	if (!bUnblockable && ASC->HasMatchingGameplayTag(State_Blocking) && IsInFront(*Target, From, Settings->BlockAngle))
+	if (!bUnblockable && ASC->HasMatchingGameplayTag(State_Blocking) && FindDefense(*Target, From, [](const UKzItemFragment_Defense& Defense) { return Defense.BlockAngle; }, OutDefense))
 	{
 		return AttackTags.HasTag(Attack_GuardBreak) ? EKzHitResult::GuardBroken : EKzHitResult::Blocked;
 	}
@@ -89,7 +142,7 @@ void UKzCombatLibrary::ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, T
 	using namespace KzTags::Combat;
 	UAbilitySystemComponent* AttackerASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Attacker);
 	UAbilitySystemComponent* TargetASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-	const UKzCombatSettings* Settings = GetDefault<UKzCombatSettings>();
+	const UKzItemFragment_Defense* Defense = Hit.Defense.Item ? Hit.Defense.Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
 	const float Damage = BaseDamage * Hit.DamageMultiplier;
 
 	switch (Hit.Result)
@@ -109,18 +162,23 @@ void UKzCombatLibrary::ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, T
 		}
 		SendReaction(Target, Attacker, Hit.Reaction.IsValid() ? Hit.Reaction : Reaction_Hit.GetTag(), Hit, Damage, SourceObject);
 		// Targets without an ability system still show the impact, through the attacker's.
-		ExecuteCue(TargetASC ? TargetASC : AttackerASC, Hit.ImpactCue, Attacker, Hit, SourceObject);
+		ExecuteImpactCue(TargetASC ? TargetASC : AttackerASC, Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::Blocked:
+		SendReaction(Target, Attacker, Reaction_Block, Hit, Damage, SourceObject);
+		SendReaction(Attacker, Target, Reaction_Blocked, Hit, Damage, SourceObject);
+		ExecuteDefenseCue(TargetASC, Defense ? Defense->BlockCue : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
+		break;
+
 	case EKzHitResult::GuardBroken:
-		SendReaction(Target, Attacker, Hit.Result == EKzHitResult::Blocked ? Reaction_Block.GetTag() : Reaction_GuardBreak.GetTag(), Hit, Damage, SourceObject);
-		ExecuteCue(TargetASC, Settings->BlockCue, Attacker, Hit, SourceObject);
+		SendReaction(Target, Attacker, Reaction_GuardBreak, Hit, Damage, SourceObject);
+		ExecuteDefenseCue(TargetASC, Defense ? (Defense->GuardBreakCue.IsValid() ? Defense->GuardBreakCue : Defense->BlockCue) : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::Parried:
 		SendReaction(Attacker, Target, Reaction_Parried, Hit, Damage, SourceObject);
-		ExecuteCue(TargetASC, Settings->ParryCue, Attacker, Hit, SourceObject);
+		ExecuteDefenseCue(TargetASC, Defense ? Defense->ParryCue : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
 		break;
 
 	default:
