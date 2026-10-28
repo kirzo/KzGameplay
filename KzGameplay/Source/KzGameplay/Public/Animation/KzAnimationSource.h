@@ -24,6 +24,17 @@ struct FKzAnimationContext
 
 	/** The item it plays with, whose Database fragment By Query sources ask. */
 	const UKzItemDefinition* Item = nullptr;
+
+	/** More of what is true for this play, joining the context of By Query sources, such as the reaction and the side a hit came from. */
+	FGameplayTagContainer Tags;
+
+	/** Query with Tags in its context. */
+	FKzDatabaseQuery MakeQuery(const FKzDatabaseQuery& Query) const
+	{
+		FKzDatabaseQuery Asked = Query;
+		Asked.ContextTags.AppendTags(Tags);
+		return Asked;
+	}
 };
 
 /** Where a routed notify state sits on an animation's timeline. */
@@ -34,7 +45,7 @@ struct FKzAnimationNotifySpan
 	float End = 0.0f;
 };
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FKzOnAnimationNotify, const UKzAnimationNotifyState* /*Notify*/, bool /*bBegin*/);
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FKzOnAnimationNotify, const UKzAnimationNotifyState* /*Notify*/, bool /*bBegin*/, float /*Duration*/);
 DECLARE_MULTICAST_DELEGATE(FKzOnAnimationBlendOut);
 DECLARE_MULTICAST_DELEGATE_OneParam(FKzOnAnimationEnded, bool /*bInterrupted*/);
 
@@ -54,8 +65,8 @@ public:
 	FKzOnAnimationBlendOut OnBlendOut;
 	FKzOnAnimationEnded OnEnded;
 
-	/** Hands a routed notify state to the play on the mesh that fired it. */
-	static void RouteNotify(USkeletalMeshComponent* Mesh, const FAnimNotifyEventReference& Reference, const UKzAnimationNotifyState* Notify, bool bBegin);
+	/** Hands a routed notify state to the play on the mesh that fired it, with its length in animation time as it begins. */
+	static void RouteNotify(USkeletalMeshComponent* Mesh, const FAnimNotifyEventReference& Reference, const UKzAnimationNotifyState* Notify, bool bBegin, float Duration);
 
 protected:
 	virtual bool Owns(const FAnimNotifyEventReference& Reference) const = 0;

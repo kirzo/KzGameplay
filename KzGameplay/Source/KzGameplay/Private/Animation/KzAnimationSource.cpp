@@ -83,7 +83,7 @@ FKzAnimationPlay::~FKzAnimationPlay()
 	Unregister();
 }
 
-void FKzAnimationPlay::RouteNotify(USkeletalMeshComponent* InMesh, const FAnimNotifyEventReference& Reference, const UKzAnimationNotifyState* Notify, bool bBegin)
+void FKzAnimationPlay::RouteNotify(USkeletalMeshComponent* InMesh, const FAnimNotifyEventReference& Reference, const UKzAnimationNotifyState* Notify, bool bBegin, float Duration)
 {
 	const TArray<TWeakPtr<FKzAnimationPlay>>* Plays = Registry.Find(InMesh);
 	if (!Plays)
@@ -97,7 +97,7 @@ void FKzAnimationPlay::RouteNotify(USkeletalMeshComponent* InMesh, const FAnimNo
 		const TSharedPtr<FKzAnimationPlay> Play = Weak.Pin();
 		if (Play && Play->bPlaying && Play->Owns(Reference))
 		{
-			Play->OnNotify.Broadcast(Notify, bBegin);
+			Play->OnNotify.Broadcast(Notify, bBegin, Duration);
 			return;
 		}
 	}
@@ -187,7 +187,7 @@ FText UKzAnimationSource_Montage::GetDescription() const
 
 UAnimMontage* UKzAnimationSource_MontageByQuery::GetMontage(const FKzAnimationContext& Context) const
 {
-	return UKzItemFragment_Database::ResolveFor(Context.Item, Context.User, Query, TSoftObjectPtr<UAnimMontage>()).LoadSynchronous();
+	return UKzItemFragment_Database::ResolveFor(Context.Item, Context.User, Context.MakeQuery(Query), TSoftObjectPtr<UAnimMontage>()).LoadSynchronous();
 }
 
 #if WITH_EDITOR

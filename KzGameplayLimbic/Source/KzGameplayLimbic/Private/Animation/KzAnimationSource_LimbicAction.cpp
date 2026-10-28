@@ -128,7 +128,7 @@ FText UKzAnimationSource_LimbicAction::GetDescription() const
 
 ULimbicPuppeteer* UKzAnimationSource_LimbicActionByQuery::GetPuppeteer(const FKzAnimationContext& Context) const
 {
-	return UKzItemFragment_Database::ResolveFor(Context.Item, Context.User, Query, TSoftObjectPtr<ULimbicPuppeteer>()).LoadSynchronous();
+	return UKzItemFragment_Database::ResolveFor(Context.Item, Context.User, Context.MakeQuery(Query), TSoftObjectPtr<ULimbicPuppeteer>()).LoadSynchronous();
 }
 
 #if WITH_EDITOR
