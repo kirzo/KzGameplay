@@ -164,16 +164,26 @@ void FKzComboPreview::OnSelectionChanged(const TSet<UObject*>& Selection)
 		NodeRenderer->SetSelection(Selection);
 	}
 
-	// Picking anything other than an attack keeps the last one shown.
+	// Picking anything other than an attack keeps the last one shown, paused; picking one plays it.
 	UKzEdGraphNode* Node = Selection.Num() == 1 ? Cast<UKzEdGraphNode>(*Selection.CreateConstIterator()) : nullptr;
-	if (Node && Node->Node.GetPtr<FKzComboNode_Attack>())
+	if (!Node || !Node->Node.GetPtr<FKzComboNode_Attack>())
 	{
-		if (Node != SelectedNode.Get())
+		if (Animation)
 		{
-			SelectedHitbox = INDEX_NONE;
+			Animation->SetPlaying(false);
 		}
-		SelectedNode = Node;
-		ShowAnimation();
+		return;
+	}
+
+	if (Node != SelectedNode.Get())
+	{
+		SelectedHitbox = INDEX_NONE;
+	}
+	SelectedNode = Node;
+	ShowAnimation();
+	if (Animation)
+	{
+		Animation->SetPlaying(true);
 	}
 }
 
