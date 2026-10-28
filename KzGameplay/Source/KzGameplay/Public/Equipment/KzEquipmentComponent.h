@@ -167,6 +167,9 @@ public:
 	 */
 	const FKzItemInstance* FindItemInSlot(FGameplayTag SlotID) const;
 
+	/** Every slot and what it holds. */
+	TConstArrayView<FEquippedSlot> GetSlots() const { return EquipmentList.Slots; }
+
 	/** Returns a copy of the item instance currently occupying the given slot, if any. */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	FKzItemInstance GetItemInSlot(FGameplayTag SlotID) const;

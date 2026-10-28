@@ -322,6 +322,20 @@ void UKzEquipmentComponent::RefreshEquippedGrants()
 					WantedTags.Add(Tag);
 				}
 			}
+
+			// And what its fragments grant on their own
+			FGameplayTagContainer FragmentTags;
+			for (const UKzItemFragment* Fragment : Slot.Instance.ItemDef->Fragments)
+			{
+				if (Fragment)
+				{
+					Fragment->GetEquippedTags(FragmentTags);
+				}
+			}
+			for (const FGameplayTag& Tag : FragmentTags)
+			{
+				WantedTags.Add(Tag);
+			}
 		}
 	}
 

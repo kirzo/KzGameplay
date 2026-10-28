@@ -6,6 +6,7 @@
 #include "UObject/NoExportTypes.h"
 #include "KzItemFragment.generated.h"
 
+struct FGameplayTagContainer;
 struct FKzItemInstance;
 
 /**
@@ -33,6 +34,9 @@ public:
 
 	/** Soft assets the item uses in play, such as the pose it is held in; its world actor loads them in the background, so using the item doesn't hitch. */
 	virtual void GetPreloadPaths(TArray<FSoftObjectPath>& OutPaths) const {}
+
+	/** Tags the holder has while the item is equipped, such as a shield's readiness to block; granted wherever the Equippable's Equipped Tags are. */
+	virtual void GetEquippedTags(FGameplayTagContainer& OutTags) const {}
 
 protected:
 	/** Blueprint-implementable event for OnInstanceCreated. */
