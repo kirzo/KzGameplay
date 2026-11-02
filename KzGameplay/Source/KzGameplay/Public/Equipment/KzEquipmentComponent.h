@@ -127,6 +127,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment")
 	TObjectPtr<const UKzEquipmentLayout> DefaultLayout;
 
+	/** Equipped on BeginPlay, each into its Equippable's slot. Needs a DefaultLayout. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
+	TArray<TObjectPtr<const UKzItemDefinition>> DefaultItems;
+
 	/** * Initializes the empty slots based on the provided layout.
 	 * Usually called automatically on BeginPlay using DefaultLayout.
 	 */
@@ -159,7 +163,7 @@ public:
 	 * @return True if there was an item to unequip.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
-	bool UnequipItem(FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem);
+	bool UnequipItem(UPARAM(meta = (Categories = "Equipment.Slot")) FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem);
 
 	/**
 	 * Returns a read-only pointer to the item instance currently occupying the given slot, if any.
@@ -172,7 +176,7 @@ public:
 
 	/** Returns a copy of the item instance currently occupying the given slot, if any. */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
-	FKzItemInstance GetItemInSlot(FGameplayTag SlotID) const;
+	FKzItemInstance GetItemInSlot(UPARAM(meta = (Categories = "Equipment.Slot")) FGameplayTag SlotID) const;
 
 	/** Resolves what items in a slot hang from: the slot AttachComponent, or the owner skeletal mesh when it is empty. */
 	USceneComponent* GetAttachParentForSlot(FGameplayTag SlotID) const;

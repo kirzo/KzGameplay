@@ -1,10 +1,17 @@
 // Copyright 2026 kirzo
 
 #include "Equipment/KzEquipmentLayout.h"
+#include "Equipment/KzEquipmentTags.h"
 
 #if WITH_EDITOR
 #include "Misc/MessageDialog.h"
 #endif
+
+UKzEquipmentLayout::UKzEquipmentLayout()
+{
+	SlotAliases.Add(KzTags::Equipment::Slot_Hand_Main, KzTags::Equipment::Slot_Hand_Right);
+	SlotAliases.Add(KzTags::Equipment::Slot_Hand_Off, KzTags::Equipment::Slot_Hand_Left);
+}
 
 FGameplayTag UKzEquipmentLayout::ResolveSlotID(const FGameplayTag& InSlotID) const
 {
@@ -115,6 +122,16 @@ void UKzEquipmentLayout::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 				ParentLayout = nullptr;
 				FMessageDialog::Open(EAppMsgType::Ok, INVTEXT("Circular dependency detected! This layout is already a parent somewhere in that hierarchy."));
 				return;
+			}
+
+			// 3. Drop the default aliases, so they do not shadow the parent's
+			for (const TPair<FGameplayTag, FGameplayTag>& Default : GetDefault<UKzEquipmentLayout>()->SlotAliases)
+			{
+				const FGameplayTag* Alias = SlotAliases.Find(Default.Key);
+				if (Alias && *Alias == Default.Value)
+				{
+					SlotAliases.Remove(Default.Key);
+				}
 			}
 		}
 	}

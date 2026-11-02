@@ -36,7 +36,7 @@ public:
 	bool bAutoEquip = false;
 
 	/** The specific equipment slot this item goes into (e.g., Equipment.Slot.Hand.Right). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (Categories = "Equipment.Slot"))
 	FGameplayTag TargetSlot;
 
 	/**

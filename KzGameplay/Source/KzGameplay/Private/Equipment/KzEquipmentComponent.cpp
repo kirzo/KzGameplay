@@ -96,6 +96,12 @@ void UKzEquipmentComponent::BeginPlay()
 	if (GetOwner()->HasAuthority() && DefaultLayout)
 	{
 		InitializeEquipment(DefaultLayout);
+
+		for (const UKzItemDefinition* Item : DefaultItems)
+		{
+			FKzItemInstance Unequipped;
+			EquipItemByDefinition(Item, Unequipped);
+		}
 	}
 }
 

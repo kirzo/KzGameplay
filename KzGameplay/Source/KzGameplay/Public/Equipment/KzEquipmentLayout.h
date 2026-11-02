@@ -19,7 +19,7 @@ struct KZGAMEPLAY_API FKzEquipmentSlotDefinition
 
 public:
 	/** The unique Gameplay Tag identifying this slot (e.g., Equipment.Slot.Head). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment Slot", meta = (Categories = "Equipment.Slot"))
 	FGameplayTag SlotID;
 
 	/** The default socket name on the attach component where items in this slot should attach. */
@@ -82,6 +82,9 @@ class KZGAMEPLAY_API UKzEquipmentLayout : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
+	/** Starts with the hands aliased: Main to Right, Off to Left. */
+	UKzEquipmentLayout();
+
 	/**
 	 * Optional parent layout to inherit slots from.
 	 * Useful for creating a base layout (e.g., Human) and extending it (e.g., HumanWithWings).
@@ -93,7 +96,7 @@ public:
 	 * Maps a logical slot alias to a physical slot ID.
 	 * Example: Key = "Equipment.Slot.Hand.Main", Value = "Equipment.Slot.Hand.Right"
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Layout")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Layout", meta = (Categories = "Equipment.Slot"))
 	TMap<FGameplayTag, FGameplayTag> SlotAliases;
 
 	/** The list of slots explicitly defined in this layout. Can override parent slots if they share the same SlotID. */
@@ -115,7 +118,7 @@ public:
 	 * Returns NAME_None if the slot is not found.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Equipment")
-	FName GetSocketForSlot(const FGameplayTag& InSlotID) const;
+	FName GetSocketForSlot(UPARAM(meta = (Categories = "Equipment.Slot")) const FGameplayTag& InSlotID) const;
 
 	/**
 	 * Helper to get a flattened list of all slot definitions (Parent + Child), resolving any overrides.

@@ -15,4 +15,7 @@ namespace KzTags::Interaction
 
 	/** An interaction ended, whatever ended it. */
 	KZGAMEPLAY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ended);
+
+	/** The owner can interact. */
+	KZGAMEPLAY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Capability_Interact);
 }
