@@ -97,6 +97,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = 0))
 	float SlopeInterpSpeed = 5.0f;
 
+	/**
+	 * Yaw rotation rate by ground speed, in degrees per second: fast from a standstill, so it does not slide sideways while it turns, and slower
+	 * at a run, so it arcs. Without keys, the movement component's Rotation Rate stays.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	FRuntimeFloatCurve RotationRateBySpeed;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
@@ -116,6 +123,8 @@ private:
 	void UpdateMaxWalkSpeed();
 
 	void UpdateSlopeMultiplier(float DeltaSeconds);
+
+	void UpdateRotationRate();
 
 	void HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount);
 };

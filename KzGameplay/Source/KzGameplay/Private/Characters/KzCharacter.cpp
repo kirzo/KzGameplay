@@ -50,6 +50,7 @@ void AKzCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UpdateSlopeMultiplier(DeltaSeconds);
+	UpdateRotationRate();
 }
 
 void AKzCharacter::PossessedBy(AController* NewController)
@@ -102,6 +103,16 @@ void AKzCharacter::UpdateSlopeMultiplier(float DeltaSeconds)
 	{
 		SlopeMultiplier = Multiplier;
 		UpdateMaxWalkSpeed();
+	}
+}
+
+void AKzCharacter::UpdateRotationRate()
+{
+	const FRichCurve* Curve = RotationRateBySpeed.GetRichCurveConst();
+	if (Curve && Curve->GetNumKeys() > 0)
+	{
+		UCharacterMovementComponent* Movement = GetCharacterMovement();
+		Movement->RotationRate.Yaw = Curve->Eval(static_cast<float>(Movement->Velocity.Size2D()));
 	}
 }
 
