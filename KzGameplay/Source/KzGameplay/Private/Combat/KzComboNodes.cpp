@@ -10,6 +10,13 @@
 
 const FName FKzComboNode_Entry::EntryName(TEXT("Entry"));
 
+namespace
+{
+	// What holds a hitbox turns this much at most between two steps of a sweep.
+	constexpr float MaxStepAngle = UE_DOUBLE_PI / 18.0;
+	constexpr int32 MaxSteps = 8;
+}
+
 USceneComponent* FKzComboHitbox::FindParent(USkeletalMeshComponent* AnimatedMesh, USceneComponent* WeaponRoot) const
 {
 	if (AttachTo == EKzComboHitboxAttach::Avatar)
@@ -31,6 +38,18 @@ USceneComponent* FKzComboHitbox::FindParent(USkeletalMeshComponent* AnimatedMesh
 FTransform FKzComboHitbox::GetTransform(const USceneComponent& Parent) const
 {
 	return Offset * Parent.GetSocketTransform(Socket);
+}
+
+FTransform FKzComboHitbox::GetTransform(const FTransform& From, const FTransform& To, float Alpha) const
+{
+	FTransform Parent;
+	Parent.Blend(From, To, Alpha);
+	return Offset * Parent;
+}
+
+int32 FKzComboHitbox::GetSweepSteps(const FTransform& From, const FTransform& To)
+{
+	return FMath::Clamp(FMath::CeilToInt(From.GetRotation().AngularDistance(To.GetRotation()) / MaxStepAngle), 1, MaxSteps);
 }
 
 FName FKzComboOpener::GetOutputName() const

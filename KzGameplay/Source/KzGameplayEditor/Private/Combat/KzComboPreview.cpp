@@ -2,6 +2,7 @@
 
 #include "Combat/KzComboPreview.h"
 #include "AdvancedPreviewScene.h"
+#include "Algo/BinarySearch.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Animation/KzAnimationPreview.h"
 #include "CanvasTypes.h"
@@ -49,6 +50,9 @@ namespace
 
 	// Short of the end, where an animation that loops starts over.
 	constexpr float EndMargin = 1.0f / 120.0f;
+
+	// Trail samples further apart are not swept between: the playhead jumped, which no game frame does.
+	constexpr float MaxTrailGap = 0.1f;
 
 	// Enough ways to a node for any combo a person draws, without walking a tangled graph forever.
 	constexpr int32 MaxPaths = 16;
@@ -263,15 +267,23 @@ void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 		return;
 	}
 
-	const bool bHitting = Animation && IsInHitWindow(Time - Step->Start);
+	const bool bHitting = Animation && FindHitWindow(Time - Step->Start) != INDEX_NONE;
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num(); ++Index)
 	{
 		const FKzComboHitbox& Hitbox = Attack->Hitboxes[Index];
 		if (Trails.IsValidIndex(Index))
 		{
-			for (const FTrailSample& Sample : Trails[Index])
+			// Through the steps the game sweeps between two frames, so a pose that jumps shows no gap the game does not leave.
+			const TArray<FTrailSample>& Trail = Trails[Index];
+			for (int32 Sample = 0; Sample < Trail.Num(); ++Sample)
 			{
-				Hitbox.Shape.DrawWire(PDI, Sample.Transform, TrailColor, 0.0f, SDPG_Foreground);
+				const FTrailSample& To = Trail[Sample];
+				const FTrailSample& From = Sample > 0 && Trail[Sample - 1].Window == To.Window && To.Time - Trail[Sample - 1].Time <= MaxTrailGap ? Trail[Sample - 1] : To;
+				const int32 SweepSteps = FKzComboHitbox::GetSweepSteps(From.Parent, To.Parent);
+				for (int32 SweepStep = 1; SweepStep <= SweepSteps; ++SweepStep)
+				{
+					Hitbox.Shape.DrawWire(PDI, Hitbox.GetTransform(From.Parent, To.Parent, static_cast<float>(SweepStep) / SweepSteps), TrailColor, 0.0f, SDPG_Foreground);
+				}
 			}
 		}
 
@@ -862,7 +874,6 @@ void FKzComboPreview::MoveGizmo(const FVector& Drag, const FRotator& Rotation)
 	World.AddToTranslation(Drag);
 	World.SetRotation(Rotation.Quaternion() * World.GetRotation());
 	Hitbox.Offset = World.GetRelativeTransform(ParentTransform);
-	Trails.Reset();
 }
 
 void FKzComboPreview::BeginGizmoDrag()
@@ -883,13 +894,13 @@ void FKzComboPreview::EndGizmoDrag()
 	GizmoTransaction.Reset();
 }
 
-bool FKzComboPreview::IsInHitWindow(float LocalTime) const
+int32 FKzComboPreview::FindHitWindow(float LocalTime) const
 {
 	const FStep* Step = GetCurrentStep();
-	return Step && Step->Notifies.ContainsByPredicate([LocalTime](const FKzAnimationNotifySpan& Span)
+	return Step ? Step->Notifies.IndexOfByPredicate([LocalTime](const FKzAnimationNotifySpan& Span)
 	{
 		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && LocalTime >= Span.Start && LocalTime <= Span.End;
-	});
+	}) : INDEX_NONE;
 }
 
 void FKzComboPreview::RecordTrails()
@@ -903,29 +914,34 @@ void FKzComboPreview::RecordTrails()
 
 	Trails.SetNum(Attack->Hitboxes.Num());
 	const float LocalTime = Time - Step->Start;
-	if (!IsInHitWindow(LocalTime))
+	const int32 Window = FindHitWindow(LocalTime);
+	if (Window == INDEX_NONE)
 	{
 		return;
 	}
 
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num(); ++Index)
 	{
-		const TOptional<FTransform> Transform = GetHitboxTransform(Attack->Hitboxes[Index]);
-		if (!Transform)
+		const FKzComboHitbox& Hitbox = Attack->Hitboxes[Index];
+		const USceneComponent* Parent = GetHitboxParent(Hitbox);
+		if (!Parent)
 		{
 			continue;
 		}
+
+		// The parent rather than the hitbox, so the trail follows the hitbox as the gizmo moves it.
+		const FTransform ParentTransform = Parent->GetSocketTransform(Hitbox.Socket);
 
 		// One sample per frame of the animation, the latest kept, so playing the window again does not pile them up.
 		TArray<FTrailSample>& Trail = Trails[Index];
 		FTrailSample* Same = Trail.FindByPredicate([LocalTime](const FTrailSample& Sample) { return FMath::Abs(Sample.Time - LocalTime) < StepSeconds * 0.5f; });
 		if (Same)
 		{
-			Same->Transform = *Transform;
+			Same->Parent = ParentTransform;
 		}
 		else
 		{
-			Trail.Add({ LocalTime, *Transform });
+			Trail.Insert({ LocalTime, Window, ParentTransform }, Algo::LowerBoundBy(Trail, LocalTime, &FTrailSample::Time));
 		}
 	}
 }

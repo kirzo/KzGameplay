@@ -80,11 +80,12 @@ private:
 		FText Label;
 	};
 
-	/** A hitbox where it was at a time of the animation. */
+	/** Where a hitbox's parent was at a time of the animation, inside one of its Hit Windows. */
 	struct FTrailSample
 	{
 		float Time = 0.0f;
-		FTransform Transform;
+		int32 Window = INDEX_NONE;
+		FTransform Parent;
 	};
 
 	/** Lays out what plays: the selected attack, or in combo mode the attacks of the chosen way to it. Keeps the playhead where it was. */
@@ -103,10 +104,10 @@ private:
 	const USceneComponent* GetHitboxParent(const FKzComboHitbox& Hitbox) const;
 	TOptional<FTransform> GetHitboxTransform(const FKzComboHitbox& Hitbox) const;
 
-	/** Whether the attack playing is inside a Hit Window at its own time LocalTime. */
-	bool IsInHitWindow(float LocalTime) const;
+	/** The Hit Window the attack playing is inside at its own time LocalTime, as an index into its notifies, or INDEX_NONE. */
+	int32 FindHitWindow(float LocalTime) const;
 
-	/** Remembers where the hitboxes are while a Hit Window plays, one sample per frame of the animation. */
+	/** Remembers where the hitboxes' parents are while a Hit Window plays, one sample per frame of the animation, in time order. */
 	void RecordTrails();
 
 	TSharedRef<SWidget> MakeTransportBar();

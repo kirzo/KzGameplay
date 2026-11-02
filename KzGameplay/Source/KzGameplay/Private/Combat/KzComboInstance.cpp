@@ -24,10 +24,6 @@ namespace
 {
 	TAutoConsoleVariable<bool> CVarDrawHitboxes(TEXT("kz.Combo.DrawHitboxes"), false, TEXT("Draws combo hitboxes as they sweep: green, red where they hit."));
 
-	// A swing turns what holds the hitbox this much at most between two sweeps, so the sweep follows the arc instead of cutting across it.
-	constexpr float MaxStepAngle = UE_DOUBLE_PI / 18.0;
-	constexpr int32 MaxSteps = 8;
-
 	constexpr float HitStopDilation = 0.01f;
 
 	FVector Flatten(const FVector& Vector)
@@ -271,13 +267,11 @@ void UKzComboInstance::SweepHitboxes()
 		PreviousParents[Index] = To;
 
 		const FCollisionShape Shape = Hitbox.Shape.ToCollisionShape();
-		const int32 Steps = FMath::Clamp(FMath::CeilToInt(From.GetRotation().AngularDistance(To.GetRotation()) / MaxStepAngle), 1, MaxSteps);
+		const int32 Steps = FKzComboHitbox::GetSweepSteps(From, To);
 		FTransform Previous = Hitbox.Offset * From;
 		for (int32 Step = 1; Step <= Steps; ++Step)
 		{
-			FTransform ParentAt;
-			ParentAt.Blend(From, To, static_cast<float>(Step) / Steps);
-			const FTransform Current = Hitbox.Offset * ParentAt;
+			const FTransform Current = Hitbox.GetTransform(From, To, static_cast<float>(Step) / Steps);
 			const FQuat Rotation = FQuat::Slerp(Previous.GetRotation(), Current.GetRotation(), 0.5f);
 
 			TArray<FHitResult> Hits;

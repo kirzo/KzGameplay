@@ -100,6 +100,12 @@ struct KZGAMEPLAY_API FKzComboHitbox
 
 	/** Where it is, hanging from Parent. */
 	FTransform GetTransform(const USceneComponent& Parent) const;
+
+	/** Where it is at Alpha of the way, as its parent goes from From to To. */
+	FTransform GetTransform(const FTransform& From, const FTransform& To, float Alpha) const;
+
+	/** How many steps a sweep takes as its parent goes from From to To: enough that the parent turns little in each, so the sweep follows the arc of a swing instead of cutting across it. */
+	static int32 GetSweepSteps(const FTransform& From, const FTransform& To);
 };
 
 /** One attack: how it is animated, its damage and the hitboxes its Hit Windows sweep. Its outputs say where each input leads once it hit or missed. */
