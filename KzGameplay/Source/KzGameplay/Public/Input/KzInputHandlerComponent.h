@@ -12,6 +12,7 @@
 class UKzInputProfile;
 class UEnhancedInputComponent;
 class APawn;
+class AController;
 struct FInputActionValue;
 enum class ETriggerEvent : uint8;
 
@@ -153,17 +154,21 @@ private:
 	UFUNCTION()
 	void OnPawnRestarted(APawn* Pawn);
 
+	/** Takes the keys back from the controller leaving. The layers stay, for whoever possesses the pawn next. */
+	UFUNCTION()
+	void OnPawnControllerChanged(APawn* Pawn, AController* OldController, AController* NewController);
+
 	/** Internal helper to perform the actual binding. */
 	void TryBindInput(APawn* Pawn, UKzInputProfile* ProfileToUse = nullptr);
 
 	/** Binds a layer's actions and applies its context, recording both so they can be undone. Without input yet, the layer waits for TryBindInput. */
 	void BindProfileLayer(APawn* Pawn, FActiveProfile& Layer);
 
-	/** Undoes exactly what BindProfileLayer did for this layer. */
-	void UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer);
+	/** Undoes exactly what BindProfileLayer did for this layer. Controller is the one whose keys the context went on. */
+	void UnbindProfileLayer(APawn* Pawn, const AController* Controller, FActiveProfile& Layer);
 
 	/** The subsystem that owns the key mappings, or null for anything without a local player. */
-	class UEnhancedInputLocalPlayerSubsystem* GetLocalPlayerInput(const APawn* Pawn) const;
+	class UEnhancedInputLocalPlayerSubsystem* GetLocalPlayerInput(const AController* Controller) const;
 
 	/** Internal callback for when an input action is pressed. */
 	void Input_ActionPressed(FGameplayTag InputTag, FGameplayTag EventTag);

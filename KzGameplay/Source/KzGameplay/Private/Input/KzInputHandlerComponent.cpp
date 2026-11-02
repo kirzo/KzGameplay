@@ -45,12 +45,22 @@ void UKzInputHandlerComponent::BeginPlay()
 
 		// Always subscribe to Restarted in case the player is unpossessed and repossessed later
 		PawnOwner->ReceiveRestartedDelegate.AddDynamic(this, &UKzInputHandlerComponent::OnPawnRestarted);
+		PawnOwner->ReceiveControllerChangedDelegate.AddDynamic(this, &UKzInputHandlerComponent::OnPawnControllerChanged);
 	}
 }
 
 void UKzInputHandlerComponent::OnPawnRestarted(APawn* Pawn)
 {
 	TryBindInput(Pawn);
+}
+
+void UKzInputHandlerComponent::OnPawnControllerChanged(APawn* Pawn, AController* OldController, AController* NewController)
+{
+	// The pawn no longer knows the controller leaving, and its contexts would stay on that player while it drives another pawn
+	for (FActiveProfile& Layer : ActiveProfiles)
+	{
+		UnbindProfileLayer(Pawn, OldController, Layer);
+	}
 }
 
 void UKzInputHandlerComponent::InitializeInput(UKzInputProfile* OverrideProfile)
@@ -67,7 +77,7 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 
 	for (int32 Index = ActiveProfiles.Num() - 1; Index >= 0; --Index)
 	{
-		UnbindProfileLayer(Pawn, ActiveProfiles[Index]);
+		UnbindProfileLayer(Pawn, Pawn->GetController(), ActiveProfiles[Index]);
 	}
 
 	// Only the base is replaced: pushed layers belong to what the pawn holds and can do, which a possession
@@ -110,7 +120,7 @@ void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
 		return;
 	}
 
-	UnbindProfileLayer(Pawn, ActiveProfiles[Index]);
+	UnbindProfileLayer(Pawn, Pawn ? Pawn->GetController() : nullptr, ActiveProfiles[Index]);
 	ActiveProfiles.RemoveAt(Index);
 }
 
@@ -167,7 +177,7 @@ void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, FActiveProfile& Lay
 	// The keys travel with the profile, so nobody has to remember to keep a second asset in step
 	if (Profile->MappingContext)
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn))
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn->GetController()))
 		{
 			// Derived from the order things were pushed rather than authored: priority only decides who
 			// wins a key two contexts both claim, and that answer is already "whatever went on last".
@@ -179,7 +189,7 @@ void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, FActiveProfile& Lay
 	}
 }
 
-void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer)
+void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, const AController* Controller, FActiveProfile& Layer)
 {
 	if (Pawn)
 	{
@@ -190,13 +200,13 @@ void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, FActiveProfile& L
 				EnhancedInput->RemoveBindingByHandle(Handle);
 			}
 		}
+	}
 
-		if (Layer.bAppliedContext && Layer.Profile && Layer.Profile->MappingContext)
+	if (Layer.bAppliedContext && Layer.Profile && Layer.Profile->MappingContext)
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Controller))
 		{
-			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = GetLocalPlayerInput(Pawn))
-			{
-				Subsystem->RemoveMappingContext(Layer.Profile->MappingContext);
-			}
+			Subsystem->RemoveMappingContext(Layer.Profile->MappingContext);
 		}
 	}
 
@@ -204,10 +214,10 @@ void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, FActiveProfile& L
 	Layer.bAppliedContext = false;
 }
 
-UEnhancedInputLocalPlayerSubsystem* UKzInputHandlerComponent::GetLocalPlayerInput(const APawn* Pawn) const
+UEnhancedInputLocalPlayerSubsystem* UKzInputHandlerComponent::GetLocalPlayerInput(const AController* Controller) const
 {
-	// AI pawns have no local player, and therefore no keys: their bindings simply never fire
-	const APlayerController* PC = Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+	// AI controllers have no local player, and therefore no keys: their bindings simply never fire
+	const APlayerController* PC = Cast<APlayerController>(Controller);
 	return PC ? ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()) : nullptr;
 }
 
