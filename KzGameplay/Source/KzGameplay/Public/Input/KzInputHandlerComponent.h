@@ -51,6 +51,7 @@ private:
 		TObjectPtr<UKzInputProfile> Profile;
 		TArray<uint32> BindHandles;
 		bool bAppliedContext = false;
+		bool bIsBase = false;
 	};
 
 	/**
@@ -155,8 +156,8 @@ private:
 	/** Internal helper to perform the actual binding. */
 	void TryBindInput(APawn* Pawn, UKzInputProfile* ProfileToUse = nullptr);
 
-	/** Binds one profile's actions and applies its context, recording both so they can be undone. */
-	void BindProfileLayer(APawn* Pawn, UKzInputProfile* Profile);
+	/** Binds a layer's actions and applies its context, recording both so they can be undone. Without input yet, the layer waits for TryBindInput. */
+	void BindProfileLayer(APawn* Pawn, FActiveProfile& Layer);
 
 	/** Undoes exactly what BindProfileLayer did for this layer. */
 	void UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer);

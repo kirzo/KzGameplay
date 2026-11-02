@@ -65,21 +65,27 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 		return;
 	}
 
-	// The base layer is the character's own: rebinding it drops everything an item had pushed, which is
-	// correct, since a possession change means those items are no longer in these hands
 	for (int32 Index = ActiveProfiles.Num() - 1; Index >= 0; --Index)
 	{
 		UnbindProfileLayer(Pawn, ActiveProfiles[Index]);
 	}
-	ActiveProfiles.Reset();
 
-	UKzInputProfile* BaseProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get();
-	if (!BaseProfile)
+	// Only the base is replaced: pushed layers belong to what the pawn holds and can do, which a possession
+	// does not change, and the ones pushed before there was input are bound here for the first time
+	ActiveProfiles.RemoveAll([](const FActiveProfile& Layer) { return Layer.bIsBase; });
+
+	if (UKzInputProfile* BaseProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get())
 	{
-		return;
+		FActiveProfile Base;
+		Base.Profile = BaseProfile;
+		Base.bIsBase = true;
+		ActiveProfiles.Insert(MoveTemp(Base), 0);
 	}
 
-	BindProfileLayer(Pawn, BaseProfile);
+	for (FActiveProfile& Layer : ActiveProfiles)
+	{
+		BindProfileLayer(Pawn, Layer);
+	}
 }
 
 void UKzInputHandlerComponent::PushInputProfile(UKzInputProfile* Profile)
@@ -90,7 +96,9 @@ void UKzInputHandlerComponent::PushInputProfile(UKzInputProfile* Profile)
 		return;
 	}
 
-	BindProfileLayer(Pawn, Profile);
+	FActiveProfile& Layer = ActiveProfiles.AddDefaulted_GetRef();
+	Layer.Profile = Profile;
+	BindProfileLayer(Pawn, Layer);
 }
 
 void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
@@ -123,16 +131,14 @@ const FKzInputAction* UKzInputHandlerComponent::FindActionConfig(const FGameplay
 	return nullptr;
 }
 
-void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, UKzInputProfile* Profile)
+void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, FActiveProfile& Layer)
 {
 	UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(Pawn->InputComponent);
-	if (!EnhancedInput)
+	UKzInputProfile* Profile = Layer.Profile;
+	if (!EnhancedInput || !Profile)
 	{
 		return;
 	}
-
-	FActiveProfile Layer;
-	Layer.Profile = Profile;
 
 	for (const FKzInputAction& Action : Profile->InputActions)
 	{
@@ -171,8 +177,6 @@ void UKzInputHandlerComponent::BindProfileLayer(APawn* Pawn, UKzInputProfile* Pr
 			Layer.bAppliedContext = true;
 		}
 	}
-
-	ActiveProfiles.Add(MoveTemp(Layer));
 }
 
 void UKzInputHandlerComponent::UnbindProfileLayer(APawn* Pawn, FActiveProfile& Layer)
