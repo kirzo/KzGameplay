@@ -15,16 +15,36 @@ class UKzInputHandlerComponent;
 struct FInputActionValue;
 enum class ETriggerEvent : uint8;
 
+/** How a walk speed source sets the max walk speed. */
+UENUM(BlueprintType)
+enum class EKzWalkSpeedMode : uint8
+{
+	/** Speed, as it is. */
+	Absolute,
+
+	/** The base walk speed times Multiplier. */
+	Multiplier
+};
+
 USTRUCT(BlueprintType)
 struct FKzWalkSpeed
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = 0))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	EKzWalkSpeedMode Mode = EKzWalkSpeedMode::Absolute;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = 0, EditCondition = "Mode == EKzWalkSpeedMode::Absolute", EditConditionHides))
 	float Speed = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = 0, EditCondition = "Mode == EKzWalkSpeedMode::Multiplier", EditConditionHides))
+	float Multiplier = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	int32 Priority = 0;
+
+	/** The max walk speed it sets over a base walk speed. */
+	float Resolve(float BaseSpeed) const { return Mode == EKzWalkSpeedMode::Multiplier ? BaseSpeed * Multiplier : Speed; }
 };
 
 /**
@@ -46,7 +66,7 @@ public:
 
 	/** The highest-priority source sets the max walk speed; on a tie, the last one pushed. Pushing a source again replaces it. */
 	UFUNCTION(BlueprintCallable, Category = "Movement")
-	void PushMaxWalkSpeed(FName SourceID, float Speed, int32 Priority);
+	void PushMaxWalkSpeed(FName SourceID, const FKzWalkSpeed& WalkSpeed);
 
 	UFUNCTION(BlueprintCallable, Category = "Movement")
 	void RemoveMaxWalkSpeed(FName SourceID);
@@ -76,7 +96,7 @@ private:
 	/** Max walk speed with no source pushed: the movement component's at BeginPlay. */
 	float BaseWalkSpeed = 0.0f;
 
-	Kz::TPriorityStack<float, false, FName, false> WalkSpeedStack;
+	Kz::TPriorityStack<FKzWalkSpeed, false, FName, false> WalkSpeedStack;
 
 	void UpdateMaxWalkSpeed();
 

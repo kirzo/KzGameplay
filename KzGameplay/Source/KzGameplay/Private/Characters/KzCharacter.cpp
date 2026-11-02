@@ -52,9 +52,9 @@ void AKzCharacter::PossessedBy(AController* NewController)
 	Super::PossessedBy(NewController);
 }
 
-void AKzCharacter::PushMaxWalkSpeed(FName SourceID, float Speed, int32 Priority)
+void AKzCharacter::PushMaxWalkSpeed(FName SourceID, const FKzWalkSpeed& WalkSpeed)
 {
-	WalkSpeedStack.Push(Speed, SourceID, Priority);
+	WalkSpeedStack.Push(WalkSpeed, SourceID, WalkSpeed.Priority);
 	UpdateMaxWalkSpeed();
 }
 
@@ -68,15 +68,14 @@ void AKzCharacter::RemoveMaxWalkSpeed(FName SourceID)
 
 void AKzCharacter::UpdateMaxWalkSpeed()
 {
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeedStack.IsEmpty() ? BaseWalkSpeed : WalkSpeedStack.Top();
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeedStack.IsEmpty() ? BaseWalkSpeed : WalkSpeedStack.Top().Resolve(BaseWalkSpeed);
 }
 
 void AKzCharacter::HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
 	if (NewCount > 0)
 	{
-		const FKzWalkSpeed& WalkSpeed = WalkSpeedByTag.FindChecked(Tag);
-		PushMaxWalkSpeed(Tag.GetTagName(), WalkSpeed.Speed, WalkSpeed.Priority);
+		PushMaxWalkSpeed(Tag.GetTagName(), WalkSpeedByTag.FindChecked(Tag));
 	}
 	else
 	{
