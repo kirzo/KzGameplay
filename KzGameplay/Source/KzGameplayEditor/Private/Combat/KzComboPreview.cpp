@@ -605,6 +605,7 @@ void FKzComboPreview::BuildSteps()
 	Steps.Reset();
 	CurrentStep = INDEX_NONE;
 	Animation.Reset();
+	PreviousAnimation.Reset();
 	Trails.Reset();
 	Paths.Reset();
 
@@ -757,6 +758,12 @@ void FKzComboPreview::PoseAt(float InTime)
 
 		const FKzComboNode_Attack* Attack = GetShownAttack();
 		USkeletalMeshComponent* Mesh = Stage.GetMesh();
+
+		// Made first: each preview takes the mesh over, and the shown attack's has to be the last.
+		const UKzEdGraphNode* PreviousNode = Index > 0 ? Steps[Index - 1].Node.Get() : nullptr;
+		const FKzComboNode_Attack* PreviousAttack = PreviousNode ? PreviousNode->Node.GetPtr<FKzComboNode_Attack>() : nullptr;
+		PreviousAnimation = PreviousAttack && PreviousAttack->Animation && Mesh ? KzAnimationPreview::Make(*PreviousAttack->Animation, MakeContext(), *Mesh) : nullptr;
+
 		Animation = Attack && Attack->Animation && Mesh ? KzAnimationPreview::Make(*Attack->Animation, MakeContext(), *Mesh) : nullptr;
 		if (Animation)
 		{
@@ -770,7 +777,12 @@ void FKzComboPreview::PoseAt(float InTime)
 
 	if (Animation)
 	{
-		Animation->SetTime(InTime - Steps[Index].Start);
+		const float Elapsed = InTime - Steps[Index].Start;
+		Animation->SetTime(Elapsed);
+
+		// In game the attack before goes on underneath while this one blends in, by this one's Blend In.
+		const float FromWeight = PreviousAnimation ? 1.0f - Animation->GetBlendInAlpha(Elapsed) : 0.0f;
+		Animation->SetBlendFrom(PreviousAnimation.Get(), Index > 0 ? InTime - Steps[Index - 1].Start : 0.0f, FromWeight);
 	}
 }
 

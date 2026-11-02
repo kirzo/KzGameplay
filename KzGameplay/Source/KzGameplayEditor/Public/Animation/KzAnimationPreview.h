@@ -31,6 +31,15 @@ public:
 
 	/** Why it may not look as in game, such as an animation made for another skeleton. */
 	virtual FText GetProblem() const { return FText::GetEmpty(); }
+
+	/** The asset it plays, such as a montage, for previews blending from another. */
+	virtual UObject* GetAsset() const { return nullptr; }
+
+	/** How far it has blended in ElapsedTime after starting, from 0 to 1, by its own blend in; 1 for previews that do not blend. */
+	virtual float GetBlendInAlpha(float ElapsedTime) const { return 1.0f; }
+
+	/** Shows From at FromTime under it, weighing it Weight, as the animation it takes over from blends out. Zero, or a From it cannot blend with, shows it alone. */
+	virtual void SetBlendFrom(const FKzAnimationPreview* From, float FromTime, float Weight) {}
 };
 
 DECLARE_DELEGATE_RetVal_ThreeParams(TSharedPtr<FKzAnimationPreview>, FKzMakeAnimationPreview, const UKzAnimationSource& /*Source*/, const FKzAnimationContext& /*Context*/, USkeletalMeshComponent& /*Mesh*/);

@@ -131,6 +131,9 @@ private:
 	/** The animation of the attack playing, posed at each time rather than left to play, so the preview runs the whole timeline. */
 	TSharedPtr<FKzAnimationPreview> Animation;
 
+	/** The attack before it, which in game goes on underneath while this one blends in. */
+	TSharedPtr<FKzAnimationPreview> PreviousAnimation;
+
 	float Time = 0.0f;
 	bool bPlaying = true;
 	bool bLooping = true;

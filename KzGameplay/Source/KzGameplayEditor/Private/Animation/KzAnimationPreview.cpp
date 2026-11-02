@@ -2,8 +2,8 @@
 
 #include "Animation/KzAnimationPreview.h"
 #include "Animation/AnimMontage.h"
-#include "Animation/AnimSingleNodeInstance.h"
 #include "Animation/KzAnimationSource.h"
+#include "Animation/KzMontagePreviewInstance.h"
 #include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -17,7 +17,7 @@ namespace
 	class FKzMontagePreview : public FKzAnimationPreview
 	{
 	public:
-		FKzMontagePreview(UAnimSingleNodeInstance& InInstance, UAnimMontage& InMontage, float InPlayRate, const FText& InProblem) : Instance(&InInstance), Montage(&InMontage), PlayRate(InPlayRate), Problem(InProblem)
+		FKzMontagePreview(UKzMontagePreviewInstance& InInstance, UAnimMontage& InMontage, float InPlayRate, const FText& InProblem) : Instance(&InInstance), Montage(&InMontage), PlayRate(InPlayRate), Problem(InProblem)
 		{
 			SetRate(1.0f);
 		}
@@ -29,19 +29,14 @@ namespace
 
 		virtual float GetTime() const override
 		{
-			return Instance.IsValid() ? Instance->GetCurrentTime() : 0.0f;
+			return Instance.IsValid() ? Instance->GetTime() : 0.0f;
 		}
 
 		virtual void SetTime(float Time) override
 		{
-			if (Instance.IsValid() && Montage.IsValid())
+			if (Instance.IsValid())
 			{
-				// A montage that ran out has no instance left to pose.
-				if (!Instance->GetActiveMontageInstance())
-				{
-					Instance->RestartMontage(Montage.Get());
-				}
-				Instance->SetPosition(Time, false);
+				Instance->SetTime(Time);
 			}
 		}
 
@@ -76,8 +71,34 @@ namespace
 			return Problem;
 		}
 
+		virtual UObject* GetAsset() const override
+		{
+			return Montage.Get();
+		}
+
+		virtual float GetBlendInAlpha(float ElapsedTime) const override
+		{
+			const float BlendTime = Montage.IsValid() ? Montage->BlendIn.GetBlendTime() : 0.0f;
+			if (BlendTime <= 0.0f)
+			{
+				return 1.0f;
+			}
+
+			// The blend runs in real time, whatever the play rate.
+			const float Alpha = FMath::Clamp(ElapsedTime / (PlayRate * BlendTime), 0.0f, 1.0f);
+			return FAlphaBlend::AlphaToBlendOption(Alpha, Montage->BlendIn.GetBlendOption(), Montage->BlendIn.GetCustomCurve());
+		}
+
+		virtual void SetBlendFrom(const FKzAnimationPreview* From, float FromTime, float Weight) override
+		{
+			if (Instance.IsValid())
+			{
+				Instance->SetBlendFrom(From ? Cast<UAnimMontage>(From->GetAsset()) : nullptr, FromTime, Weight);
+			}
+		}
+
 	private:
-		TWeakObjectPtr<UAnimSingleNodeInstance> Instance;
+		TWeakObjectPtr<UKzMontagePreviewInstance> Instance;
 		TWeakObjectPtr<UAnimMontage> Montage;
 		float PlayRate = 1.0f;
 		FText Problem;
@@ -92,12 +113,13 @@ namespace
 			return nullptr;
 		}
 
-		Mesh.PlayAnimation(Montage, true);
-		UAnimSingleNodeInstance* Instance = Mesh.GetSingleNodeInstance();
+		Mesh.SetAnimInstanceClass(UKzMontagePreviewInstance::StaticClass());
+		UKzMontagePreviewInstance* Instance = Cast<UKzMontagePreviewInstance>(Mesh.GetAnimInstance());
 		if (!Instance)
 		{
 			return nullptr;
 		}
+		Instance->Play(Montage);
 
 		// On another skeleton only the bones named alike move, and the rest keeps its rest pose.
 		FText Problem;
