@@ -13,6 +13,7 @@
 #include "Items/KzItemDefinition.h"
 #include "PreviewScene.h"
 #include "UObject/GCObject.h"
+#include "UObject/UObjectGlobals.h"
 
 namespace
 {
@@ -25,6 +26,32 @@ namespace
 			if (!Primitive->IsA<UMeshComponent>())
 			{
 				Primitive->SetVisibility(false);
+			}
+		}
+	}
+}
+
+FKzComboStage::FKzComboStage()
+{
+	ObjectsReplacedHandle = FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FKzComboStage::OnObjectsReplaced);
+}
+
+FKzComboStage::~FKzComboStage()
+{
+	FCoreUObjectDelegates::OnObjectsReplaced.Remove(ObjectsReplacedHandle);
+}
+
+void FKzComboStage::OnObjectsReplaced(const TMap<UObject*, UObject*>& Replaced)
+{
+	for (const TPair<UObject*, UObject*>& Pair : Replaced)
+	{
+		// The engine may have handed the stage its new instances already.
+		for (TObjectPtr<AActor>* Actor : { &Character, &Weapon })
+		{
+			if (*Actor && (Pair.Key == Actor->Get() || Pair.Value == Actor->Get()))
+			{
+				*Actor = Cast<AActor>(Pair.Value);
+				bShown = false;
 			}
 		}
 	}

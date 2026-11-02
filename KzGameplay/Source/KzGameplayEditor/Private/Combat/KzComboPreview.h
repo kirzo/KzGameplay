@@ -18,7 +18,7 @@ struct FKzComboHitbox;
 struct FKzComboNode_Attack;
 
 /**
- * The combo editor's viewport: the selected attack's animation on the combo's preview character, holding the preview item, with the attack's hitboxes
+ * The combo editor's viewport: the selected attack's animation, or the one the combo starts with until one is picked, on the combo's preview character, holding the preview item, with the attack's hitboxes
  * and the trail they sweep through its Hit Windows. In combo mode it plays the attacks from the Entry up to the selected one instead, chaining each at
  * the combo's preview timing. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses, steps and scrubs,
  * with the windows as bands.
@@ -93,6 +93,9 @@ private:
 
 	/** Every way from the Entry to the selected attack that passes no attack twice, shortest first. */
 	void FindPaths();
+
+	/** The attack the Entry's first linked output starts the combo with. */
+	UKzEdGraphNode* FindFirstAttack() const;
 
 	/** Poses the character at Time, putting on the animation of the attack playing then. */
 	void PoseAt(float InTime);

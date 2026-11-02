@@ -68,6 +68,19 @@ namespace
 		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_ComboWindow>();
 	}
 
+	UKzEdGraphNode* FindEntry(const UEdGraph& Graph)
+	{
+		for (UEdGraphNode* Each : Graph.Nodes)
+		{
+			UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
+			if (Node && Node->Node.GetPtr<FKzComboNode_Entry>())
+			{
+				return Node;
+			}
+		}
+		return nullptr;
+	}
+
 	// The attacks one after another, each with its windows as bands in their notify's color, and the playhead; dragging scrubs.
 	class SKzComboTrack : public SLeafWidget
 	{
@@ -230,6 +243,13 @@ void FKzComboPreview::OnGraphChanged()
 
 void FKzComboPreview::Tick(float DeltaTime)
 {
+	// A Blueprint compiled since, as one playing in the editor does, may have replaced the stage.
+	const UKzComboGraph* Asset = Combo.Get();
+	if (Scene && Asset && Stage.Update(*Scene, *Asset))
+	{
+		BuildSteps();
+	}
+
 	if (Steps.IsEmpty())
 	{
 		return;
@@ -621,6 +641,12 @@ void FKzComboPreview::BuildSteps()
 	Trails.Reset();
 	Paths.Reset();
 
+	// Until an attack is picked, the one the combo starts with.
+	if (!SelectedNode.IsValid())
+	{
+		SelectedNode = FindFirstAttack();
+	}
+
 	const UKzComboGraph* Asset = Combo.Get();
 	UKzEdGraphNode* Selected = SelectedNode.Get();
 	if (!Asset || !Stage.GetMesh() || !Selected)
@@ -682,22 +708,8 @@ void FKzComboPreview::FindPaths()
 	UKzEdGraphNode* Target = SelectedNode.Get();
 	const UKzComboGraph* Asset = Combo.Get();
 	const UEdGraph* Graph = Target ? Target->GetGraph() : nullptr;
-	if (!Graph || !Asset)
-	{
-		return;
-	}
-
-	UKzEdGraphNode* Entry = nullptr;
-	for (UEdGraphNode* Each : Graph->Nodes)
-	{
-		UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
-		if (Node && Node->Node.GetPtr<FKzComboNode_Entry>())
-		{
-			Entry = Node;
-			break;
-		}
-	}
-	if (!Entry)
+	UKzEdGraphNode* Entry = Graph ? FindEntry(*Graph) : nullptr;
+	if (!Entry || !Asset)
 	{
 		return;
 	}
@@ -744,6 +756,36 @@ void FKzComboPreview::FindPaths()
 	Walk(*Entry);
 
 	Paths.StableSort([](const FPath& A, const FPath& B) { return A.Nodes.Num() < B.Nodes.Num(); });
+}
+
+UKzEdGraphNode* FKzComboPreview::FindFirstAttack() const
+{
+	const UKzComboGraph* Asset = Combo.Get();
+	UKzEdGraphNode* Entry = Asset && Asset->EdGraph ? FindEntry(*Asset->EdGraph) : nullptr;
+	if (!Entry)
+	{
+		return nullptr;
+	}
+
+	for (UEdGraphPin* Output : Entry->Pins)
+	{
+		if (Output->Direction != EGPD_Output)
+		{
+			continue;
+		}
+
+		TArray<UEdGraphPin*> Targets;
+		KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
+		for (UEdGraphPin* Input : Targets)
+		{
+			UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
+			if (Next && Next->Node.GetPtr<FKzComboNode_Attack>())
+			{
+				return Next;
+			}
+		}
+	}
+	return nullptr;
 }
 
 void FKzComboPreview::PoseAt(float InTime)

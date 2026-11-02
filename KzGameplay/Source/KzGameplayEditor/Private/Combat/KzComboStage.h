@@ -11,6 +11,7 @@ class FReferenceCollector;
 class UKzComboGraph;
 class UKzItemDefinition;
 class UMeshComponent;
+class UObject;
 class USceneComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
@@ -19,7 +20,11 @@ class USkeletalMeshComponent;
 class FKzComboStage
 {
 public:
-	/** Puts in the scene what the combo's preview settings name, if they changed since last time. True when it changed anything. */
+	FKzComboStage();
+	~FKzComboStage();
+	UE_NONCOPYABLE(FKzComboStage);
+
+	/** Puts in the scene what the combo's preview settings name, if they changed or a Blueprint compile replaced them since last time. True when it changed anything. */
 	bool Update(FPreviewScene& Scene, const UKzComboGraph& Combo);
 
 	/** Where the previews look at the character from: its front and a side, a little from above. */
@@ -38,6 +43,14 @@ private:
 
 	/** Hangs the preview item on the character as equipping it would. */
 	void ShowItem(FPreviewScene& Scene, const UKzComboGraph& Combo);
+
+	/**
+	 * A compiled Blueprint replaces its instances, the stage's too, and hangs what hung from them on the new one's root: the item off the hand.
+	 * Takes the new instances, so the next Update clears them away and shows everything again.
+	 */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& Replaced);
+
+	FDelegateHandle ObjectsReplacedHandle;
 
 	TObjectPtr<AActor> Character;
 	TObjectPtr<USkeletalMeshComponent> Mesh;
