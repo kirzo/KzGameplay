@@ -45,6 +45,13 @@ void AKzCharacter::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AKzCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UpdateSlopeMultiplier(DeltaSeconds);
+}
+
 void AKzCharacter::PossessedBy(AController* NewController)
 {
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
@@ -68,7 +75,34 @@ void AKzCharacter::RemoveMaxWalkSpeed(FName SourceID)
 
 void AKzCharacter::UpdateMaxWalkSpeed()
 {
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeedStack.IsEmpty() ? BaseWalkSpeed : WalkSpeedStack.Top().Resolve(BaseWalkSpeed);
+	const float Speed = WalkSpeedStack.IsEmpty() ? BaseWalkSpeed : WalkSpeedStack.Top().Resolve(BaseWalkSpeed);
+	GetCharacterMovement()->MaxWalkSpeed = Speed * SlopeMultiplier;
+}
+
+void AKzCharacter::UpdateSlopeMultiplier(float DeltaSeconds)
+{
+	const FRichCurve* Curve = SlopeSpeedCurve.GetRichCurveConst();
+	if (!Curve || Curve->GetNumKeys() == 0)
+	{
+		return;
+	}
+
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	const FVector Direction = Movement->Velocity.GetSafeNormal2D();
+	float Target = 1.0f;
+	if (Movement->IsMovingOnGround() && Movement->CurrentFloor.bBlockingHit && !Direction.IsNearlyZero())
+	{
+		// The ground rises along the movement where its normal leans against it
+		const double Slope = FMath::RadiansToDegrees(FMath::Asin(-FVector::DotProduct(Movement->CurrentFloor.HitResult.ImpactNormal, Direction)));
+		Target = Curve->Eval(static_cast<float>(Slope));
+	}
+
+	const float Multiplier = FMath::FInterpTo(SlopeMultiplier, Target, DeltaSeconds, SlopeInterpSpeed);
+	if (Multiplier != SlopeMultiplier)
+	{
+		SlopeMultiplier = Multiplier;
+		UpdateMaxWalkSpeed();
+	}
 }
 
 void AKzCharacter::HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount)

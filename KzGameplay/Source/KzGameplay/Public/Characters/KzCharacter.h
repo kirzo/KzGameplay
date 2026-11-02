@@ -7,6 +7,7 @@
 #include "AbilitySystemInterface.h"
 #include "GameplayTagAssetInterface.h"
 #include "Containers/KzPriorityStack.h"
+#include "Curves/CurveFloat.h"
 #include "KzCharacter.generated.h"
 
 class UKzAbilitySystemComponent;
@@ -85,7 +86,19 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	TMap<FGameplayTag, FKzWalkSpeed> WalkSpeedByTag;
 
+	/**
+	 * Multiplies the max walk speed, whatever source sets it, by the slope of the ground along the movement, in degrees: positive uphill,
+	 * negative downhill. Without keys, slopes change nothing.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	FRuntimeFloatCurve SlopeSpeedCurve;
+
+	/** How fast the slope multiplier follows the ground, so a bump does not jolt the speed. 0 follows it at once. */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = 0))
+	float SlopeInterpSpeed = 5.0f;
+
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 
 	/** Move goes to the movement component and Look turns the control rotation. Override for other schemes, such as twin-stick aiming. */
@@ -98,7 +111,11 @@ private:
 
 	Kz::TPriorityStack<FKzWalkSpeed, false, FName, false> WalkSpeedStack;
 
+	float SlopeMultiplier = 1.0f;
+
 	void UpdateMaxWalkSpeed();
+
+	void UpdateSlopeMultiplier(float DeltaSeconds);
 
 	void HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount);
 };
