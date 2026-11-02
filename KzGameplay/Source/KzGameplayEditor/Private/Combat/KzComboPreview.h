@@ -64,7 +64,8 @@ public:
 	float GetLength() const;
 	float GetTime() const { return Time; }
 	bool IsPlaying() const { return bPlaying; }
-	void TogglePlay();
+	virtual bool CanTogglePlay() const override { return !Steps.IsEmpty(); }
+	virtual void TogglePlay() override;
 
 	/** Pauses and poses the attacks at Time, as dragging a playhead does. */
 	void ScrubTo(float InTime);
