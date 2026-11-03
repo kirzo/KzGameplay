@@ -8,6 +8,7 @@
 #include "Combat/KzCombatNotifies.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
+#include "Combat/KzMeshShakeSubsystem.h"
 #include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
@@ -309,6 +310,10 @@ void UKzComboInstance::SweepHitboxes()
 				HitActors.Add(HitActor);
 				bHit = true;
 				DilateTime(ComboHit, *HitActor);
+				if (ComboHit.Result == EKzHitResult::Hit && Context.User)
+				{
+					UKzMeshShakeSubsystem::ShakeMesh(HitActor, Flatten(HitActor->GetActorLocation() - Context.User->GetActorLocation()), Attack->HitShake, Attack->HitStop);
+				}
 				OnHit.Broadcast(ComboHit);
 
 				// Whoever heard it may have stopped the combo or chained another attack.

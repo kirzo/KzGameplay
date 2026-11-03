@@ -140,6 +140,10 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Seconds"))
 	float HitStop = 0.0f;
 
+	/** How far the target's mesh shakes back and forth along the hit while the hit stop holds it. */
+	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Centimeters"))
+	float HitShake = 0.0f;
+
 	/** Executed on the target when it hits: particles, sound, camera shake, slow motion. */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
 	FGameplayTag ImpactCue;
