@@ -166,6 +166,20 @@ public:
 	bool UnequipItem(UPARAM(meta = (Categories = "Equipment.Slot")) FGameplayTag SlotID, FKzItemInstance& OutUnequippedItem);
 
 	/**
+	 * Puts the item in SlotID away in its Equippable's Stow Slot, still equipped: what SlotID granted goes away until it is drawn.
+	 * @return True if there was an item to put away and room for it.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
+	bool StowItem(UPARAM(meta = (Categories = "Equipment.Slot")) FGameplayTag SlotID);
+
+	/**
+	 * Takes the item put away from SlotID back into it.
+	 * @return True if there was one and SlotID was free.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
+	bool DrawItem(UPARAM(meta = (Categories = "Equipment.Slot")) FGameplayTag SlotID);
+
+	/**
 	 * Returns a read-only pointer to the item instance currently occupying the given slot, if any.
 	 * @return Pointer to the instance, or nullptr if the slot is empty or invalid.
 	 */
@@ -203,13 +217,19 @@ protected:
 	/** The layout in force: the one it was initialized with, or the default on machines that never ran InitializeEquipment. */
 	const UKzEquipmentLayout* GetLayout() const;
 
-	/** Creates the local cosmetic mesh (SpawnMesh mode) for a slot on the current machine, replacing any existing one. */
+	/** Whether the slot holds its item put away: the slot is the item's Stow Slot, not its Target Slot. */
+	bool IsStowed(const FEquippedSlot& Slot, const UKzItemFragment_Equippable& Equippable) const;
+
+	/** Moves an item, actor and all, between its slot and its stow slot; the visuals and grants follow. */
+	void MoveItem(FEquippedSlot& From, FEquippedSlot& To);
+
+	/** Creates the local cosmetic mesh for a slot on the current machine, replacing any existing one: the item's in SpawnMesh mode, or its Stowed Mesh when put away. */
 	void RefreshVisualForSlot(FEquippedSlot& Slot);
 
 	/** Destroys the local cosmetic mesh for a slot on the current machine. */
 	void ClearVisualForSlot(FEquippedSlot& Slot);
 
-	/** Makes ItemDef what this machine shows in the slot, telling the old item's equip listeners it went and the new one's it came. Dedicated servers show nothing. */
+	/** Makes ItemDef what this machine shows in the slot, telling the old item's equip listeners it went and the new one's it came. An item put away counts as none. Dedicated servers show nothing. */
 	void ShowItem(FEquippedSlot& Slot, const UKzItemDefinition* ItemDef);
 
 	/** Called on clients when a slot first replicates in: refresh the visual and broadcast if it holds an item. */

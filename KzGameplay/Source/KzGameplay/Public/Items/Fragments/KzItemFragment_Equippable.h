@@ -78,6 +78,21 @@ public:
 	FTransform AttachmentOffset;
 
 	/**
+	 * Where the item goes when put away, still equipped, such as a sword to Equipment.Slot.Waist. That slot's socket holds it, and what its
+	 * Target Slot grants goes away until it is drawn. None, it cannot be put away.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stow", meta = (Categories = "Equipment.Slot"))
+	FGameplayTag StowSlot;
+
+	/** Shown in the stow slot instead of the item, such as the sword in its scabbard. None shows the item itself there. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stow", meta = (AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
+	TSoftObjectPtr<UStreamableRenderAsset> StowedMesh;
+
+	/** Transform offset at the stow slot's socket. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stow")
+	FTransform StowedOffset;
+
+	/**
 	 * Capabilities the owner gains while this item is equipped: what this object lets you do that you
 	 * could not do without it. The item names them and never learns what implements them.
 	 */

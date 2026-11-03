@@ -174,7 +174,15 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 	}
 
 	const UKzItemFragment_Equippable* EquipFrag = Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
-	if (!EquipFrag || EquipFrag->EquipmentSpawnMode != EKzEquipmentSpawnMode::SpawnMesh)
+	if (!EquipFrag)
+	{
+		return;
+	}
+
+	// An actor shows itself, unless put away behind a stowed mesh of its own
+	const bool bStowed = IsStowed(Slot, *EquipFrag);
+	const bool bStowedMesh = bStowed && !EquipFrag->StowedMesh.IsNull();
+	if (EquipFrag->EquipmentSpawnMode != EKzEquipmentSpawnMode::SpawnMesh && !bStowedMesh)
 	{
 		return;
 	}
@@ -185,7 +193,7 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 		return;
 	}
 
-	FName AttachmentSocket = EquipFrag->SocketOverride;
+	FName AttachmentSocket = bStowed ? NAME_None : EquipFrag->SocketOverride;
 	if (AttachmentSocket.IsNone())
 	{
 		if (const UKzEquipmentLayout* Layout = GetLayout())
@@ -195,7 +203,7 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 	}
 
 	UMeshComponent* NewMesh = nullptr;
-	if (UStreamableRenderAsset* LoadedMesh = EquipFrag->EquipmentMesh.LoadSynchronous())
+	if (UStreamableRenderAsset* LoadedMesh = (bStowedMesh ? EquipFrag->StowedMesh : EquipFrag->EquipmentMesh).LoadSynchronous())
 	{
 		if (UStaticMesh* AsStaticMesh = Cast<UStaticMesh>(LoadedMesh))
 		{
@@ -215,7 +223,7 @@ void UKzEquipmentComponent::RefreshVisualForSlot(FEquippedSlot& Slot)
 	{
 		NewMesh->RegisterComponent();
 		NewMesh->AttachToComponent(AttachParent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, AttachmentSocket);
-		NewMesh->SetRelativeTransform(EquipFrag->AttachmentOffset);
+		NewMesh->SetRelativeTransform(bStowed ? EquipFrag->StowedOffset : EquipFrag->AttachmentOffset);
 
 		if (EquipFrag->bDisableCollisionOnEquip)
 		{
@@ -237,6 +245,13 @@ void UKzEquipmentComponent::ClearVisualForSlot(FEquippedSlot& Slot)
 
 void UKzEquipmentComponent::ShowItem(FEquippedSlot& Slot, const UKzItemDefinition* ItemDef)
 {
+	// Put away, it is out of use: its listeners hear it went, as a pose for holding it would
+	const UKzItemFragment_Equippable* StowedEquippable = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+	if (StowedEquippable && IsStowed(Slot, *StowedEquippable))
+	{
+		ItemDef = nullptr;
+	}
+
 	// Listeners are cosmetic, like the mesh. A replicated change that keeps the item, such as a stat, tells them nothing.
 	if (Slot.ShownItem == ItemDef || (GetWorld() && GetWorld()->GetNetMode() == NM_DedicatedServer))
 	{
@@ -313,10 +328,11 @@ void UKzEquipmentComponent::RefreshEquippedGrants()
 			}
 		}
 
-		// And what this particular object grants on top
-		if (Slot.Instance.ItemDef)
+		// And what this particular object grants on top, unless it is put away
+		const UKzItemFragment_Equippable* Equippable = Slot.Instance.ItemDef ? Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+		if (Slot.Instance.ItemDef && !(Equippable && IsStowed(Slot, *Equippable)))
 		{
-			if (const UKzItemFragment_Equippable* Fragment = Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>())
+			if (const UKzItemFragment_Equippable* Fragment = Equippable)
 			{
 				for (const FGameplayTag& Tag : Fragment->GrantedCapabilities)
 				{
@@ -732,6 +748,105 @@ bool UKzEquipmentComponent::UnequipItem(FGameplayTag SlotID, FKzItemInstance& Ou
 	}
 
 	return false;
+}
+
+bool UKzEquipmentComponent::StowItem(FGameplayTag SlotID)
+{
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!GetOwner()->HasAuthority() || !Layout)
+	{
+		return false;
+	}
+
+	FEquippedSlot* From = EquipmentList.Slots.FindByKey(Layout->ResolveSlotID(SlotID));
+	const UKzItemFragment_Equippable* Equippable = From && From->Instance.IsValid() ? From->Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+	FEquippedSlot* To = Equippable && Equippable->StowSlot.IsValid() ? EquipmentList.Slots.FindByKey(Layout->ResolveSlotID(Equippable->StowSlot)) : nullptr;
+	if (!To || To == From || To->Instance.IsValid())
+	{
+		return false;
+	}
+
+	MoveItem(*From, *To);
+	return true;
+}
+
+bool UKzEquipmentComponent::DrawItem(FGameplayTag SlotID)
+{
+	const UKzEquipmentLayout* Layout = GetLayout();
+	if (!GetOwner()->HasAuthority() || !Layout)
+	{
+		return false;
+	}
+
+	const FGameplayTag TargetSlot = Layout->ResolveSlotID(SlotID);
+	FEquippedSlot* To = EquipmentList.Slots.FindByKey(TargetSlot);
+	if (!To || To->Instance.IsValid())
+	{
+		return false;
+	}
+
+	FEquippedSlot* From = EquipmentList.Slots.FindByPredicate([this, Layout, TargetSlot](const FEquippedSlot& Slot)
+	{
+		const UKzItemFragment_Equippable* Equippable = Slot.Instance.IsValid() ? Slot.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+		return Equippable && Layout->ResolveSlotID(Equippable->TargetSlot) == TargetSlot && IsStowed(Slot, *Equippable);
+	});
+	if (!From)
+	{
+		return false;
+	}
+
+	MoveItem(*From, *To);
+	return true;
+}
+
+bool UKzEquipmentComponent::IsStowed(const FEquippedSlot& Slot, const UKzItemFragment_Equippable& Equippable) const
+{
+	const UKzEquipmentLayout* Layout = GetLayout();
+	return Layout && Equippable.StowSlot.IsValid() && Slot.SlotID == Layout->ResolveSlotID(Equippable.StowSlot) && Slot.SlotID != Layout->ResolveSlotID(Equippable.TargetSlot);
+}
+
+void UKzEquipmentComponent::MoveItem(FEquippedSlot& From, FEquippedSlot& To)
+{
+	ClearVisualForSlot(From);
+	ShowItem(From, nullptr);
+
+	To.Instance = From.Instance;
+	From.Instance = FKzItemInstance();
+
+	// The item's actor goes along: to the new slot's socket, hidden there when a stowed mesh stands in for it
+	const UKzItemFragment_Equippable* Equippable = To.Instance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>();
+	AActor* ItemActor = To.Instance.SpawnedActor;
+	if (Equippable && ItemActor)
+	{
+		const bool bStowed = IsStowed(To, *Equippable);
+		ItemActor->SetActorHiddenInGame(bStowed && !Equippable->StowedMesh.IsNull());
+
+		const UKzEquipmentLayout* Layout = GetLayout();
+		const FName Socket = bStowed || Equippable->SocketOverride.IsNone() ? Layout->GetSocketForSlot(To.SlotID) : Equippable->SocketOverride;
+		const FTransform& Offset = bStowed ? Equippable->StowedOffset : Equippable->AttachmentOffset;
+		if (USceneComponent* AttachParent = GetAttachParentForSlot(To.SlotID))
+		{
+			UKzItemComponent* ItemComp = ItemActor->FindComponentByClass<UKzItemComponent>();
+			if (Equippable->bUseCustomAttachment && ItemComp)
+			{
+				ItemComp->OnCustomAttach.Broadcast(GetOwner(), FKzTransformSource(AttachParent, Socket, Offset));
+			}
+			else
+			{
+				ItemActor->AttachToComponent(AttachParent, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+				ItemActor->SetActorRelativeTransform(Offset);
+			}
+		}
+	}
+
+	RefreshVisualForSlot(To);
+	ShowItem(To, To.Instance.ItemDef);
+	EquipmentList.MarkItemDirty(From);
+	EquipmentList.MarkItemDirty(To);
+	RefreshEquippedGrants();
+
+	OnItemUnequipped.Broadcast(From.SlotID, To.Instance);
+	OnItemEquipped.Broadcast(To.SlotID, To.Instance);
 }
 
 const FKzItemInstance* UKzEquipmentComponent::FindItemInSlot(FGameplayTag SlotID) const
