@@ -198,6 +198,9 @@ public:
 	/** Where equipping would hang an item now: the component and socket of the slot it would go to, its own socket first. Null without a layout. */
 	USceneComponent* FindAttachmentForItem(const UKzItemFragment_Equippable& Equippable, FName& OutSocket) const;
 
+	/** Whether the slot holds its item put away: the slot is the item's Stow Slot, not its Target Slot. */
+	bool IsStowed(const FEquippedSlot& Slot, const UKzItemFragment_Equippable& Equippable) const;
+
 protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
@@ -216,9 +219,6 @@ protected:
 
 	/** The layout in force: the one it was initialized with, or the default on machines that never ran InitializeEquipment. */
 	const UKzEquipmentLayout* GetLayout() const;
-
-	/** Whether the slot holds its item put away: the slot is the item's Stow Slot, not its Target Slot. */
-	bool IsStowed(const FEquippedSlot& Slot, const UKzItemFragment_Equippable& Equippable) const;
 
 	/** Moves an item, actor and all, between its slot and its stow slot; the visuals and grants follow. */
 	void MoveItem(FEquippedSlot& From, FEquippedSlot& To);

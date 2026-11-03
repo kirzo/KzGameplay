@@ -104,6 +104,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	FRuntimeFloatCurve RotationRateBySpeed;
 
+	/** Caps the yaw rotation rate while the character has the tag, the slowest cap winning. 0 keeps its facing, so it strafes, as when blocking. */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = 0))
+	TMap<FGameplayTag, float> RotationRateByTag;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
@@ -119,6 +123,9 @@ private:
 	Kz::TPriorityStack<FKzWalkSpeed, false, FName, false> WalkSpeedStack;
 
 	float SlopeMultiplier = 1.0f;
+
+	/** Yaw rotation rate without curve or caps: the movement component's at BeginPlay. */
+	float BaseRotationRate = 0.0f;
 
 	void UpdateMaxWalkSpeed();
 

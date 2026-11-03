@@ -34,6 +34,7 @@ void AKzCharacter::BeginPlay()
 {
 	// Before Super: what BeginPlay pushes is not taken as the base, and its tags are heard
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+	BaseRotationRate = GetCharacterMovement()->RotationRate.Yaw;
 
 	for (const TPair<FGameplayTag, FKzWalkSpeed>& Entry : WalkSpeedByTag)
 	{
@@ -108,12 +109,18 @@ void AKzCharacter::UpdateSlopeMultiplier(float DeltaSeconds)
 
 void AKzCharacter::UpdateRotationRate()
 {
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	const FRichCurve* Curve = RotationRateBySpeed.GetRichCurveConst();
-	if (Curve && Curve->GetNumKeys() > 0)
+	float Rate = Curve && Curve->GetNumKeys() > 0 ? Curve->Eval(static_cast<float>(Movement->Velocity.Size2D())) : BaseRotationRate;
+
+	for (const TPair<FGameplayTag, float>& Entry : RotationRateByTag)
 	{
-		UCharacterMovementComponent* Movement = GetCharacterMovement();
-		Movement->RotationRate.Yaw = Curve->Eval(static_cast<float>(Movement->Velocity.Size2D()));
+		if (AbilitySystemComponent->HasMatchingGameplayTag(Entry.Key))
+		{
+			Rate = FMath::Min(Rate, Entry.Value);
+		}
 	}
+	Movement->RotationRate.Yaw = Rate;
 }
 
 void AKzCharacter::HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount)

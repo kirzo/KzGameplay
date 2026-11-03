@@ -11,6 +11,7 @@
 #include "GameFramework/PawnMovementComponent.h"
 #include "GameplayEffect.h"
 #include "Items/Fragments/KzItemFragment_Defense.h"
+#include "Items/Fragments/KzItemFragment_Equippable.h"
 #include "Items/KzItemDefinition.h"
 
 namespace
@@ -30,7 +31,9 @@ namespace
 		{
 			const UKzItemDefinition* Item = Slot.Instance.IsValid() ? Slot.Instance.ItemDef.Get() : nullptr;
 			const UKzItemFragment_Defense* Defense = Item ? Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
-			const float Angle = Defense ? GetAngle(*Defense) : 0.0f;
+			const UKzItemFragment_Equippable* Equippable = Item ? Item->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+			// Put away, it defends nothing
+			const float Angle = Defense && !(Equippable && Equipment->IsStowed(Slot, *Equippable)) ? GetAngle(*Defense) : 0.0f;
 			if (Angle > BestAngle)
 			{
 				BestAngle = Angle;
