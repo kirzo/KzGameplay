@@ -12,8 +12,6 @@
 #include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
-#include "GameFramework/Pawn.h"
-#include "GameFramework/PawnMovementComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "Items/Fragments/KzItemFragment_Defense.h"
 #include "Items/KzItemDefinition.h"
@@ -409,23 +407,7 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 	const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(WarpTimeLeft, DeltaTime));
 	WarpTimeLeft -= DeltaTime;
 	WarpMoved += Step;
-	const FVector Delta = ToTarget.GetSafeNormal() * Step;
-
-	const APawn* Pawn = Cast<APawn>(User);
-	UPawnMovementComponent* Movement = Pawn ? Pawn->GetMovementComponent() : nullptr;
-	if (Movement && Movement->UpdatedComponent)
-	{
-		FHitResult Blocked;
-		Movement->SafeMoveUpdatedComponent(Delta, Movement->UpdatedComponent->GetComponentQuat(), true, Blocked);
-		if (Blocked.IsValidBlockingHit())
-		{
-			Movement->SlideAlongSurface(Delta, 1.0f - Blocked.Time, Blocked.Normal, Blocked);
-		}
-	}
-	else
-	{
-		User->AddActorWorldOffset(Delta, true);
-	}
+	UKzCombatLibrary::MoveBy(*User, ToTarget.GetSafeNormal() * Step);
 }
 
 void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)

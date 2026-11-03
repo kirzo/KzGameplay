@@ -76,6 +76,23 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
+/** While it lasts, the mesh's owner moves Distance forward, spread over the window, so an attack can step in without root motion. Walls stop it. */
+UCLASS(meta = (DisplayName = "Move Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_MoveWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_MoveWindow();
+
+	/** How far it moves over the whole window. Negative steps back. */
+	UPROPERTY(EditAnywhere, Category = "Move Window", meta = (Units = "Centimeters"))
+	float Distance = 100.0f;
+
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+};
+
 /** While it lasts, the mesh's owner ignores these inputs, such as Input.Move so an attack neither steers nor turns. Facing a target and warping still move it. */
 UCLASS(meta = (DisplayName = "Input Block Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_InputBlockWindow : public UKzAnimationNotifyState

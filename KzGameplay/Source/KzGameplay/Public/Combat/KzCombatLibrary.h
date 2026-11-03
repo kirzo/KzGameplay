@@ -36,4 +36,7 @@ public:
 
 	/** Whether From lies within Angle degrees in front of Actor, on the ground plane. */
 	static bool IsInFront(const AActor& Actor, const FVector& From, float Angle);
+
+	/** Moves Actor by Delta through its movement component when it has one, sliding along what blocks it, as attacks close in or step forward. */
+	static void MoveBy(AActor& Actor, const FVector& Delta);
 };

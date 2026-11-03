@@ -7,6 +7,8 @@
 #include "Combat/KzCombatTags.h"
 #include "Equipment/KzEquipmentComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "GameplayEffect.h"
 #include "Items/Fragments/KzItemFragment_Defense.h"
 #include "Items/KzItemDefinition.h"
@@ -211,4 +213,23 @@ bool UKzCombatLibrary::IsInFront(const AActor& Actor, const FVector& From, float
 	}
 	const FVector Forward = Actor.GetActorForwardVector().GetSafeNormal2D();
 	return FVector::DotProduct(Forward, ToFrom) >= FMath::Cos(FMath::DegreesToRadians(Angle * 0.5f));
+}
+
+void UKzCombatLibrary::MoveBy(AActor& Actor, const FVector& Delta)
+{
+	const APawn* Pawn = Cast<APawn>(&Actor);
+	UPawnMovementComponent* Movement = Pawn ? Pawn->GetMovementComponent() : nullptr;
+	if (Movement && Movement->UpdatedComponent)
+	{
+		FHitResult Blocked;
+		Movement->SafeMoveUpdatedComponent(Delta, Movement->UpdatedComponent->GetComponentQuat(), true, Blocked);
+		if (Blocked.IsValidBlockingHit())
+		{
+			Movement->SlideAlongSurface(Delta, 1.0f - Blocked.Time, Blocked.Normal, Blocked);
+		}
+	}
+	else
+	{
+		Actor.AddActorWorldOffset(Delta, true);
+	}
 }
