@@ -389,25 +389,33 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 {
 	const UKzAnimNotifyState_WarpWindow* Window = Cast<UKzAnimNotifyState_WarpWindow>(Warp.Get());
 	AActor* User = Context.User;
-	const AActor* TargetActor = Target.Get();
-	if (!Window || !User || !TargetActor || DeltaTime <= 0.0f)
+	if (!Window || !User || DeltaTime <= 0.0f)
 	{
 		return;
 	}
 
-	const FVector ToTarget = Flatten(TargetActor->GetActorLocation() - User->GetActorLocation());
-	const float Gap = ToTarget.Size() - User->GetSimpleCollisionRadius() - TargetActor->GetSimpleCollisionRadius() - Window->StopDistance;
-	const float Allowed = FMath::Min(Gap, Window->MaxDistance - WarpMoved);
+	// Without a target, a step forward; with one, as far as the gap allows, so one already close is not approached.
+	FVector Direction = Flatten(User->GetActorForwardVector()).GetSafeNormal();
+	float Allowed = Window->FallbackDistance - WarpMoved;
+	if (const AActor* TargetActor = Target.Get())
+	{
+		const FVector ToTarget = Flatten(TargetActor->GetActorLocation() - User->GetActorLocation());
+		const float Gap = ToTarget.Size() - User->GetSimpleCollisionRadius() - TargetActor->GetSimpleCollisionRadius() - Window->StopDistance;
+		Direction = ToTarget.GetSafeNormal();
+		Allowed = FMath::Min(Gap, Window->MaxDistance - WarpMoved);
+	}
+
+	const float TimeLeft = WarpTimeLeft;
+	WarpTimeLeft -= DeltaTime;
 	if (Allowed <= 0.0f)
 	{
 		return;
 	}
 
 	// What is left spreads over what is left of the window, so a moving target is followed.
-	const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(WarpTimeLeft, DeltaTime));
-	WarpTimeLeft -= DeltaTime;
+	const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(TimeLeft, DeltaTime));
 	WarpMoved += Step;
-	UKzCombatLibrary::MoveBy(*User, ToTarget.GetSafeNormal() * Step);
+	UKzCombatLibrary::MoveBy(*User, Direction * Step);
 }
 
 void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)

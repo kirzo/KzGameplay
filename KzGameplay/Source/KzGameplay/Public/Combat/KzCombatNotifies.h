@@ -41,7 +41,7 @@ public:
 	UKzAnimNotifyState_CancelWindow();
 };
 
-/** While it lasts, the attacker closes in on its target. */
+/** While it lasts, the attacker closes in on its target, or steps forward without one. */
 UCLASS(meta = (DisplayName = "Warp Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_WarpWindow : public UKzAnimationNotifyState
 {
@@ -57,6 +57,10 @@ public:
 	/** The farthest the window moves the attacker. */
 	UPROPERTY(EditAnywhere, Category = "Warp Window", meta = (ClampMin = "0", Units = "Centimeters"))
 	float MaxDistance = 400.0f;
+
+	/** How far the window moves the attacker forward when there is no target. */
+	UPROPERTY(EditAnywhere, Category = "Warp Window", meta = (ClampMin = "0", Units = "Centimeters"))
+	float FallbackDistance = 100.0f;
 };
 
 /** While it lasts, the mesh's owner has these tags, such as State.Invulnerable on a dodge. Works in any animation, with or without an animation source. */
@@ -76,7 +80,7 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
-/** While it lasts, the mesh's owner moves Distance forward, spread over the window, so an attack can step in without root motion. Walls stop it. */
+/** While it lasts, the mesh's owner moves Distance forward, spread over the window, so any montage can step without root motion. Walls stop it. */
 UCLASS(meta = (DisplayName = "Move Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_MoveWindow : public UKzAnimationNotifyState
 {
