@@ -73,6 +73,20 @@ public:
 		return CurrentInput;
 	}
 
+	/** What Process would return, without any modifier acting on the input. */
+	FVector Preview(const AActor* Avatar, const FVector& RawInput) const
+	{
+		FVector CurrentInput = RawInput;
+		for (UKzInputModifier* Mod : Modifiers)
+		{
+			if (Mod)
+			{
+				CurrentInput = Mod->PreviewInput(Avatar, RawInput, CurrentInput);
+			}
+		}
+		return CurrentInput;
+	}
+
 	/** Returns true if the stack is empty. */
 	bool IsEmpty() const
 	{

@@ -22,6 +22,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Input Modifier")
 	FVector GetIntent() const;
 
+	/** The input as it comes, without capturing it. */
+	virtual FVector PreviewInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override { return CurrentInput; }
+
 protected:
 	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override;
 

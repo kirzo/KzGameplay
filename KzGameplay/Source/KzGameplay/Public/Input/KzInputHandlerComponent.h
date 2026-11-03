@@ -71,9 +71,10 @@ private:
 	UPROPERTY(Transient)
 	TMap<FGameplayTag, FKzInputModifierStack> ModifierStacks;
 
-	/** Last value seen per input, before and after the stack. */
+	/** Last value seen per input, before and after the stack, and what the stack would give if nothing ignored or took it. */
 	TMap<FGameplayTag, FVector> RawInputs;
 	TMap<FGameplayTag, FVector> ProcessedInputs;
+	TMap<FGameplayTag, FVector> IntendedInputs;
 
 public:
 	UKzInputHandlerComponent();
@@ -145,6 +146,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Input|Processing")
 	FVector GetProcessedInput(FGameplayTag InputTag) const;
+
+	/**
+	 * What the player is asking for through the modifier stack, even while the input is ignored or captured: where they point the stick
+	 * while an attack or a roll holds them in place.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Input|Processing")
+	FVector GetIntendedInput(FGameplayTag InputTag) const;
 
 protected:
 	virtual void BeginPlay() override;

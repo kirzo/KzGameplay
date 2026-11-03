@@ -27,7 +27,7 @@ void UKzGameplayAbility_Dodge::ActivateAbility(const FGameplayAbilitySpecHandle 
 		return;
 	}
 
-	const FVector Input = Pawn->GetLastMovementInputVector().GetSafeNormal2D();
+	const FVector Input = GetMoveInput().GetSafeNormal2D();
 	if (bFaceInput && !Input.IsNearlyZero())
 	{
 		Pawn->SetActorRotation(FRotator(0.0, Input.Rotation().Yaw, 0.0));

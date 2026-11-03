@@ -87,6 +87,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ability|Input")
 	bool IsInputPressed(FGameplayTag QueryTag) const;
 
+	/**
+	 * Where the avatar is asked to move, in world space: the player's stick even while an attack or a roll ignores movement, or what last
+	 * reached the movement when nobody holds a stick, as with AI.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Ability|Input")
+	FVector GetMoveInput() const;
+
 private:
 	/**
 	 * Single binding from before InputBindings existed. Names kept so old assets still load, and migrated

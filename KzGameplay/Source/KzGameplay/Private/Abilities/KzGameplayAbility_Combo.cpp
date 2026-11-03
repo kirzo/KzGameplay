@@ -65,7 +65,7 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 	}
 
 	SetCancelBlocked(true);
-	Instance = UKzComboInstance::StartCombo(Combo, Context, Input, GetInputDirection());
+	Instance = UKzComboInstance::StartCombo(Combo, Context, Input, GetMoveInput());
 	if (!Instance)
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
@@ -100,7 +100,7 @@ void UKzGameplayAbility_Combo::OnInputPressed(FGameplayTag Input)
 {
 	if (Instance)
 	{
-		Instance->Press(Input, GetInputDirection());
+		Instance->Press(Input, GetMoveInput());
 	}
 }
 
@@ -117,12 +117,6 @@ void UKzGameplayAbility_Combo::OnComboEnded(bool bInterrupted)
 void UKzGameplayAbility_Combo::OnCancelable(bool bCancelable)
 {
 	SetCancelBlocked(!bCancelable);
-}
-
-FVector UKzGameplayAbility_Combo::GetInputDirection() const
-{
-	const APawn* Pawn = Cast<APawn>(GetAvatarActorFromActorInfo());
-	return Pawn ? Pawn->GetLastMovementInputVector() : FVector::ZeroVector;
 }
 
 void UKzGameplayAbility_Combo::SetCancelBlocked(bool bBlocked)

@@ -105,6 +105,12 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Input Modifier")
 	FVector ModifyInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput);
 
+	/** What ModifyInput would return, without acting on the input, so the player's intent can be read while it is ignored. Override if ModifyInput does more than transform it. */
+	virtual FVector PreviewInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
+	{
+		return ModifyInput(Avatar, OriginalInput, CurrentInput);
+	}
+
 	/**
 	 * Whether this modifier is shared or copied per owner. A modifier that remembers anything between
 	 * frames must be PerOwner, or every avatar using it would be writing over the same memory.

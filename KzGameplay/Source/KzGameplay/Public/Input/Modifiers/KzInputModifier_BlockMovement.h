@@ -12,6 +12,10 @@ class KZGAMEPLAY_API UKzInputModifier_BlockMovement : public UKzInputModifier
 {
 	GENERATED_BODY()
 
+public:
+	/** Blocking the movement does not change what the player asks for. */
+	virtual FVector PreviewInput(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override { return CurrentInput; }
+
 protected:
 	virtual FVector ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput) override
 	{

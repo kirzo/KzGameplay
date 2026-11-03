@@ -3,6 +3,9 @@
 #include "Abilities/KzGameplayAbility.h"
 #include "AbilitySystemComponent.h"
 #include "Abilities/KzAbilitySystemComponent.h"
+#include "GameFramework/Pawn.h"
+#include "Input/KzInputHandlerComponent.h"
+#include "Input/KzInputTags.h"
 
 UKzGameplayAbility::UKzGameplayAbility()
 {
@@ -65,4 +68,18 @@ bool UKzGameplayAbility::IsInputPressed(FGameplayTag QueryTag) const
 {
 	const UKzAbilitySystemComponent* ASC = Cast<UKzAbilitySystemComponent>(GetAbilitySystemComponentFromActorInfo());
 	return ASC && ASC->IsInputTagPressed(QueryTag);
+}
+
+FVector UKzGameplayAbility::GetMoveInput() const
+{
+	const AActor* Avatar = GetAvatarActorFromActorInfo();
+	const UKzInputHandlerComponent* InputHandler = Avatar ? Avatar->FindComponentByClass<UKzInputHandlerComponent>() : nullptr;
+	const FVector Intended = InputHandler ? InputHandler->GetIntendedInput(KzTags::Input::Move) : FVector::ZeroVector;
+	if (!Intended.IsNearlyZero())
+	{
+		return Intended;
+	}
+
+	const APawn* Pawn = Cast<APawn>(Avatar);
+	return Pawn ? Pawn->GetLastMovementInputVector() : FVector::ZeroVector;
 }

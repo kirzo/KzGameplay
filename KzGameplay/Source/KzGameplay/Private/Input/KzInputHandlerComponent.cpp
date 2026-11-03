@@ -274,9 +274,11 @@ void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGamep
 {
 	FVector RawVector = Value.Get<FVector>();
 	FVector ModifiedVector = ProcessInput(InputTag, RawVector); // This checks ignores
+	const FKzInputModifierStack* Stack = ModifierStacks.Find(InputTag);
 
 	RawInputs.Add(InputTag, RawVector);
 	ProcessedInputs.Add(InputTag, ModifiedVector);
+	IntendedInputs.Add(InputTag, Stack ? Stack->Preview(GetOwner(), RawVector) : RawVector);
 
 	OnInputAxis.Broadcast(InputTag, FInputActionValue(ModifiedVector), TriggerEvent);
 
@@ -400,6 +402,12 @@ FVector UKzInputHandlerComponent::GetRawInput(FGameplayTag InputTag) const
 FVector UKzInputHandlerComponent::GetProcessedInput(FGameplayTag InputTag) const
 {
 	const FVector* Found = ProcessedInputs.Find(InputTag);
+	return Found ? *Found : FVector::ZeroVector;
+}
+
+FVector UKzInputHandlerComponent::GetIntendedInput(FGameplayTag InputTag) const
+{
+	const FVector* Found = IntendedInputs.Find(InputTag);
 	return Found ? *Found : FVector::ZeroVector;
 }
 

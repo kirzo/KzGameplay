@@ -69,9 +69,6 @@ private:
 	UFUNCTION()
 	void OnCancelable(bool bCancelable);
 
-	/** Where the avatar's movement input points. */
-	FVector GetInputDirection() const;
-
 	void SetCancelBlocked(bool bBlocked);
 
 	UPROPERTY()
