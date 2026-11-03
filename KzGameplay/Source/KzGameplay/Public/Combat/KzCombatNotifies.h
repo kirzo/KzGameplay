@@ -75,3 +75,24 @@ public:
 	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 	virtual FString GetNotifyName_Implementation() const override;
 };
+
+/** While it lasts, the mesh's owner ignores these inputs, such as Input.Move so an attack neither steers nor turns. Facing a target and warping still move it. */
+UCLASS(meta = (DisplayName = "Input Block Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_InputBlockWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_InputBlockWindow();
+
+	UPROPERTY(EditAnywhere, Category = "Input Block Window", meta = (Categories = "Input"))
+	FGameplayTagContainer Inputs;
+
+	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+
+private:
+	/** Unique per window, so one ending does not lift another's block, as the next attack blends in. */
+	FName GetSourceID() const;
+};
