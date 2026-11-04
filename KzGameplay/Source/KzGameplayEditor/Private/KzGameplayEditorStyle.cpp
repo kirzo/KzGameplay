@@ -62,6 +62,30 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
 
+	// Camera: the actors placed in the level, the rig, and each module after what it does
+	for (const TCHAR* CameraActor : { TEXT("CameraMarker"), TEXT("CameraVolume") })
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+		Set(*FString::Printf(TEXT("ClassThumbnail.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor + TEXT("Color"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
+	}
+	Set("ClassIcon.KzCameraRigComponent", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/CameraRig"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+
+	const TCHAR* const CameraModules[][2] = {
+		{ TEXT("KzCameraModule"), TEXT("CameraModule") },
+		{ TEXT("KzCameraModule_Lag"), TEXT("CameraLag") },
+		{ TEXT("KzCameraModule_SplineOffset"), TEXT("CameraSplineOffset") },
+		{ TEXT("KzCameraModule_PositionOffset"), TEXT("CameraPositionOffset") },
+		{ TEXT("KzCameraModule_Pan"), TEXT("CameraPan") },
+		{ TEXT("KzCameraModule_LookAt"), TEXT("CameraLookAt") },
+		{ TEXT("KzCameraModule_RotationOffset"), TEXT("CameraRotationOffset") },
+		{ TEXT("KzCameraModule_FieldOfView"), TEXT("CameraFieldOfView") },
+		{ TEXT("KzCameraModule_DepthOfField"), TEXT("CameraDepthOfField") },
+	};
+	for (const auto& Pair : CameraModules)
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	}
+
 	// Combo graph nodes, on their title: an attack is the Melee Weapon's sword
 	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	Set("KzGameplay.Combo.Node.Attack", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/MeleeWeapon"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
