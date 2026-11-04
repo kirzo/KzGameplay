@@ -9,7 +9,7 @@
 
 /**
  * Adds a layer to the camera rigs whose target is in it, weighted by the volume's alpha.
- * A progressive volume blends in space and keeps its layer past the exit face; a non-progressive one blends in time.
+ * A progressive volume blends in space and keeps its layer past the exit face. A non-progressive one blends in time and removes it on leaving, unless it keeps past exit.
  * The layer goes away if the volume unloads, so keep it in the level of the camera's spline.
  */
 UCLASS(Blueprintable)
