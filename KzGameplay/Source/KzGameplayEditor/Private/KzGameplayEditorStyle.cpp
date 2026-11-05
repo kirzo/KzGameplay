@@ -72,11 +72,15 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 
 	const TCHAR* const CameraModules[][2] = {
 		{ TEXT("KzCameraModule"), TEXT("CameraModule") },
+		{ TEXT("KzCameraModule_DeadZone"), TEXT("CameraDeadZone") },
+		{ TEXT("KzCameraModule_LookAhead"), TEXT("CameraLookAhead") },
 		{ TEXT("KzCameraModule_Lag"), TEXT("CameraLag") },
 		{ TEXT("KzCameraModule_SplineOffset"), TEXT("CameraSplineOffset") },
+		{ TEXT("KzCameraModule_Follow"), TEXT("CameraFollow") },
 		{ TEXT("KzCameraModule_PositionOffset"), TEXT("CameraPositionOffset") },
 		{ TEXT("KzCameraModule_Pan"), TEXT("CameraPan") },
 		{ TEXT("KzCameraModule_LookAt"), TEXT("CameraLookAt") },
+		{ TEXT("KzCameraModule_RotationLimit"), TEXT("CameraRotationLimit") },
 		{ TEXT("KzCameraModule_RotationOffset"), TEXT("CameraRotationOffset") },
 		{ TEXT("KzCameraModule_FieldOfView"), TEXT("CameraFieldOfView") },
 		{ TEXT("KzCameraModule_DepthOfField"), TEXT("CameraDepthOfField") },
