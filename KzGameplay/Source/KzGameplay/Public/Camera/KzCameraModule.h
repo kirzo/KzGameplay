@@ -31,6 +31,9 @@ public:
 
 	UClass* GetSlotClass() const;
 
+	/** Draws what the module does, with the final pose. The rig calls it while the camera is selected in the editor, or when it draws debug. */
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const {}
+
 	virtual UWorld* GetWorld() const override;
 
 protected:

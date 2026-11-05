@@ -7,8 +7,8 @@
 #include "Camera/KzCameraVolume.h"
 #include "CineCameraComponent.h"
 #include "Components/KzSplineFollowerComponent.h"
-#include "Components/SplineComponent.h"
 #include "Core/KzRegistrySubsystem.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 
@@ -28,7 +28,7 @@ void UKzCameraRigComponent::OnRegister()
 	bPendingTeleport = true;
 	Camera.Reset();
 
-	// The rig hangs from where the follower leaves the root, so it goes after it.
+	// A follower that moves on its own leaves the root before the rig hangs from it.
 	Follower = GetOwner() ? GetOwner()->FindComponentByClass<UKzSplineFollowerComponent>() : nullptr;
 	if (Follower.IsValid())
 	{
@@ -118,15 +118,14 @@ void UKzCameraRigComponent::SetLayerAlpha(UObject* Source, float Alpha)
 
 AActor* UKzCameraRigComponent::GetTarget() const
 {
-	const UKzSplineFollowerComponent* SplineFollower = Follower.Get();
-	if (SplineFollower && SplineFollower->Mode == EKzSplineFollowMode::Projection)
+	const UWorld* World = GetWorld();
+	if (bTargetPlayerPawn && World && World->IsGameWorld())
 	{
-		return SplineFollower->GetProjectedActor();
+		const APlayerController* PlayerController = World->GetFirstPlayerController();
+		return PlayerController ? PlayerController->GetPawn() : nullptr;
 	}
 
-	const UWorld* World = GetWorld();
-	const APlayerController* PlayerController = World && World->IsGameWorld() ? World->GetFirstPlayerController() : nullptr;
-	return PlayerController ? PlayerController->GetPawn() : nullptr;
+	return Target;
 }
 
 UCameraComponent* UKzCameraRigComponent::FindCamera()
@@ -154,30 +153,75 @@ void UKzCameraRigComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	UCameraComponent* CameraComponent = FindCamera();
+	UKzSplineFollowerComponent* SplineFollower = Follower.Get();
+	const USceneComponent* Parent = GetAttachParent();
 
 	FKzCameraContext Context;
 	Context.Rig = this;
-	Context.Follower = Follower.Get();
+	Context.Follower = SplineFollower;
 	Context.Target = GetTarget();
 	Context.DeltaTime = DeltaTime;
-	Context.bTeleport = bPendingTeleport || (Context.Follower && Context.Follower->WasTeleported());
+	Context.CameraRelative = CameraComponent ? CameraComponent->GetRelativeTransform() : FTransform::Identity;
+	Context.Anchor = Parent ? Parent->GetComponentTransform() : GetOwner()->GetActorTransform();
+	Context.Reference = Context.Anchor;
+	Context.Rest = LastRest;
+	Context.LastView = LastView;
+	Context.TargetLocation = Context.Target ? Context.Target->GetActorLocation() : Context.Anchor.GetLocation();
+
+	// A target that changes or jumps too far teleports the camera.
+	const bool bTargetJumped = Context.Target.Get() != LastTarget.Get()
+		|| (TeleportDistance > 0.0f && FVector::DistSquared(Context.TargetLocation, LastTargetLocation) > FMath::Square(TeleportDistance));
+	Context.bTeleport = bPendingTeleport || bTargetJumped;
 	bPendingTeleport = false;
+	LastTarget = Context.Target.Get();
+	LastTargetLocation = Context.TargetLocation;
 
 	// The editor previews where the camera settles, without time blends.
 	const bool bSnap = Context.bTeleport || !GetWorld()->IsGameWorld();
 
 	if (Context.Target)
 	{
-		UpdateVolumes(Context.Target->GetActorLocation(), bSnap);
+		UpdateVolumes(Context.TargetLocation, bSnap);
 	}
 	UpdateLayerBlends(DeltaTime, bSnap);
 
-	TArray<FLayer*> OrderedLayers = Layers.GetSortedElements();
-	Algo::Reverse(OrderedLayers);
-	UpdateLayerWeights(OrderedLayers);
+	// Focus: what the camera follows.
+	FKzCameraPose Pose;
+	Pose.Focus = Context.TargetLocation;
+	Pose.FieldOfView = FieldOfView;
+	EvaluateStages(EKzCameraStage::Track, EKzCameraStage::Smooth, Context, Pose, GetOrderedLayers());
 
-	const FTransform CameraRelative = CameraComponent ? CameraComponent->GetRelativeTransform() : FTransform::Identity;
-	ApplyPose(EvaluatePose(Context, CameraRelative, OrderedLayers), CameraComponent);
+	// A driven follower takes the focus onto its spline and moves the root; the markers it crosses may add or remove layers.
+	if (SplineFollower && SplineFollower->Mode == EKzSplineFollowMode::Driven && Context.Target)
+	{
+		SplineFollower->ProjectTo(Pose.Focus, Context.bTeleport, DeltaTime);
+		Context.Anchor = Parent ? Parent->GetComponentTransform() : GetOwner()->GetActorTransform();
+		Context.Reference = Context.Anchor;
+	}
+
+	const TArray<FLayer*> OrderedLayers = GetOrderedLayers();
+
+	// Anchor: where the camera hangs from, keeping its authored offset.
+	const FTransform HangingTransform = Context.CameraRelative * Context.Anchor;
+	Pose.Location = HangingTransform.GetLocation();
+	Pose.Rotation = HangingTransform.Rotator();
+	EvaluateStages(EKzCameraStage::Anchor, EKzCameraStage::Anchor, Context, Pose, OrderedLayers);
+
+	// The point the anchor modules left the camera hanging from, and where it points from there before aiming.
+	Context.Reference = Context.CameraRelative.Inverse() * FTransform(Pose.Rotation, Pose.Location);
+	Context.Rest = Pose.Rotation;
+
+	EvaluateStages(EKzCameraStage::Position, EKzCameraStage::Lens, Context, Pose, OrderedLayers);
+	ApplyPose(Pose, CameraComponent);
+
+	LastPose = Pose;
+	LastRest = Context.Rest;
+	LastView.Location = Pose.Location;
+	LastView.Rotation = Pose.Rotation;
+	LastView.FOV = Pose.FieldOfView;
+	LastView.AspectRatio = CameraComponent ? CameraComponent->AspectRatio : 16.0f / 9.0f;
+
+	DrawDebug(Context, Pose, OrderedLayers);
 }
 
 void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bSnap)
@@ -213,14 +257,22 @@ void UKzCameraRigComponent::UpdateLayerBlends(float DeltaTime, bool bSnap)
 {
 	Layers.ForEach([DeltaTime, bSnap](FLayer& Layer)
 	{
-		const float Target = Layer.bRemoving ? 0.0f : 1.0f;
-		Layer.Blend = bSnap || Layer.BlendTime <= 0.0f ? Target : FMath::FInterpConstantTo(Layer.Blend, Target, DeltaTime, 1.0f / Layer.BlendTime);
+		const float TargetBlend = Layer.bRemoving ? 0.0f : 1.0f;
+		Layer.Blend = bSnap || Layer.BlendTime <= 0.0f ? TargetBlend : FMath::FInterpConstantTo(Layer.Blend, TargetBlend, DeltaTime, 1.0f / Layer.BlendTime);
 	});
 
 	Layers.RemoveAll([](const FLayer& Layer)
 	{
 		return !Layer.Source.IsValid() || (Layer.bRemoving && Layer.Blend <= 0.0f);
 	});
+}
+
+TArray<UKzCameraRigComponent::FLayer*> UKzCameraRigComponent::GetOrderedLayers()
+{
+	TArray<FLayer*> OrderedLayers = Layers.GetSortedElements();
+	Algo::Reverse(OrderedLayers);
+	UpdateLayerWeights(OrderedLayers);
+	return OrderedLayers;
 }
 
 void UKzCameraRigComponent::UpdateLayerWeights(const TArray<FLayer*>& InLayers)
@@ -241,29 +293,8 @@ void UKzCameraRigComponent::UpdateLayerWeights(const TArray<FLayer*>& InLayers)
 	}
 }
 
-FKzCameraPose UKzCameraRigComponent::EvaluatePose(FKzCameraContext& Context, const FTransform& CameraRelative, const TArray<FLayer*>& OrderedLayers) const
+void UKzCameraRigComponent::EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
 {
-	const USceneComponent* Parent = GetAttachParent();
-	Context.Reference = Parent ? Parent->GetComponentTransform() : GetOwner()->GetActorTransform();
-	Context.ProjectedLocation = Context.Reference.GetLocation();
-
-	FKzCameraPose Pose;
-	Pose.FieldOfView = FieldOfView;
-
-	if (const UKzSplineFollowerComponent* SplineFollower = Context.Follower)
-	{
-		Pose.RailDistance = SplineFollower->GetCurrentDistance();
-		if (const USplineComponent* Spline = SplineFollower->GetSpline())
-		{
-			Context.ProjectedLocation = Spline->GetLocationAtDistanceAlongSpline(Pose.RailDistance, ESplineCoordinateSpace::World);
-		}
-	}
-
-	const FTransform CameraTransform = CameraRelative * Context.Reference;
-	Pose.Location = CameraTransform.GetLocation();
-	Pose.Rotation = CameraTransform.Rotator();
-
-	// Every kind of module present, run by stage and, within a stage, in the order they first appear.
 	struct FSlot
 	{
 		UClass* Class;
@@ -271,16 +302,19 @@ FKzCameraPose UKzCameraRigComponent::EvaluatePose(FKzCameraContext& Context, con
 	};
 
 	TArray<FSlot, TInlineAllocator<16>> Slots;
-	auto AddSlots = [&Slots](const TArray<TObjectPtr<UKzCameraModule>>& InModules)
+	auto AddSlots = [&Slots, First, Last](const TArray<TObjectPtr<UKzCameraModule>>& InModules)
 	{
 		for (const UKzCameraModule* Module : InModules)
 		{
 			if (!Module) continue;
 
+			const EKzCameraStage Stage = Module->GetStage();
+			if (Stage < First || Stage > Last) continue;
+
 			UClass* SlotClass = Module->GetSlotClass();
 			if (!Slots.ContainsByPredicate([SlotClass](const FSlot& Slot) { return Slot.Class == SlotClass; }))
 			{
-				Slots.Add({ SlotClass, Module->GetStage() });
+				Slots.Add({ SlotClass, Stage });
 			}
 		}
 	};
@@ -293,24 +327,10 @@ FKzCameraPose UKzCameraRigComponent::EvaluatePose(FKzCameraContext& Context, con
 
 	Slots.StableSort([](const FSlot& A, const FSlot& B) { return A.Stage < B.Stage; });
 
-	bool bOnRail = false;
 	for (const FSlot& Slot : Slots)
 	{
-		if (!bOnRail && Slot.Stage > EKzCameraStage::Rail)
-		{
-			PlaceOnRail(Context, Pose, CameraRelative);
-			bOnRail = true;
-		}
-
 		Pose = EvaluateSlot(Slot.Class, Context, Pose, OrderedLayers);
 	}
-
-	if (!bOnRail)
-	{
-		PlaceOnRail(Context, Pose, CameraRelative);
-	}
-
-	return Pose;
 }
 
 FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
@@ -344,18 +364,6 @@ FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const
 	return Out;
 }
 
-void UKzCameraRigComponent::PlaceOnRail(FKzCameraContext& Context, FKzCameraPose& Pose, const FTransform& CameraRelative) const
-{
-	if (const UKzSplineFollowerComponent* SplineFollower = Context.Follower)
-	{
-		Context.Reference = SplineFollower->GetTransformAtDistance(Pose.RailDistance);
-
-		const FTransform CameraTransform = CameraRelative * Context.Reference;
-		Pose.Location = CameraTransform.GetLocation();
-		Pose.Rotation = CameraTransform.Rotator();
-	}
-}
-
 void UKzCameraRigComponent::ApplyPose(const FKzCameraPose& Pose, UCameraComponent* CameraComponent)
 {
 	// The pose is the camera's; the rig takes it minus the camera's own offset, which stays as authored.
@@ -373,5 +381,41 @@ void UKzCameraRigComponent::ApplyPose(const FKzCameraPose& Pose, UCameraComponen
 		CineCamera->FocusSettings.FocusMethod = ECameraFocusMethod::Manual;
 		CineCamera->FocusSettings.ManualFocusDistance = Pose.FocusDistance;
 		CineCamera->CurrentAperture = Pose.Aperture;
+	}
+}
+
+void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
+{
+	bool bDraw = bDrawDebug;
+#if WITH_EDITOR
+	bDraw |= !GetWorld()->IsGameWorld() && GetOwner()->IsSelectedInEditor();
+#endif
+	if (!bDraw) return;
+
+	// The target, the focus and the line between them, which is how far behind the camera follows.
+	const UWorld* World = GetWorld();
+	DrawDebugSphere(World, Context.TargetLocation, 12.0f, 8, FColor::White);
+	DrawDebugSphere(World, Pose.Focus, 18.0f, 8, FColor::Yellow);
+	DrawDebugLine(World, Context.TargetLocation, Pose.Focus, FColor::Yellow);
+
+	for (const UKzCameraModule* Module : Modules)
+	{
+		if (Module)
+		{
+			Module->DrawDebug(Context, Pose);
+		}
+	}
+
+	for (const FLayer* Layer : OrderedLayers)
+	{
+		if (Layer->Weight <= 0.0f) continue;
+
+		for (const UKzCameraModule* Module : Layer->Modules)
+		{
+			if (Module)
+			{
+				Module->DrawDebug(Context, Pose);
+			}
+		}
 	}
 }

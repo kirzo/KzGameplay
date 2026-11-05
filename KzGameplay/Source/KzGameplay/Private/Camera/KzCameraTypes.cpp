@@ -7,7 +7,7 @@ FKzCameraPose FKzCameraPose::Blend(const FKzCameraPose& A, const FKzCameraPose& 
 	constexpr float UnfocusedAperture = 22.0f;
 
 	FKzCameraPose Result;
-	Result.RailDistance = FMath::Lerp(A.RailDistance, B.RailDistance, Alpha);
+	Result.Focus = FMath::Lerp(A.Focus, B.Focus, Alpha);
 	Result.Location = FMath::Lerp(A.Location, B.Location, Alpha);
 	Result.Rotation = FQuat::Slerp(A.Rotation.Quaternion(), B.Rotation.Quaternion(), Alpha).Rotator();
 	Result.FieldOfView = FMath::Lerp(A.FieldOfView, B.FieldOfView, Alpha);

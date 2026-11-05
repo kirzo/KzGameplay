@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Camera/CameraTypes.h"
 #include "KzCameraTypes.generated.h"
 
 class AActor;
@@ -14,22 +15,36 @@ class UKzSplineFollowerComponent;
 UENUM(BlueprintType)
 enum class EKzCameraStage : uint8
 {
-	/** Moves the distance along the follower's spline; the rig then hangs the camera from that point. */
-	Rail,
+	/** Filters which moves of the target the focus follows. */
+	Track,
+
+	/** Moves the focus ahead of the target. */
+	Lead,
+
+	/** Smooths the focus. */
+	Smooth,
+
+	/** Where the camera hangs from, once a driven spline follower has taken the focus onto its spline. */
+	Anchor,
+
 	Position,
 
 	/** Points the camera, replacing its rotation. */
 	Aim,
 
-	/** Turns the camera from where Aim left it. */
+	/** Limits where the camera can point. */
+	Constraint,
+
+	/** Turns the camera from where it is aimed. */
 	Rotation,
+
 	Lens
 };
 
 UENUM(BlueprintType)
 enum class EKzCameraSpace : uint8
 {
-	/** The frame of the point the camera hangs from: the rail point, or the rig's parent without a follower. */
+	/** The frame of the point the camera hangs from. */
 	Reference,
 	Camera,
 	World
@@ -41,9 +56,9 @@ struct KZGAMEPLAY_API FKzCameraPose
 {
 	GENERATED_BODY()
 
-	/** Distance along the follower's spline the camera hangs from. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (Units = "Centimeters"))
-	float RailDistance = 0.0f;
+	/** The point the camera follows: the target, as the focus stages leave it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	FVector Focus = FVector::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FVector Location = FVector::ZeroVector;
@@ -75,7 +90,7 @@ struct KZGAMEPLAY_API FKzCameraContext
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UKzCameraRigComponent> Rig = nullptr;
 
-	/** The follower moving the camera's actor, if any. */
+	/** The spline follower on the camera's actor, if any. */
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UKzSplineFollowerComponent> Follower = nullptr;
 
@@ -83,13 +98,29 @@ struct KZGAMEPLAY_API FKzCameraContext
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<AActor> Target = nullptr;
 
-	/** Frame of the point the camera hangs from. Before the rail stage, the rig's parent; after it, the rail point. */
+	/** The target's location this frame; without a target, the anchor's. */
+	UPROPERTY(BlueprintReadOnly, Category = "Camera")
+	FVector TargetLocation = FVector::ZeroVector;
+
+	/** Where the camera hangs from before the anchor modules: the follower's spline point, or the rig's parent. */
+	UPROPERTY(BlueprintReadOnly, Category = "Camera")
+	FTransform Anchor;
+
+	/** Frame of the point the camera hangs from, after the anchor modules. */
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	FTransform Reference;
 
-	/** Spline point closest to the target, before rail modules such as the lag move away from it. */
+	/** The camera's offset from the point it hangs from, as authored. */
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
-	FVector ProjectedLocation = FVector::ZeroVector;
+	FTransform CameraRelative;
+
+	/** Where the camera points hanging from its anchor, before any Aim module. During the focus stages, last frame's. */
+	UPROPERTY(BlueprintReadOnly, Category = "Camera")
+	FRotator Rest = FRotator::ZeroRotator;
+
+	/** Last frame's view, for modules that work in screen terms. */
+	UPROPERTY(BlueprintReadOnly, Category = "Camera")
+	FMinimalViewInfo LastView;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	float DeltaTime = 0.0f;
