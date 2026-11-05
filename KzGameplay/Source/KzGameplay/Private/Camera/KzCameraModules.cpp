@@ -99,9 +99,9 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 		}
 	}
 
-	// Only across the screen: a lead in depth would push the camera into or away from the target.
-	const FVector Forward = Context.Rest.Vector();
-	Velocity -= Forward * FVector::DotProduct(Velocity, Forward);
+	if (IgnoredAxes & static_cast<int32>(EKzAxis3D::X)) Velocity.X = 0.0;
+	if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Y)) Velocity.Y = 0.0;
+	if (IgnoredAxes & static_cast<int32>(EKzAxis3D::Z)) Velocity.Z = 0.0;
 
 	const bool bIdle = Velocity.IsNearlyZero(1.0);
 	IdleTime = bIdle ? IdleTime + Context.DeltaTime : 0.0f;

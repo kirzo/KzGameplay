@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Camera/KzCameraModule.h"
 #include "Components/KzComponentReference.h"
+#include "Core/KzTypes.h"
 #include "Misc/KzTransformSource.h"
 #include "KzCameraModules.generated.h"
 
@@ -100,7 +101,7 @@ private:
 	FVector GetHalfSize(const FKzCameraContext& Context) const;
 };
 
-/** Moves the focus ahead of the target as it moves, to show more of where it is going. Only across the screen, never in depth. */
+/** Moves the focus ahead of the target as it moves, to show more of where it is going. */
 UCLASS(meta = (DisplayName = "Look Ahead"))
 class KZGAMEPLAY_API UKzCameraModule_LookAhead : public UKzCameraModule
 {
@@ -112,6 +113,10 @@ public:
 	/** Velocity is used when the target isn't a pawn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead")
 	EKzCameraLeadSource Source = EKzCameraLeadSource::MovementInput;
+
+	/** World axes of the source that don't lead: Y for depth in a level that runs along X, Z so jumps and falls don't with Velocity. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (Bitmask, BitmaskEnum = "/Script/KzLib.EKzAxis3D"))
+	int32 IgnoredAxes = static_cast<int32>(EKzAxis3D::Y);
 
 	/** How far ahead, in time, at the source's speed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds"))
