@@ -278,6 +278,22 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 	return ForEachHandler([Interactor, MutableThis, &OutReason](UObject* Handler) { return IKzInteractableInterface::Execute_GetInteractionAvailability(Handler, Interactor, MutableThis, OutReason); });
 }
 
+FText UKzInteractableComponent::GetPromptText(UKzInteractorComponent* Interactor) const
+{
+	FFormatNamedArguments Arguments;
+	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
+	ForEachHandler([Interactor, MutableThis, &Arguments](UObject* Handler)
+		{
+			for (const TPair<FString, FText>& Argument : IKzInteractableInterface::Execute_GetPromptArguments(Handler, Interactor, MutableThis))
+			{
+				Arguments.Add(Argument.Key, Argument.Value);
+			}
+			return true;
+		});
+
+	return Arguments.IsEmpty() ? PromptText : FText::Format(FTextFormat(PromptText), Arguments);
+}
+
 const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const
 {
 	if (!InputTag.IsValid())

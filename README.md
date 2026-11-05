@@ -57,6 +57,7 @@ A highly optimized interaction system powered by a dual Spatial Hash Grid.
 * **Smart Target Evaluation:** Uses `UKzTargetScoringProfile` to evaluate the best candidate based on customizable scorers (e.g., Distance, Angle).
 * **Scriptable Requirements:** Interactions can be gated behind node-based logic (e.g., "Requires Key Item" or "Has Minimum Strength").
 * **Interaction Types:** Supports Instant, Ignored, and Continuous interactions out of the box.
+* **Prompt Arguments:** A Prompt Text such as `Pick up {Item}` is filled by the interactable's handlers through `GetPromptArguments`; an item fills `{Item}` with its Display Name.
 
 ### 🎒 Fragment-Based Inventory & Items
 A data-driven item architecture using `UPrimaryDataAsset` definitions and modular fragments.

@@ -27,7 +27,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidget))
 	TObjectPtr<UWidget> Prompt;
 
-	/** Gets the interactable's Prompt Text, and is disabled while the interactable cannot be used. */
+	/** Gets the interactable's Prompt Text with its arguments ({Item}...), and is disabled while the interactable cannot be used. */
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PromptText;
 
@@ -55,5 +55,7 @@ private:
 	TWeakObjectPtr<UKzInteractorComponent> Interactor;
 	TWeakObjectPtr<UKzInteractableComponent> Shown;
 	bool bShownAvailable = true;
-	FText ShownText;
+
+	/** The focused interactable's Prompt Text as last formatted, to format it again only when it changes. */
+	FText ShownPromptText;
 };

@@ -84,6 +84,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	bool ShouldKeepInteractionAlive(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason);
 
+	/** Named arguments the interactable's Prompt Text can use, such as {Item} for an item's name. A later handler replaces an argument an earlier one gave. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
+	TMap<FString, FText> GetPromptArguments(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable);
+
 protected:
 	virtual bool CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return true; }
 	virtual EKzInteractionResult GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return EKzInteractionResult::Ignored; }
@@ -93,4 +97,5 @@ protected:
 	virtual void OnPerformedActionStarted_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag InputTag) {}
 	virtual bool GetInteractionAvailability_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, FGameplayTag& OutReason) { return true; }
 	virtual bool ShouldKeepInteractionAlive_Implementation(const FKzInteraction& Interaction, EKzInteractionEndReason& OutReason) { return true; }
+	virtual TMap<FString, FText> GetPromptArguments_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) { return {}; }
 };

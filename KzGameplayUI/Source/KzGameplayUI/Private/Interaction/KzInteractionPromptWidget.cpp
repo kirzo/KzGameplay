@@ -52,11 +52,11 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 		return;
 	}
 
-	// On every new focus, even if empty, and when Prompt Text changes. Compared with what was set: a KzTextBlock may rewrite its own
-	if (PromptText && (bFocusChanged || !ShownText.IdenticalTo(Focus->PromptText)))
+	// On every new focus, even if empty, and when Prompt Text changes; formatting with the arguments only then, not every frame
+	if (PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(Focus->PromptText)))
 	{
-		ShownText = Focus->PromptText;
-		PromptText->SetText(ShownText);
+		ShownPromptText = Focus->PromptText;
+		PromptText->SetText(Focus->GetPromptText(Interactor.Get()));
 	}
 
 	FVector2D Position;

@@ -73,7 +73,7 @@ public:
 	// CONFIGURATION
 	// ==========================================
 
-	/** The action text to display in the UI (e.g., "Open Chest", "Pick Up Axe"). */
+	/** The action text to display in the UI (e.g., "Open Chest", "Pick Up {Item}"). Its {Arguments} come from the handlers' Get Prompt Arguments: read it with Get Prompt Text. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	FText PromptText;
 
@@ -210,6 +210,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	bool GetAvailability(UKzInteractorComponent* Interactor, FGameplayTag& OutReason) const;
+
+	/** Prompt Text with the arguments the owner and sibling handlers give it. Arguments nobody gives stay as written, so a KzTextBlock can still turn {Input.Interact} into an icon. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	FText GetPromptText(UKzInteractorComponent* Interactor) const;
 
 	/** The action fired by an input, or null if this interactable offers none for it. */
 	const FKzInteractionAction* FindAction(FGameplayTag InputTag) const;
