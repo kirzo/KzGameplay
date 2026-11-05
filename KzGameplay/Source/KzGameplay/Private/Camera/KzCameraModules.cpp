@@ -96,9 +96,12 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	const FVector Forward = Context.Rest.Vector();
 	Velocity -= Forward * FVector::DotProduct(Velocity, Forward);
 
-	// Standing still keeps the last lead, so the camera keeps showing where the target was heading.
+	// Standing still keeps the last lead for a while, or for good when held, so the camera keeps showing where the target was heading.
 	const bool bIdle = Velocity.IsNearlyZero(1.0);
-	if (!bHoldWhenIdle || !bIdle || !bInitialized || Context.bTeleport)
+	IdleTime = bIdle ? IdleTime + Context.DeltaTime : 0.0f;
+
+	const bool bKeepLead = bIdle && (bHoldWhenIdle || IdleTime < ReturnDelay);
+	if (!bKeepLead || !bInitialized || Context.bTeleport)
 	{
 		DesiredLead = (Velocity * LeadTime).GetClampedToMaxSize(MaxLead);
 	}

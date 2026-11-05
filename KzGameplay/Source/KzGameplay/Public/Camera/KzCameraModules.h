@@ -132,12 +132,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead")
 	bool bHoldWhenIdle = true;
 
+	/** Time standing still before the lead starts easing back, when it isn't held. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds", EditCondition = "!bHoldWhenIdle"))
+	float ReturnDelay = 0.5f;
+
 	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
 
 private:
+	float IdleTime = 0.0f;
 	FVector DesiredLead = FVector::ZeroVector;
 	FVector Lead = FVector::ZeroVector;
 	FVector Rate = FVector::ZeroVector;
