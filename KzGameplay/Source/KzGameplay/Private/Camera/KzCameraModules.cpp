@@ -39,18 +39,27 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 {
 	HalfSize = GetHalfSize(Context);
 
+	const float DeltaTime = Context.DeltaTime;
+
 	if (!bInitialized || Context.bTeleport)
 	{
 		Center = Pose.Focus;
 		Velocity = FVector::ZeroVector;
+		Braking = 0.0f;
 		bInitialized = true;
 	}
 	else
 	{
 		const FVector PreviousCenter = Center;
 
-		// Sliding on from last frame; a target left behind at the trailing edge stops it below.
-		Center += Velocity * Context.DeltaTime;
+		// Released, the box slides on, braking evenly so it stops Inertia seconds after the push ended.
+		const double Speed = Velocity.Size();
+		if (Speed > 0.0)
+		{
+			const double NewSpeed = FMath::Max(Speed - Braking * DeltaTime, 0.0);
+			Center += Velocity / Speed * ((Speed + NewSpeed) * 0.5 * DeltaTime);
+			Velocity *= NewSpeed / Speed;
+		}
 
 		// Along each view axis, whatever sticks out of the box drags it.
 		const FQuat Axes = Context.Rest.Quaternion();
@@ -68,10 +77,16 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 
 		Center += Axes.RotateVector(Drag);
 
-		// The box keeps the speed it was pushed at, fading over Inertia seconds.
-		Velocity = Inertia > 0.0f && Context.DeltaTime > UE_KINDA_SMALL_NUMBER
-			? (Center - PreviousCenter) / Context.DeltaTime * FMath::Exp(-Context.DeltaTime / Inertia)
-			: FVector::ZeroVector;
+		// While pushed (or stopped by the target at its trailing edge), the box moves at the target's pace; that is the speed it brakes from.
+		if (Inertia <= 0.0f)
+		{
+			Velocity = FVector::ZeroVector;
+		}
+		else if (!Drag.IsZero() && DeltaTime > UE_KINDA_SMALL_NUMBER)
+		{
+			Velocity = (Center - PreviousCenter) / DeltaTime;
+			Braking = Velocity.Size() / Inertia;
+		}
 	}
 
 	FKzCameraPose Result = Pose;

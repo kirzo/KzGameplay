@@ -87,7 +87,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Centimeters"))
 	float Depth = 0.0f;
 
-	/** How long the box keeps sliding once the target stops pushing it: it travels about the target's speed times this. 0 stops it dead. */
+	/** Time the box takes to come to a full stop once the target stops pushing it, braking evenly from the speed it was pushed at. 0 stops it dead. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Seconds"))
 	float Inertia = 0.0f;
 
@@ -99,6 +99,10 @@ protected:
 private:
 	FVector Center = FVector::ZeroVector;
 	FVector Velocity = FVector::ZeroVector;
+
+	/** Deceleration that stops the box in Inertia seconds from the speed it was last pushed at. */
+	double Braking = 0.0;
+
 	FVector HalfSize = FVector::ZeroVector;
 	bool bInitialized = false;
 
