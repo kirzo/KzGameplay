@@ -87,6 +87,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Centimeters"))
 	float Depth = 0.0f;
 
+	/** How long the box keeps sliding once the target stops pushing it: it travels about the target's speed times this. 0 stops it dead. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Seconds"))
+	float Inertia = 0.0f;
+
 	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
 
 protected:
@@ -94,6 +98,7 @@ protected:
 
 private:
 	FVector Center = FVector::ZeroVector;
+	FVector Velocity = FVector::ZeroVector;
 	FVector HalfSize = FVector::ZeroVector;
 	bool bInitialized = false;
 

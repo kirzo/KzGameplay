@@ -42,10 +42,16 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 	if (!bInitialized || Context.bTeleport)
 	{
 		Center = Pose.Focus;
+		Velocity = FVector::ZeroVector;
 		bInitialized = true;
 	}
 	else
 	{
+		const FVector PreviousCenter = Center;
+
+		// Sliding on from last frame; a target left behind at the trailing edge stops it below.
+		Center += Velocity * Context.DeltaTime;
+
 		// Along each view axis, whatever sticks out of the box drags it.
 		const FQuat Axes = Context.Rest.Quaternion();
 		const FVector Offset = Axes.UnrotateVector(Pose.Focus - Center);
@@ -61,6 +67,11 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 		}
 
 		Center += Axes.RotateVector(Drag);
+
+		// The box keeps the speed it was pushed at, fading over Inertia seconds.
+		Velocity = Inertia > 0.0f && Context.DeltaTime > UE_KINDA_SMALL_NUMBER
+			? (Center - PreviousCenter) / Context.DeltaTime * FMath::Exp(-Context.DeltaTime / Inertia)
+			: FVector::ZeroVector;
 	}
 
 	FKzCameraPose Result = Pose;
