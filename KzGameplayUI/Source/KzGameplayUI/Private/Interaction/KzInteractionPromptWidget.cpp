@@ -15,7 +15,6 @@ void UKzInteractionPromptWidget::NativeConstruct()
 
 	Shown = nullptr;
 	bShownAvailable = true;
-	ShownText = FText::GetEmpty();
 	Prompt->SetVisibility(ESlateVisibility::Collapsed);
 }
 
@@ -34,8 +33,9 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 	const UKzInteractorComponent* InteractorComponent = Interactor.Get();
 	UKzInteractableComponent* Focus = InteractorComponent && !InteractorComponent->IsInteractingContinuously() ? InteractorComponent->GetCurrentFocus() : nullptr;
 	const bool bAvailable = !Focus || InteractorComponent->IsFocusAvailable();
+	const bool bFocusChanged = Focus != Shown.Get();
 
-	if (Focus != Shown.Get() || bAvailable != bShownAvailable)
+	if (bFocusChanged || bAvailable != bShownAvailable)
 	{
 		Shown = Focus;
 		bShownAvailable = bAvailable;
@@ -52,8 +52,8 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 		return;
 	}
 
-	// Compared with what was set, not with the text block's own, which a KzTextBlock may rewrite: Prompt Text can change while focused
-	if (PromptText && !ShownText.IdenticalTo(Focus->PromptText))
+	// On every new focus, even if empty, and when Prompt Text changes. Compared with what was set: a KzTextBlock may rewrite its own
+	if (PromptText && (bFocusChanged || !ShownText.IdenticalTo(Focus->PromptText)))
 	{
 		ShownText = Focus->PromptText;
 		PromptText->SetText(ShownText);
