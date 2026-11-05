@@ -125,12 +125,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds"))
 	float SmoothingTime = 0.5f;
 
+	/**
+	 * Keeps the lead while the source is still, instead of easing back to the target: letting go of the input keeps showing where it was heading.
+	 * With Velocity, what is kept is what is left once the target has braked.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead")
+	bool bHoldWhenIdle = true;
+
 	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
 
 private:
+	FVector DesiredLead = FVector::ZeroVector;
 	FVector Lead = FVector::ZeroVector;
 	FVector Rate = FVector::ZeroVector;
 	bool bInitialized = false;

@@ -96,17 +96,22 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	const FVector Forward = Context.Rest.Vector();
 	Velocity -= Forward * FVector::DotProduct(Velocity, Forward);
 
-	const FVector Desired = (Velocity * LeadTime).GetClampedToMaxSize(MaxLead);
+	// Standing still keeps the last lead, so the camera keeps showing where the target was heading.
+	const bool bIdle = Velocity.IsNearlyZero(1.0);
+	if (!bHoldWhenIdle || !bIdle || !bInitialized || Context.bTeleport)
+	{
+		DesiredLead = (Velocity * LeadTime).GetClampedToMaxSize(MaxLead);
+	}
 
 	if (!bInitialized || Context.bTeleport)
 	{
-		Lead = Desired;
+		Lead = DesiredLead;
 		Rate = FVector::ZeroVector;
 		bInitialized = true;
 	}
 	else
 	{
-		FMath::CriticallyDampedSmoothing(Lead, Rate, Desired, FVector::ZeroVector, Context.DeltaTime, SmoothingTime);
+		FMath::CriticallyDampedSmoothing(Lead, Rate, DesiredLead, FVector::ZeroVector, Context.DeltaTime, SmoothingTime);
 	}
 
 	FKzCameraPose Result = Pose;
