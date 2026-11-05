@@ -143,10 +143,15 @@ protected:
 
 private:
 	float IdleTime = 0.0f;
+	FVector LeadDirection = FVector::ZeroVector;
+	FVector LeadOrigin = FVector::ZeroVector;
 	FVector DesiredLead = FVector::ZeroVector;
 	FVector Lead = FVector::ZeroVector;
 	FVector Rate = FVector::ZeroVector;
 	bool bInitialized = false;
+
+	/** Where the lead's direction leaves the dead zone's box, from its centre. Zero without a dead zone. */
+	FVector GetSlackEdge(const FKzCameraContext& Context, const FKzCameraPose& Pose) const;
 };
 
 /** Makes the focus trail the target, with optional caps so sudden moves don't drag the camera along at their speed. */

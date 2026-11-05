@@ -4,9 +4,15 @@
 #include "Components/KzSplineFollowerComponent.h"
 #include "Components/SplineComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
+
+namespace
+{
+	constexpr float DebugThickness = 1.5f;
+}
 
 UKzCameraModule_DeadZone::UKzCameraModule_DeadZone()
 {
@@ -59,12 +65,13 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 
 	FKzCameraPose Result = Pose;
 	Result.Focus = Center;
+	Result.FocusSlack = HalfSize;
 	return Result;
 }
 
 void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
 {
-	DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), Context.Rest.Quaternion(), FColor::Cyan);
+	DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), Context.Rest.Quaternion(), FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
 }
 
 UKzCameraModule_LookAhead::UKzCameraModule_LookAhead()
@@ -96,14 +103,19 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	const FVector Forward = Context.Rest.Vector();
 	Velocity -= Forward * FVector::DotProduct(Velocity, Forward);
 
-	// Standing still keeps the last lead for a while, or for good when held, so the camera keeps showing where the target was heading.
 	const bool bIdle = Velocity.IsNearlyZero(1.0);
 	IdleTime = bIdle ? IdleTime + Context.DeltaTime : 0.0f;
+	if (!bIdle)
+	{
+		LeadDirection = Velocity.GetSafeNormal();
+	}
 
+	// Standing still keeps the last lead for a while, or for good when held, so the camera keeps showing where the target was heading.
+	// Without one, the lead goes back to the edge of the dead zone, which is where the target stopped pushing it.
 	const bool bKeepLead = bIdle && (bHoldWhenIdle || IdleTime < ReturnDelay);
 	if (!bKeepLead || !bInitialized || Context.bTeleport)
 	{
-		DesiredLead = (Velocity * LeadTime).GetClampedToMaxSize(MaxLead);
+		DesiredLead = MaxLead > 0.0f ? GetSlackEdge(Context, Pose) + (Velocity * LeadTime).GetClampedToMaxSize(MaxLead) : FVector::ZeroVector;
 	}
 
 	if (!bInitialized || Context.bTeleport)
@@ -117,16 +129,35 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 		FMath::CriticallyDampedSmoothing(Lead, Rate, DesiredLead, FVector::ZeroVector, Context.DeltaTime, SmoothingTime);
 	}
 
+	LeadOrigin = Pose.Focus;
+
 	FKzCameraPose Result = Pose;
 	Result.Focus += Lead;
 	return Result;
+}
+
+FVector UKzCameraModule_LookAhead::GetSlackEdge(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+{
+	// Where the lead's direction leaves the dead zone's box: the lead counts from there, so it isn't spent inside the box.
+	const FVector Local = Context.Rest.Quaternion().UnrotateVector(LeadDirection);
+
+	double Scale = TNumericLimits<double>::Max();
+	for (int32 Axis = 0; Axis < 3; ++Axis)
+	{
+		if (FMath::Abs(Local[Axis]) > UE_KINDA_SMALL_NUMBER)
+		{
+			Scale = FMath::Min(Scale, Pose.FocusSlack[Axis] / FMath::Abs(Local[Axis]));
+		}
+	}
+
+	return Scale < TNumericLimits<double>::Max() ? LeadDirection * Scale : FVector::ZeroVector;
 }
 
 void UKzCameraModule_LookAhead::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
 {
 	if (!Lead.IsNearlyZero())
 	{
-		DrawDebugDirectionalArrow(GetWorld(), Context.TargetLocation, Context.TargetLocation + Lead, 30.0f, FColor::Green);
+		DrawDebugDirectionalArrow(GetWorld(), LeadOrigin, LeadOrigin + Lead, 30.0f, FColor::Green, false, -1.0f, SDPG_Foreground, DebugThickness);
 	}
 }
 
@@ -283,7 +314,7 @@ void UKzCameraModule_Pan::DrawDebug(const FKzCameraContext& Context, const FKzCa
 	FVector AxisY;
 	FVector AxisZ;
 	GetPlaneNormal(Context, Pose).FindBestAxisVectors(AxisY, AxisZ);
-	DrawDebugCircle(GetWorld(), Context.Anchor.GetLocation(), MaxDistance, 32, FColor::Orange, false, -1.0f, 0, 0.0f, AxisY, AxisZ, false);
+	DrawDebugCircle(GetWorld(), Context.Anchor.GetLocation(), MaxDistance, 32, FColor::Orange, false, -1.0f, SDPG_Foreground, DebugThickness, AxisY, AxisZ, false);
 }
 
 UKzCameraModule_LookAt::UKzCameraModule_LookAt()
@@ -399,16 +430,16 @@ void UKzCameraModule_RotationLimit::DrawDebug(const FKzCameraContext& Context, c
 
 		if (Index > 0)
 		{
-			DrawDebugLine(World, Previous, Point, FColor::Magenta);
+			DrawDebugLine(World, Previous, Point, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
 		}
 		if (Index % (Segments / 4) == 0)
 		{
-			DrawDebugLine(World, Pose.Location, Point, FColor::Magenta);
+			DrawDebugLine(World, Pose.Location, Point, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
 		}
 		Previous = Point;
 	}
 
-	DrawDebugLine(World, Pose.Location, Pose.Location + Pose.Rotation.Vector() * Length, FColor::White);
+	DrawDebugLine(World, Pose.Location, Pose.Location + Pose.Rotation.Vector() * Length, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
 }
 
 UKzCameraModule_RotationOffset::UKzCameraModule_RotationOffset()

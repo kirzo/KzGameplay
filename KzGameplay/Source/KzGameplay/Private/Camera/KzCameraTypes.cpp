@@ -8,6 +8,7 @@ FKzCameraPose FKzCameraPose::Blend(const FKzCameraPose& A, const FKzCameraPose& 
 
 	FKzCameraPose Result;
 	Result.Focus = FMath::Lerp(A.Focus, B.Focus, Alpha);
+	Result.FocusSlack = FMath::Lerp(A.FocusSlack, B.FocusSlack, Alpha);
 	Result.Location = FMath::Lerp(A.Location, B.Location, Alpha);
 	Result.Rotation = FQuat::Slerp(A.Rotation.Quaternion(), B.Rotation.Quaternion(), Alpha).Rotator();
 	Result.FieldOfView = FMath::Lerp(A.FieldOfView, B.FieldOfView, Alpha);

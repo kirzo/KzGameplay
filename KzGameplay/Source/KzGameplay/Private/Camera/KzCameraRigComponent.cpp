@@ -9,6 +9,7 @@
 #include "Components/KzSplineFollowerComponent.h"
 #include "Core/KzRegistrySubsystem.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 
@@ -392,11 +393,12 @@ void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKz
 #endif
 	if (!bDraw) return;
 
-	// The target, the focus and the line between them, which is how far behind the camera follows.
+	// The target, the focus and the line between them, which is how far behind or ahead the camera follows.
+	constexpr float Thickness = 1.5f;
 	const UWorld* World = GetWorld();
-	DrawDebugSphere(World, Context.TargetLocation, 12.0f, 8, FColor::White);
-	DrawDebugSphere(World, Pose.Focus, 18.0f, 8, FColor::Yellow);
-	DrawDebugLine(World, Context.TargetLocation, Pose.Focus, FColor::Yellow);
+	DrawDebugSphere(World, Context.TargetLocation, 12.0f, 8, FColor::Red, false, -1.0f, SDPG_Foreground, Thickness);
+	DrawDebugSphere(World, Pose.Focus, 18.0f, 8, FColor::Yellow, false, -1.0f, SDPG_Foreground, Thickness);
+	DrawDebugLine(World, Context.TargetLocation, Pose.Focus, FColor::Yellow, false, -1.0f, SDPG_Foreground, Thickness);
 
 	for (const UKzCameraModule* Module : Modules)
 	{

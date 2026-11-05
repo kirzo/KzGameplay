@@ -60,6 +60,10 @@ struct KZGAMEPLAY_API FKzCameraPose
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FVector Focus = FVector::ZeroVector;
 
+	/** How far the target may stray from the focus without moving it, along the rest view's depth, horizontal and vertical axes. Set by a dead zone. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (Units = "Centimeters"))
+	FVector FocusSlack = FVector::ZeroVector;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FVector Location = FVector::ZeroVector;
 
