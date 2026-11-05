@@ -43,6 +43,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bKeepOnScreen"))
 	float EdgeMargin = 50.0f;
 
+	/** The prompt appears, its text already set. By default Prompt becomes visible: an override that animates it in calls the parent first. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Interaction")
+	void OnShowPrompt();
+
+	/** The prompt goes away. By default Prompt collapses: an override that animates it out leaves it visible, and it keeps following the interactable meanwhile. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Interaction")
+	void OnHidePrompt();
+
 	/** The prompt changed: another interactable, none, or the same one becoming usable or not, with why not. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Interaction")
 	void OnPromptChanged(UKzInteractableComponent* Interactable, bool bAvailable, FGameplayTag Reason);
@@ -53,7 +61,15 @@ protected:
 private:
 	TWeakObjectPtr<APawn> InteractorPawn;
 	TWeakObjectPtr<UKzInteractorComponent> Interactor;
+
+	/** The focused interactable the prompt shows, if any. */
 	TWeakObjectPtr<UKzInteractableComponent> Shown;
+
+	/** The last interactable shown, which Prompt follows while visible, also while it animates out. */
+	TWeakObjectPtr<UKzInteractableComponent> Anchor;
+
+	/** Kept apart from Shown: an interactable destroyed while shown still has to hide the prompt. */
+	bool bPromptShown = false;
 	bool bShownAvailable = true;
 
 	/** The focused interactable's Prompt Text as last formatted, to format it again only when it changes. */
