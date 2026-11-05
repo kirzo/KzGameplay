@@ -36,7 +36,7 @@ This plugin relies on the following custom modules to function:
 Integrations with other plugins live in this repository next to KzGameplay, each as its own plugin and disabled by default, so KzGameplay never depends on them. Enable the ones you need in **Edit -> Plugins**:
 
 * **KzGameplay - Limbic Integration** (`KzGameplayLimbic`): requires **[Limbic](https://github.com/kirzo/Limbic)**. Adds the *Limbic Pose* item fragment, which holds a Limbic pose while the item is equipped.
-* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn.
+* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn, and `KzInteractionPromptWidget`, a prompt that follows the interactable the player's interactor focuses on screen.
 
 ## 🌟 Core Systems
 

@@ -13,7 +13,8 @@ public class KzGameplayUI : ModuleRules
 			{
 				"Core",
 				"GameplayTags",
-				"KzUI"
+				"KzUI",
+				"UMG"
 			}
 			);
 
