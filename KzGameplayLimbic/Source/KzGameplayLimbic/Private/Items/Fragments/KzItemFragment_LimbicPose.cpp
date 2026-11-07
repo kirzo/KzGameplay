@@ -13,10 +13,19 @@ UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Limbic_Slot_Hold, "Limbic.Slot.Hold");
 
 namespace
 {
-	// The skeletal mesh the item hangs from: the character's, for a hand slot.
+	// The skeletal mesh the item hangs from, or the holder's when it hangs from something else, such as the capsule.
 	USkeletalMeshComponent* GetPosedMesh(const FKzEquipEvent& Event)
 	{
-		return Event.Equipment ? Cast<USkeletalMeshComponent>(Event.Equipment->GetAttachParentForSlot(Event.SlotID)) : nullptr;
+		if (!Event.Equipment)
+		{
+			return nullptr;
+		}
+		if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(Event.Equipment->GetAttachParentForSlot(Event.SlotID)))
+		{
+			return Parent;
+		}
+		const AActor* Holder = Event.Equipment->GetOwner();
+		return Holder ? Holder->FindComponentByClass<USkeletalMeshComponent>() : nullptr;
 	}
 }
 

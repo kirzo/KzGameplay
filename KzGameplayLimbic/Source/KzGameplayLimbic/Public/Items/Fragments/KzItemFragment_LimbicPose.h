@@ -13,7 +13,8 @@ class ULimbicPuppeteer;
 
 /**
  * Holds a Limbic pose while the item is equipped, such as both hands gripping a hose: plays a puppeteer in a slot of the Limbic
- * node of the skeletal mesh the item hangs from, blending in as it is equipped and out as it is put away, on every machine.
+ * node of the skeletal mesh the item hangs from, or of the holder's when it hangs from something else such as the capsule,
+ * blending in as it is equipped and out as it is put away, on every machine.
  * The character's puppeteer needs a Slot node with the same tag. Subclasses choose the puppeteer.
  */
 UCLASS(Abstract)
