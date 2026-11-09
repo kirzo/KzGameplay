@@ -5,16 +5,64 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "GameplayTagContainer.h"
+#include "InputCoreTypes.h"
 #include "KzUITypes.h"
 #include "KzInputKeysWidget.generated.h"
 
 class UKzInputIcon;
 class UKzUIInputSubsystem;
+class UPanelWidget;
+
+UENUM(BlueprintType)
+enum class EKzFaceButtonStyle : uint8
+{
+	/** Each face button alone, like any other key. */
+	Icon,
+	/** The face buttons lit together in the face-button diamond. */
+	Diamond
+};
+
+/** A group of keys in a KzInputKeysWidget row: one key in Icon, or face buttons lit in the face-button diamond, the others dimmed. */
+UCLASS(Abstract)
+class KZGAMEPLAYUI_API UKzInputKeyGroupWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	void SetKeys(const TArray<FKey>& Keys);
+
+protected:
+	/** Render opacity of the face buttons that aren't lit. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (ClampMin = "0", ClampMax = "1"))
+	float DimmedOpacity = 0.35f;
+
+	/** Shows the first key. */
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
+	TObjectPtr<UKzInputIcon> Icon;
+
+	/** The face-button diamond, whose keys are set here. */
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
+	TObjectPtr<UKzInputIcon> FaceTop;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
+	TObjectPtr<UKzInputIcon> FaceLeft;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
+	TObjectPtr<UKzInputIcon> FaceRight;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
+	TObjectPtr<UKzInputIcon> FaceBottom;
+
+	virtual void NativePreConstruct() override;
+
+private:
+	TArray<TPair<UKzInputIcon*, FKey>, TInlineAllocator<4>> GetFaceIcons() const;
+};
 
 /**
- * The keys that fire an input tag's action for the owning player now: the key of a chord the action needs held, then its own key.
- * A face button lights up inside the face-button diamond, the other three dimmed; any other key shows alone in KeyIcon.
- * Refreshed when the player's device or key mappings change.
+ * A row with the keys that fire an input tag's action for the owning player now: the keys its chords need held, then its own key,
+ * with a separator between groups. Each key is a Key Class group; with the Diamond style, the face buttons go together in one
+ * Diamond Class group. Rebuilt when the keys change with the player's device or key mappings.
  */
 UCLASS(Abstract)
 class KZGAMEPLAYUI_API UKzInputKeysWidget : public UUserWidget
@@ -29,37 +77,28 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (Categories = "Input"))
 	FGameplayTag InputTag;
 
-	/** Render opacity of the three face buttons that aren't the key. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (ClampMin = "0", ClampMax = "1"))
-	float DimmedOpacity = 0.35f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	EKzFaceButtonStyle FaceButtonStyle = EKzFaceButtonStyle::Icon;
 
-	/** Visible while the action is chorded. Holds ChordIcon and whatever joins it to the key, such as a "+". */
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UWidget> Chord;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TSubclassOf<UKzInputKeyGroupWidget> KeyClass;
 
-	/** The key held for the chord. */
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> ChordIcon;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (EditCondition = "FaceButtonStyle == EKzFaceButtonStyle::Diamond"))
+	TSubclassOf<UKzInputKeyGroupWidget> DiamondClass;
 
-	/** The key, unless it is a face button and FaceButtons exists. */
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> KeyIcon;
+	/** Goes between groups, such as a "+". */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TSubclassOf<UUserWidget> SeparatorClass;
 
-	/** Visible instead of KeyIcon when the key is a face button. Holds the four face icons, whose keys are set here. */
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UWidget> FaceButtons;
+#if WITH_EDITORONLY_DATA
+	/** Shown in the designer, where there is no player to read the keys from. */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TArray<FKey> PreviewKeys = { EKeys::Gamepad_LeftTrigger, EKeys::Gamepad_FaceButton_Bottom };
+#endif
 
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> FaceTop;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> FaceLeft;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> FaceRight;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidgetOptional))
-	TObjectPtr<UKzInputIcon> FaceBottom;
+	/** Filled with the row, replacing whatever it holds in the designer. */
+	UPROPERTY(BlueprintReadOnly, Category = "Input", meta = (BindWidget))
+	TObjectPtr<UPanelWidget> Keys;
 
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
@@ -72,8 +111,8 @@ private:
 	UFUNCTION()
 	void Refresh();
 
-	/** The face icons, each with its key. */
-	TArray<TPair<UKzInputIcon*, FKey>, TInlineAllocator<4>> GetFaceIcons() const;
+	void ShowKeys(const TArray<FKey>& NewKeys);
 
+	TArray<FKey> ShownKeys;
 	TWeakObjectPtr<UKzUIInputSubsystem> BoundSubsystem;
 };

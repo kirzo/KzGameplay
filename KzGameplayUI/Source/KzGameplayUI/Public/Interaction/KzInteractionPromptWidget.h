@@ -12,19 +12,31 @@ class UKzInteractableComponent;
 class UKzInteractorComponent;
 class UTextBlock;
 
+UENUM(BlueprintType)
+enum class EKzInteractionPromptPlacement : uint8
+{
+	/** Over the focused interactable. */
+	World,
+	/** Always at Screen Position. */
+	Screen
+};
+
 /**
  * The owning player's interaction prompt: shows the Prompt Text of the interactable their pawn's interactor focuses, and hides while
- * there is none or an interaction is running. Make it full screen, with Prompt in a Canvas Panel: anchored at the center, it moves over
- * the interactable; without bFollowInteractable it stays where it is laid out. The button goes inside Prompt, as a KzTextBlock with
- * {Input.Interact}, a KzInputIcon with an Input Tag or a KzInputKeysWidget.
+ * there is none or an interaction is running. Make it full screen, with Prompt in a Canvas Panel, whose anchors Placement sets, also
+ * in the designer. The keys go inside Prompt, as a KzInputKeysWidget, a KzTextBlock with {Input.Interact} or a KzInputIcon with an Input Tag.
  */
 UCLASS(Abstract)
 class KZGAMEPLAYUI_API UKzInteractionPromptWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
+public:
+	UFUNCTION(BlueprintCallable, Category = "Interaction")
+	void SetPlacement(EKzInteractionPromptPlacement NewPlacement);
+
 protected:
-	/** Moved over the focused interactable, and collapsed while there is none. */
+	/** Placed by Placement, and collapsed while there is nothing focused. */
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidget))
 	TObjectPtr<UWidget> Prompt;
 
@@ -32,20 +44,23 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PromptText;
 
-	/** Moves Prompt over the focused interactable. Off, Prompt stays where it is laid out, such as a corner of the screen. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
-	bool bFollowInteractable = true;
+	EKzInteractionPromptPlacement Placement = EKzInteractionPromptPlacement::World;
+
+	/** Where Prompt's alignment point goes, as a fraction of the screen: 0, 0 is the top left corner and 1, 1 the bottom right. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (EditCondition = "Placement == EKzInteractionPromptPlacement::Screen"))
+	FVector2D ScreenPosition = FVector2D(0.85, 0.85);
 
 	/** Added to the interactable's location, in world space. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "Placement == EKzInteractionPromptPlacement::World"))
 	FVector WorldOffset = FVector::ZeroVector;
 
 	/** Keeps the prompt inside the screen when the interactable is near an edge or off it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "Placement == EKzInteractionPromptPlacement::World"))
 	bool bKeepOnScreen = true;
 
 	/** Distance from the screen edges the prompt keeps. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable && bKeepOnScreen"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "Placement == EKzInteractionPromptPlacement::World && bKeepOnScreen"))
 	float EdgeMargin = 50.0f;
 
 	/** The prompt appears, its text already set. By default Prompt becomes visible: an override that animates it in calls the parent first. */
@@ -60,10 +75,14 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Interaction")
 	void OnPromptChanged(UKzInteractableComponent* Interactable, bool bAvailable, FGameplayTag Reason);
 
+	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	/** Anchors Prompt at the screen center, where World placement moves it from, or at Screen Position. */
+	void ApplyPlacement();
+
 	TWeakObjectPtr<APawn> InteractorPawn;
 	TWeakObjectPtr<UKzInteractorComponent> Interactor;
 

@@ -6,7 +6,8 @@
 #include "KzUIInputSettings.h"
 #include "KzUIInputSubsystem.h"
 
-#include "Algo/AnyOf.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/PanelWidget.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedPlayerInput.h"
@@ -19,6 +20,12 @@ namespace
 		FKzUIIconSource_Key Source;
 		Source.Key = Key;
 		return TInstancedStruct<FKzUIIconSource>::Make<FKzUIIconSource_Key>(Source);
+	}
+
+	bool IsFaceButton(const FKey& Key)
+	{
+		return Key == EKeys::Gamepad_FaceButton_Top || Key == EKeys::Gamepad_FaceButton_Left
+			|| Key == EKeys::Gamepad_FaceButton_Right || Key == EKeys::Gamepad_FaceButton_Bottom;
 	}
 
 	/** The player's first mapping of Action to a pad key, or to a keyboard or mouse key. */
@@ -36,28 +43,45 @@ namespace
 		}
 		return nullptr;
 	}
+}
 
-	const UInputAction* FindChordAction(const FEnhancedActionKeyMapping& Mapping)
+void UKzInputKeyGroupWidget::SetKeys(const TArray<FKey>& Keys)
+{
+	if (Icon && Keys.Num() > 0)
 	{
-		// The player's mappings also carry the action's own chord triggers. Blockers are the ones Enhanced Input adds to the mappings a chord masks
-		for (const UInputTrigger* Trigger : Mapping.Triggers)
-		{
-			const UInputTriggerChordAction* ChordTrigger = Cast<UInputTriggerChordAction>(Trigger);
-			if (ChordTrigger && !ChordTrigger->IsA<UInputTriggerChordBlocker>())
-			{
-				return ChordTrigger->ChordAction;
-			}
-		}
-		return nullptr;
+		Icon->SetSource(MakeKeySource(Keys[0]));
 	}
-
-	void SetShown(UWidget* Widget, bool bShown)
+	for (const auto& [FaceIcon, FaceKey] : GetFaceIcons())
 	{
-		if (Widget)
+		if (FaceIcon)
 		{
-			Widget->SetVisibility(bShown ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			FaceIcon->SetRenderOpacity(Keys.Contains(FaceKey) ? 1.0f : DimmedOpacity);
 		}
 	}
+}
+
+void UKzInputKeyGroupWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	// Here so the designer shows them too
+	for (const auto& [FaceIcon, FaceKey] : GetFaceIcons())
+	{
+		if (FaceIcon)
+		{
+			FaceIcon->SetSource(MakeKeySource(FaceKey));
+		}
+	}
+}
+
+TArray<TPair<UKzInputIcon*, FKey>, TInlineAllocator<4>> UKzInputKeyGroupWidget::GetFaceIcons() const
+{
+	return {
+		MakeTuple(FaceTop.Get(), EKeys::Gamepad_FaceButton_Top),
+		MakeTuple(FaceLeft.Get(), EKeys::Gamepad_FaceButton_Left),
+		MakeTuple(FaceRight.Get(), EKeys::Gamepad_FaceButton_Right),
+		MakeTuple(FaceBottom.Get(), EKeys::Gamepad_FaceButton_Bottom),
+	};
 }
 
 void UKzInputKeysWidget::SetInputTag(FGameplayTag NewInputTag)
@@ -70,14 +94,12 @@ void UKzInputKeysWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 
-	// Here so the designer shows them too
-	for (const auto& [Icon, FaceKey] : GetFaceIcons())
+#if WITH_EDITOR
+	if (IsDesignTime())
 	{
-		if (Icon)
-		{
-			Icon->SetSource(MakeKeySource(FaceKey));
-		}
+		ShowKeys(PreviewKeys);
 	}
+#endif
 }
 
 void UKzInputKeysWidget::NativeConstruct()
@@ -107,8 +129,7 @@ void UKzInputKeysWidget::NativeDestruct()
 
 void UKzInputKeysWidget::Refresh()
 {
-	FKey Key;
-	FKey ChordKey;
+	TArray<FKey> NewKeys;
 	const UKzUIInputSubsystem* Subsystem = BoundSubsystem.Get();
 	const ULocalPlayer* Player = GetOwningLocalPlayer();
 	const UEnhancedInputLocalPlayerSubsystem* EnhancedInput = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(Player);
@@ -124,43 +145,66 @@ void UKzInputKeysWidget::Refresh()
 		const bool bGamepad = Subsystem->GetCurrentInputDevice() != EKzUIInputDevice::Keyboard || UKzUIInputSettings::Get()->bGamepadIconsOnKeyboard;
 		if (const FEnhancedActionKeyMapping* Mapping = FindMapping(*PlayerInput, Source.GetInputAction(Context), bGamepad))
 		{
-			Key = Mapping->Key;
-			const FEnhancedActionKeyMapping* ChordMapping = FindMapping(*PlayerInput, FindChordAction(*Mapping), bGamepad);
-			ChordKey = ChordMapping ? ChordMapping->Key : FKey();
+			// The player's mappings also carry the action's own chord triggers. Blockers are the ones Enhanced Input adds to the mappings a chord masks
+			for (const UInputTrigger* Trigger : Mapping->Triggers)
+			{
+				const UInputTriggerChordAction* Chord = Cast<UInputTriggerChordAction>(Trigger);
+				const FEnhancedActionKeyMapping* ChordMapping = Chord && !Chord->IsA<UInputTriggerChordBlocker>() ? FindMapping(*PlayerInput, Chord->ChordAction, bGamepad) : nullptr;
+				if (ChordMapping)
+				{
+					NewKeys.Add(ChordMapping->Key);
+				}
+			}
+			NewKeys.Add(Mapping->Key);
 		}
 	}
 
-	const TArray<TPair<UKzInputIcon*, FKey>, TInlineAllocator<4>> FaceIcons = GetFaceIcons();
-	const bool bFace = FaceButtons && Algo::AnyOf(FaceIcons, [&Key](const TPair<UKzInputIcon*, FKey>& Face) { return Face.Value == Key; });
-
-	SetShown(Chord ? Chord.Get() : ChordIcon.Get(), ChordKey.IsValid());
-	if (ChordIcon && ChordKey.IsValid())
+	if (NewKeys != ShownKeys)
 	{
-		ChordIcon->SetSource(MakeKeySource(ChordKey));
-	}
-
-	SetShown(KeyIcon.Get(), Key.IsValid() && !bFace);
-	if (KeyIcon && Key.IsValid() && !bFace)
-	{
-		KeyIcon->SetSource(MakeKeySource(Key));
-	}
-
-	SetShown(FaceButtons, bFace);
-	for (const auto& [Icon, FaceKey] : FaceIcons)
-	{
-		if (Icon)
-		{
-			Icon->SetRenderOpacity(FaceKey == Key ? 1.0f : DimmedOpacity);
-		}
+		ShowKeys(NewKeys);
 	}
 }
 
-TArray<TPair<UKzInputIcon*, FKey>, TInlineAllocator<4>> UKzInputKeysWidget::GetFaceIcons() const
+void UKzInputKeysWidget::ShowKeys(const TArray<FKey>& NewKeys)
 {
-	return {
-		MakeTuple(FaceTop.Get(), EKeys::Gamepad_FaceButton_Top),
-		MakeTuple(FaceLeft.Get(), EKeys::Gamepad_FaceButton_Left),
-		MakeTuple(FaceRight.Get(), EKeys::Gamepad_FaceButton_Right),
-		MakeTuple(FaceBottom.Get(), EKeys::Gamepad_FaceButton_Bottom),
+	ShownKeys = NewKeys;
+	if (!Keys)
+	{
+		return;
+	}
+	Keys->ClearChildren();
+
+	auto AddToRow = [this](TSubclassOf<UUserWidget> Class)
+	{
+		UUserWidget* Widget = CreateWidget(this, Class);
+#if WITH_EDITOR
+		// So their icons preview in the designer like the row's
+		Widget->SetDesignerFlags(GetDesignerFlags());
+#endif
+		// Groups of different heights line up on their centers
+		if (UHorizontalBoxSlot* RowSlot = Cast<UHorizontalBoxSlot>(Keys->AddChild(Widget)))
+		{
+			RowSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		return Widget;
 	};
+
+	const bool bDiamond = FaceButtonStyle == EKzFaceButtonStyle::Diamond && DiamondClass;
+	const TArray<FKey> FaceKeys = bDiamond ? NewKeys.FilterByPredicate(&IsFaceButton) : TArray<FKey>();
+	for (const FKey& Key : NewKeys)
+	{
+		// All the face buttons go in the diamond of the first one
+		const bool bFace = FaceKeys.Contains(Key);
+		const TSubclassOf<UKzInputKeyGroupWidget> Class = bFace ? DiamondClass : KeyClass;
+		if (!Class || (bFace && Key != FaceKeys[0]))
+		{
+			continue;
+		}
+
+		if (SeparatorClass && Keys->GetChildrenCount() > 0)
+		{
+			AddToRow(SeparatorClass);
+		}
+		CastChecked<UKzInputKeyGroupWidget>(AddToRow(Class))->SetKeys(bFace ? FaceKeys : TArray<FKey>{ Key });
+	}
 }

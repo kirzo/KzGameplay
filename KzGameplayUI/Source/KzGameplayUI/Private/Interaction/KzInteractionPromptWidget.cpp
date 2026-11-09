@@ -6,8 +6,33 @@
 #include "Kismet/KzSystemLibrary.h"
 #include "KzUIFunctionLibrary.h"
 
+#include "Components/CanvasPanelSlot.h"
 #include "Components/TextBlock.h"
 #include "GameFramework/Pawn.h"
+
+void UKzInteractionPromptWidget::SetPlacement(EKzInteractionPromptPlacement NewPlacement)
+{
+	Placement = NewPlacement;
+	ApplyPlacement();
+}
+
+void UKzInteractionPromptWidget::ApplyPlacement()
+{
+	if (UCanvasPanelSlot* PromptSlot = Cast<UCanvasPanelSlot>(Prompt->Slot))
+	{
+		const FVector2D Anchor = Placement == EKzInteractionPromptPlacement::Screen ? ScreenPosition : FVector2D(0.5);
+		PromptSlot->SetAnchors(FAnchors(static_cast<float>(Anchor.X), static_cast<float>(Anchor.Y)));
+	}
+	Prompt->SetRenderTranslation(FVector2D::ZeroVector);
+}
+
+void UKzInteractionPromptWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	// Also in the designer, to see where a Screen prompt goes
+	ApplyPlacement();
+}
 
 void UKzInteractionPromptWidget::NativeConstruct()
 {
@@ -85,7 +110,7 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 
 	FVector2D Position;
 	const UKzInteractableComponent* AnchorComponent = Anchor.Get();
-	if (bFollowInteractable && AnchorComponent && Prompt->IsVisible() && UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, AnchorComponent->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
+	if (Placement == EKzInteractionPromptPlacement::World && AnchorComponent && Prompt->IsVisible() && UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, AnchorComponent->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
 	{
 		Prompt->SetRenderTranslation(Position);
 	}
