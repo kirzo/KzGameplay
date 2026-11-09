@@ -16,7 +16,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	}
 
 	// Components only show the small icon, in the component tree and the Add Component menu
-	for (const TCHAR* Component : { TEXT("Interactable"), TEXT("Interactor"), TEXT("InteractableGroup"), TEXT("Sensor"), TEXT("Sensable"), TEXT("Inventory"), TEXT("Save"), TEXT("AnimLayer") })
+	for (const TCHAR* Component : { TEXT("Interactable"), TEXT("Interactor"), TEXT("InteractableGroup"), TEXT("Sensor"), TEXT("Sensable"), TEXT("Inventory"), TEXT("Save"), TEXT("AnimLayer"), TEXT("Faction") })
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.Kz%sComponent"), Component), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Component, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
@@ -38,6 +38,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	const TCHAR* const ScriptableObjects[][2] = {
 		{ TEXT("ScriptableTask_GrantCapability"), TEXT("ScriptableTask_GrantCapability") },
 		{ TEXT("ScriptableCondition_HasCapability"), TEXT("ScriptableCondition_HasCapability") },
+		{ TEXT("ScriptableCondition_Attitude"), TEXT("ScriptableCondition_Attitude") },
 		{ TEXT("ScriptableTask_EquipItem"), TEXT("EquipmentLayout") },
 		{ TEXT("ScriptableTask_GrantItem"), TEXT("ItemDefinition") },
 		{ TEXT("ScriptableTask_LinkAnimLayers"), TEXT("AnimLayer") },

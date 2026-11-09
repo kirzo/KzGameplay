@@ -4,12 +4,14 @@
 #include "StateTree/KzStateTreeComponent.h"
 #include "Navigation/KzPathFollowingComponent.h"
 #include "Abilities/KzAbilitySystemComponent.h"
+#include "Factions/KzFactionComponent.h"
 #include "AbilitySystemGlobals.h"
 
 AKzAIController::AKzAIController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer.SetDefaultSubobjectClass<UKzPathFollowingComponent>(TEXT("PathFollowingComponent")))
 {
 	StateTreeComponent = CreateDefaultSubobject<UKzStateTreeComponent>(TEXT("StateTreeComponent"));
+	FactionComponent = CreateDefaultSubobject<UKzFactionComponent>(TEXT("FactionComponent"));
 
 	// Default behavior matches standard UE5 AI practices
 	bStartAILogicOnPossess = true;

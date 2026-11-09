@@ -4,7 +4,5 @@
 
 namespace KzTags::Character
 {
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Player, "Character.Player", "Driven by a player.");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Enemy, "Character.Enemy", "Hostile to the player.");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(NPC, "Character.NPC", "Neither the player nor hostile: an ally or a bystander.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Player, "Character.Player", "Driven by a player. Which side it is on is its faction.");
 }
