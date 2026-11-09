@@ -25,6 +25,7 @@ public class KzGameplayUI : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"EnhancedInput",
+				"InputCore",
 				"KzGameplay",
 				"KzLib"
 			}

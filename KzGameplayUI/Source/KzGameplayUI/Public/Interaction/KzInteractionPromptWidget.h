@@ -13,9 +13,10 @@ class UKzInteractorComponent;
 class UTextBlock;
 
 /**
- * The owning player's interaction prompt: follows the interactable their pawn's interactor focuses, with its Prompt Text, and hides
- * while there is none or an interaction is running. Make it full screen, with Prompt anchored at the center of a Canvas Panel: Prompt
- * moves over the interactable. The button goes inside Prompt, as a KzTextBlock with {Input.Interact} or a KzInputIcon with an Input Tag.
+ * The owning player's interaction prompt: shows the Prompt Text of the interactable their pawn's interactor focuses, and hides while
+ * there is none or an interaction is running. Make it full screen, with Prompt in a Canvas Panel: anchored at the center, it moves over
+ * the interactable; without bFollowInteractable it stays where it is laid out. The button goes inside Prompt, as a KzTextBlock with
+ * {Input.Interact}, a KzInputIcon with an Input Tag or a KzInputKeysWidget.
  */
 UCLASS(Abstract)
 class KZGAMEPLAYUI_API UKzInteractionPromptWidget : public UUserWidget
@@ -31,16 +32,20 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PromptText;
 
+	/** Moves Prompt over the focused interactable. Off, Prompt stays where it is laid out, such as a corner of the screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
+	bool bFollowInteractable = true;
+
 	/** Added to the interactable's location, in world space. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable"))
 	FVector WorldOffset = FVector::ZeroVector;
 
 	/** Keeps the prompt inside the screen when the interactable is near an edge or off it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable"))
 	bool bKeepOnScreen = true;
 
 	/** Distance from the screen edges the prompt keeps. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bKeepOnScreen"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bFollowInteractable && bKeepOnScreen"))
 	float EdgeMargin = 50.0f;
 
 	/** The prompt appears, its text already set. By default Prompt becomes visible: an override that animates it in calls the parent first. */

@@ -85,7 +85,7 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 
 	FVector2D Position;
 	const UKzInteractableComponent* AnchorComponent = Anchor.Get();
-	if (AnchorComponent && Prompt->IsVisible() && UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, AnchorComponent->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
+	if (bFollowInteractable && AnchorComponent && Prompt->IsVisible() && UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, AnchorComponent->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
 	{
 		Prompt->SetRenderTranslation(Position);
 	}
