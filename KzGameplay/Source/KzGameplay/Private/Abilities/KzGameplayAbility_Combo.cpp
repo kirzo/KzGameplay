@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "Abilities/Tasks/AbilityTask_WaitInputTag.h"
 #include "Combat/KzCombatLibrary.h"
+#include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboInstance.h"
 #include "Equipment/KzEquipmentComponent.h"
@@ -16,6 +17,7 @@
 UKzGameplayAbility_Combo::UKzGameplayAbility_Combo()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+	ActivationOwnedTags.AddTag(KzTags::Combat::State_Attacking);
 }
 
 void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)

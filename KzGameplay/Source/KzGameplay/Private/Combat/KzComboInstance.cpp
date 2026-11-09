@@ -6,6 +6,7 @@
 #include "Animation/KzAnimationSource.h"
 #include "Combat/KzCombatLibrary.h"
 #include "Combat/KzCombatNotifies.h"
+#include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
 #include "Combat/KzMeshShakeSubsystem.h"
@@ -137,7 +138,7 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 	Play = NewPlay;
 	Node = NodeIndex;
 	bHit = false;
-	bComboWindow = false;
+	SetComboWindow(false);
 	HitWindows = 0;
 	bOpenedHitWindow = false;
 	Reaction = FGameplayTag();
@@ -193,7 +194,7 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 
 	if (Notify->IsA<UKzAnimNotifyState_ComboWindow>())
 	{
-		bComboWindow = bBegin;
+		SetComboWindow(bBegin);
 		if (bBegin && KeptInput.IsValid() && Clock - KeptAt <= Combo->InputBuffer)
 		{
 			const FGameplayTag Input = KeptInput;
@@ -476,9 +477,30 @@ void UKzComboInstance::End(bool bInterrupted)
 	Node = INDEX_NONE;
 	HitWindows = 0;
 	CancelWindows = 0;
-	bComboWindow = false;
+	SetComboWindow(false);
 	Warp.Reset();
 	OnEnded.Broadcast(bInterrupted);
+}
+
+void UKzComboInstance::SetComboWindow(bool bOpen)
+{
+	if (bComboWindow == bOpen)
+	{
+		return;
+	}
+
+	bComboWindow = bOpen;
+	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
+	{
+		if (bOpen)
+		{
+			ASC->AddLooseGameplayTag(KzTags::Combat::State_ComboWindow);
+		}
+		else
+		{
+			ASC->RemoveLooseGameplayTag(KzTags::Combat::State_ComboWindow);
+		}
+	}
 }
 
 const FKzComboNode_Attack* UKzComboInstance::GetAttack() const

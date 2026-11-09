@@ -135,6 +135,10 @@ private:
 	void DilateTime(const FKzComboHit& Hit, AActor& HitActor);
 
 	void SetCancelWindows(int32 Count);
+
+	/** Opens or closes the Combo Window, with State.ComboWindow on the attacker meanwhile, so whoever drives it knows when a press chains. */
+	void SetComboWindow(bool bOpen);
+
 	void End(bool bInterrupted);
 
 	const FKzComboNode_Attack* GetAttack() const;
