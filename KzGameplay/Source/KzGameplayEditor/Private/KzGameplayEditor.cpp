@@ -5,6 +5,7 @@
 #include "KzGameplayEditor.h"
 #include "KzGameplayEditorStyle.h"
 #include "Customizations/KzItemFragmentRowCustomizer.h"
+#include "Customizations/KzFactionSettingsCustomization.h"
 
 #include "Items/KzItemDefinition.h"
 #include "Equipment/KzEquipmentLayout.h"
@@ -15,6 +16,7 @@
 #include "Combat/KzComboEditor.h"
 #include "Combat/KzComboNodeBodies.h"
 #include "Combat/KzComboGraph.h"
+#include "Factions/KzFactionSettings.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -106,6 +108,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
 	KzAnimationPreview::RegisterMontagePreview();
 	KzComboNodeBodies::Register();
+
+	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()

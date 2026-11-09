@@ -21,6 +21,7 @@ public class KzGameplayEditor : ModuleRules
 				"KzLib",
 				"CoreUObject",
 				"Engine",
+				"GameplayTags",
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
