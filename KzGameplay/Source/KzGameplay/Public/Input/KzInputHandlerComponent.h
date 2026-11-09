@@ -98,6 +98,9 @@ public:
 	/** The action config for a tag, searched from the topmost profile down. */
 	const struct FKzInputAction* FindActionConfig(const FGameplayTag& InputTag) const;
 
+	/** The topmost active profile that declares a tag: the one whose config and mapping context the tag uses. */
+	const UKzInputProfile* FindActionProfile(const FGameplayTag& InputTag) const;
+
 	/**
 	 * Pushes a new input ignore state to the stack for a specific Gameplay Tag.
 	 * @param InputTag The specific input to block (e.g., Input.Move)

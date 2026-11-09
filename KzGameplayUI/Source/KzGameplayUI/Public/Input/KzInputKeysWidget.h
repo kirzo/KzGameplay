@@ -61,8 +61,9 @@ private:
 
 /**
  * A row with the keys that fire an input tag's action for the owning player now: the keys its chords need held, then its own key,
- * with a separator between groups. Each key is a Key Class group; with the Diamond style, the face buttons go together in one
- * Diamond Class group. Rebuilt when the keys change with the player's device or key mappings.
+ * with a separator between groups. Chords are Chorded Action triggers, on the action or on its mapping in the mapping context of
+ * the input profile that declares the tag. Each key is a Key Class group; with the Diamond style, the face buttons go together in
+ * one Diamond Class group. Rebuilt when the keys change with the player's device or key mappings.
  */
 UCLASS(Abstract)
 class KZGAMEPLAYUI_API UKzInputKeysWidget : public UUserWidget

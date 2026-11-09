@@ -126,15 +126,19 @@ void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
 
 const FKzInputAction* UKzInputHandlerComponent::FindActionConfig(const FGameplayTag& InputTag) const
 {
+	const UKzInputProfile* Profile = FindActionProfile(InputTag);
+	return Profile ? Profile->FindActionConfigForTag(InputTag) : nullptr;
+}
+
+const UKzInputProfile* UKzInputHandlerComponent::FindActionProfile(const FGameplayTag& InputTag) const
+{
 	// Topmost first, so a profile pushed later retunes a tag the one below already declared
 	for (int32 Index = ActiveProfiles.Num() - 1; Index >= 0; --Index)
 	{
-		if (const UKzInputProfile* Profile = ActiveProfiles[Index].Profile)
+		const UKzInputProfile* Profile = ActiveProfiles[Index].Profile;
+		if (Profile && Profile->FindActionConfigForTag(InputTag))
 		{
-			if (const FKzInputAction* Found = Profile->FindActionConfigForTag(InputTag))
-			{
-				return Found;
-			}
+			return Profile;
 		}
 	}
 

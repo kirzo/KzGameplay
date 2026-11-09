@@ -20,8 +20,8 @@ void UKzInteractionPromptWidget::ApplyPlacement()
 {
 	if (UCanvasPanelSlot* PromptSlot = Cast<UCanvasPanelSlot>(Prompt->Slot))
 	{
-		const FVector2D Anchor = Placement == EKzInteractionPromptPlacement::Screen ? ScreenPosition : FVector2D(0.5);
-		PromptSlot->SetAnchors(FAnchors(static_cast<float>(Anchor.X), static_cast<float>(Anchor.Y)));
+		const FVector2D Point = Placement == EKzInteractionPromptPlacement::Screen ? ScreenPosition : FVector2D(0.5);
+		PromptSlot->SetAnchors(FAnchors(static_cast<float>(Point.X), static_cast<float>(Point.Y)));
 	}
 	Prompt->SetRenderTranslation(FVector2D::ZeroVector);
 }

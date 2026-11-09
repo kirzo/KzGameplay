@@ -1,7 +1,9 @@
 // Copyright 2026 kirzo
 
 #include "Input/KzInputKeysWidget.h"
-#include "Input/KzUIIconSource_InputTag.h"
+#include "Input/KzInputHandlerComponent.h"
+#include "Input/KzInputProfile.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "KzInputIcon.h"
 #include "KzUIInputSettings.h"
 #include "KzUIInputSubsystem.h"
@@ -9,8 +11,12 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/PanelWidget.h"
 #include "Engine/LocalPlayer.h"
+#include "EnhancedActionKeyMapping.h"
 #include "EnhancedInputSubsystems.h"
-#include "EnhancedPlayerInput.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 #include "InputTriggers.h"
 
 namespace
@@ -28,20 +34,20 @@ namespace
 			|| Key == EKeys::Gamepad_FaceButton_Right || Key == EKeys::Gamepad_FaceButton_Bottom;
 	}
 
-	/** The player's first mapping of Action to a pad key, or to a keyboard or mouse key. */
-	const FEnhancedActionKeyMapping* FindMapping(const UEnhancedPlayerInput& PlayerInput, const UInputAction* Action, bool bGamepad)
+	/** The player's first key for Action on a pad, or on the keyboard and mouse. */
+	FKey FindKey(const UEnhancedInputLocalPlayerSubsystem& EnhancedInput, const UInputAction* Action, bool bGamepad)
 	{
 		if (Action)
 		{
-			for (const FEnhancedActionKeyMapping& Mapping : PlayerInput.GetEnhancedActionMappings())
+			for (const FKey& Key : EnhancedInput.QueryKeysMappedToAction(Action))
 			{
-				if (Mapping.Action == Action && Mapping.Key.IsGamepadKey() == bGamepad)
+				if (Key.IsGamepadKey() == bGamepad)
 				{
-					return &Mapping;
+					return Key;
 				}
 			}
 		}
-		return nullptr;
+		return FKey();
 	}
 }
 
@@ -131,31 +137,45 @@ void UKzInputKeysWidget::Refresh()
 {
 	TArray<FKey> NewKeys;
 	const UKzUIInputSubsystem* Subsystem = BoundSubsystem.Get();
-	const ULocalPlayer* Player = GetOwningLocalPlayer();
-	const UEnhancedInputLocalPlayerSubsystem* EnhancedInput = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(Player);
-	const UEnhancedPlayerInput* PlayerInput = EnhancedInput ? EnhancedInput->GetPlayerInput() : nullptr;
-	if (Subsystem && PlayerInput)
+	const UEnhancedInputLocalPlayerSubsystem* EnhancedInput = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetOwningLocalPlayer());
+	const APlayerController* Controller = GetOwningPlayer();
+	const UKzInputHandlerComponent* Handler = Controller ? UKzSystemLibrary::FindComponentInActorOrController<UKzInputHandlerComponent>(Controller->GetPawn()) : nullptr;
+	const UKzInputProfile* Profile = Handler ? Handler->FindActionProfile(InputTag) : nullptr;
+	const FKzInputAction* Config = Profile ? Profile->FindActionConfigForTag(InputTag) : nullptr;
+	const UInputAction* Action = Config ? Config->InputAction.Get() : nullptr;
+	if (Subsystem && EnhancedInput && Action)
 	{
-		FKzUIIconSource_InputTag Source;
-		Source.InputTag = InputTag;
-		FKzUIIconContext Context;
-		Context.Player = Player;
-
 		// Pad keys also on the keyboard when the game shows pad icons there, as KzInputIcon does
 		const bool bGamepad = Subsystem->GetCurrentInputDevice() != EKzUIInputDevice::Keyboard || UKzUIInputSettings::Get()->bGamepadIconsOnKeyboard;
-		if (const FEnhancedActionKeyMapping* Mapping = FindMapping(*PlayerInput, Source.GetInputAction(Context), bGamepad))
+		const FKey Key = FindKey(*EnhancedInput, Action, bGamepad);
+
+		auto AddChordKeys = [&](const TArray<TObjectPtr<UInputTrigger>>& Triggers)
 		{
-			// The player's mappings also carry the action's own chord triggers. Blockers are the ones Enhanced Input adds to the mappings a chord masks
-			for (const UInputTrigger* Trigger : Mapping->Triggers)
+			for (const UInputTrigger* Trigger : Triggers)
 			{
 				const UInputTriggerChordAction* Chord = Cast<UInputTriggerChordAction>(Trigger);
-				const FEnhancedActionKeyMapping* ChordMapping = Chord && !Chord->IsA<UInputTriggerChordBlocker>() ? FindMapping(*PlayerInput, Chord->ChordAction, bGamepad) : nullptr;
-				if (ChordMapping)
+				const FKey ChordKey = Chord ? FindKey(*EnhancedInput, Chord->ChordAction, bGamepad) : FKey();
+				if (ChordKey.IsValid())
 				{
-					NewKeys.Add(ChordMapping->Key);
+					NewKeys.Add(ChordKey);
 				}
 			}
-			NewKeys.Add(Mapping->Key);
+		};
+
+		if (Key.IsValid())
+		{
+			// Chords on the action, then on its mapping in the profile's context: the player's own mappings aren't public
+			AddChordKeys(Action->Triggers);
+			const TArray<FEnhancedActionKeyMapping>* Mappings = Profile->MappingContext ? &Profile->MappingContext->GetMappings() : nullptr;
+			const FEnhancedActionKeyMapping* Mapping = Mappings ? Mappings->FindByPredicate([Action, bGamepad](const FEnhancedActionKeyMapping& Each)
+			{
+				return Each.Action == Action && Each.Key.IsGamepadKey() == bGamepad;
+			}) : nullptr;
+			if (Mapping)
+			{
+				AddChordKeys(Mapping->Triggers);
+			}
+			NewKeys.Add(Key);
 		}
 	}
 
