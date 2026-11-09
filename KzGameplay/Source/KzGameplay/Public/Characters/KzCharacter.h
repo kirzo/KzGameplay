@@ -108,6 +108,13 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement", meta = (ClampMin = 0))
 	TMap<FGameplayTag, float> RotationRateByTag;
 
+	/**
+	 * While the character has any of these tags it turns to its control rotation instead of its movement, so it strafes facing
+	 * where its controller looks: the camera for a player, the focus for an AI.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	FGameplayTagContainer FaceControlRotationTags;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
@@ -127,6 +134,10 @@ private:
 	/** Yaw rotation rate without curve or caps: the movement component's at BeginPlay. */
 	float BaseRotationRate = 0.0f;
 
+	/** The movement component's facing at BeginPlay, for when no Face Control Rotation Tag is left. */
+	bool bBaseOrientRotationToMovement = false;
+	bool bBaseUseControllerDesiredRotation = false;
+
 	void UpdateMaxWalkSpeed();
 
 	void UpdateSlopeMultiplier(float DeltaSeconds);
@@ -134,4 +145,6 @@ private:
 	void UpdateRotationRate();
 
 	void HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+	void HandleFaceControlRotationTagChanged(const FGameplayTag Tag, int32 NewCount);
 };

@@ -35,10 +35,17 @@ void AKzCharacter::BeginPlay()
 	// Before Super: what BeginPlay pushes is not taken as the base, and its tags are heard
 	BaseWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 	BaseRotationRate = GetCharacterMovement()->RotationRate.Yaw;
+	bBaseOrientRotationToMovement = GetCharacterMovement()->bOrientRotationToMovement;
+	bBaseUseControllerDesiredRotation = GetCharacterMovement()->bUseControllerDesiredRotation;
 
 	for (const TPair<FGameplayTag, FKzWalkSpeed>& Entry : WalkSpeedByTag)
 	{
 		AbilitySystemComponent->RegisterGameplayTagEvent(Entry.Key, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleWalkSpeedTagChanged);
+	}
+
+	for (const FGameplayTag& Tag : FaceControlRotationTags)
+	{
+		AbilitySystemComponent->RegisterGameplayTagEvent(Tag, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &ThisClass::HandleFaceControlRotationTagChanged);
 	}
 
 	InputHandlerComponent->OnInputAxis.AddDynamic(this, &ThisClass::HandleInputAxis);
@@ -133,6 +140,14 @@ void AKzCharacter::HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCo
 	{
 		RemoveMaxWalkSpeed(Tag.GetTagName());
 	}
+}
+
+void AKzCharacter::HandleFaceControlRotationTagChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	const bool bFaceControlRotation = AbilitySystemComponent->HasAnyMatchingGameplayTags(FaceControlRotationTags);
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->bOrientRotationToMovement = !bFaceControlRotation && bBaseOrientRotationToMovement;
+	Movement->bUseControllerDesiredRotation = bFaceControlRotation || bBaseUseControllerDesiredRotation;
 }
 
 void AKzCharacter::HandleInputAxis(FGameplayTag InputTag, const FInputActionValue& Value, ETriggerEvent TriggerEvent)
