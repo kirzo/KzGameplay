@@ -7,25 +7,17 @@
 
 FVector UKzInputModifier_CameraRelativeMove::ModifyInput_Implementation(const AActor* Avatar, const FVector& OriginalInput, const FVector& CurrentInput)
 {
-	// We need a Pawn to get the Controller and its view.
+	// Only a player has a camera to be relative to: anyone else, such as an AI, already moves in world space
 	const APawn* Pawn = Cast<APawn>(Avatar);
-	if (!Pawn || !Pawn->GetController())
+	const APlayerController* PC = Pawn ? Cast<APlayerController>(Pawn->GetController()) : nullptr;
+	if (!PC)
 	{
-		// Fallback: Return the input unmodified if we cannot determine the camera orientation.
 		return CurrentInput;
 	}
 
 	// The real view rotation comes from the camera manager POV: it includes the
 	// camera component / spring arm, which the view target's ACTOR rotation does not.
-	FRotator Rotation = FRotator::ZeroRotator;
-	if (const APlayerController* PC = Cast<APlayerController>(Pawn->GetController()))
-	{
-		Rotation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : PC->GetControlRotation();
-	}
-	else if (const AActor* ViewTarget = Pawn->GetController()->GetViewTarget())
-	{
-		Rotation = ViewTarget->GetActorRotation();
-	}
+	const FRotator Rotation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : PC->GetControlRotation();
 
 	const FRotator YawRotation(0.0f, Rotation.Yaw, 0.0f);
 

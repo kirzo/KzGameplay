@@ -8,7 +8,7 @@
 
 /**
  * Input modifier that translates raw 2D input (X, Y) into a 3D World Space vector
- * relative to the current camera/view target's facing direction.
+ * relative to the player's camera. Without a player, such as under an AI, the input is already in World Space and passes through.
  * NOTE: To function correctly, this modifier should ideally be placed at the very
  * bottom of the modifier stack (highest priority / Index 0) so that subsequent
  * spatial modifiers (like Tethers or recoil) receive a valid World Space vector.

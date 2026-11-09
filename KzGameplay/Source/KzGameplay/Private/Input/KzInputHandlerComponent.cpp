@@ -37,11 +37,8 @@ void UKzInputHandlerComponent::BeginPlay()
 
 	if (APawn* PawnOwner = Cast<APawn>(GetOwner()))
 	{
-		// Check if the InputComponent is already valid (e.g., late BeginPlay)
-		if (PawnOwner->InputComponent)
-		{
-			TryBindInput(PawnOwner);
-		}
+		// Even without input yet, the base profile goes on: injected inputs read its events too
+		TryBindInput(PawnOwner);
 
 		// Always subscribe to Restarted in case the player is unpossessed and repossessed later
 		PawnOwner->ReceiveRestartedDelegate.AddDynamic(this, &UKzInputHandlerComponent::OnPawnRestarted);
@@ -301,6 +298,36 @@ void UKzInputHandlerComponent::Input_Axis(const FInputActionValue& Value, FGamep
 	else if (TriggerEvent == ETriggerEvent::Completed || TriggerEvent == ETriggerEvent::Canceled)
 	{
 		Input_ActionReleased(InputTag, ActionConfig->OnCompletedEvent);
+	}
+}
+
+void UKzInputHandlerComponent::PressInput(FGameplayTag InputTag)
+{
+	const FKzInputAction* ActionConfig = FindActionConfig(InputTag);
+	Input_ActionPressed(InputTag, ActionConfig ? ActionConfig->OnStartedEvent : FGameplayTag());
+}
+
+void UKzInputHandlerComponent::ReleaseInput(FGameplayTag InputTag)
+{
+	const FKzInputAction* ActionConfig = FindActionConfig(InputTag);
+	Input_ActionReleased(InputTag, ActionConfig ? ActionConfig->OnCompletedEvent : FGameplayTag());
+}
+
+void UKzInputHandlerComponent::SetInputAxis(FGameplayTag InputTag, FVector Value)
+{
+	if (!Value.IsNearlyZero())
+	{
+		bool bAlreadyHeld = false;
+		HeldAxes.Add(InputTag, &bAlreadyHeld);
+		if (!bAlreadyHeld)
+		{
+			Input_Axis(FInputActionValue(Value), InputTag, ETriggerEvent::Started);
+		}
+		Input_Axis(FInputActionValue(Value), InputTag, ETriggerEvent::Triggered);
+	}
+	else if (HeldAxes.Remove(InputTag) > 0)
+	{
+		Input_Axis(FInputActionValue(FVector::ZeroVector), InputTag, ETriggerEvent::Completed);
 	}
 }
 

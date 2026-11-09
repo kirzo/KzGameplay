@@ -76,6 +76,9 @@ private:
 	TMap<FGameplayTag, FVector> ProcessedInputs;
 	TMap<FGameplayTag, FVector> IntendedInputs;
 
+	/** Analog inputs SetInputAxis is holding, so the first value starts them and zero completes them. */
+	TSet<FGameplayTag> HeldAxes;
+
 public:
 	UKzInputHandlerComponent();
 
@@ -156,6 +159,23 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Input|Processing")
 	FVector GetIntendedInput(FGameplayTag InputTag) const;
+
+	/**
+	 * Presses an input as a device would, for whoever drives the pawn without one, such as an AI. It goes the same way as a key:
+	 * ignores, abilities and the profile's events.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|Injection")
+	void PressInput(FGameplayTag InputTag);
+
+	UFUNCTION(BlueprintCallable, Category = "Input|Injection")
+	void ReleaseInput(FGameplayTag InputTag);
+
+	/**
+	 * Feeds an analog input for this frame, as a stick would, through ignores and modifiers. Call it every frame it is held;
+	 * zero lets go of it. Move is in world space for anything but a player, whose camera turns it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|Injection")
+	void SetInputAxis(FGameplayTag InputTag, FVector Value);
 
 protected:
 	virtual void BeginPlay() override;

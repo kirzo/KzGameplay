@@ -8,7 +8,7 @@
 
 /**
  * Input modifier that translates raw 2D input into a normalized 3D World Direction
- * rotated by the current camera's Yaw.
+ * rotated by the player's camera Yaw. Without a player, such as under an AI, the input is already a World direction and passes through.
  * Ideal for Twin-Stick shooters or absolute directional aiming.
  */
 UCLASS(NotBlueprintable, meta = (DisplayName = "Camera Relative Direction"))
