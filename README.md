@@ -58,6 +58,7 @@ A highly optimized interaction system powered by a dual Spatial Hash Grid.
 * **Scriptable Requirements:** Interactions can be gated behind node-based logic (e.g., "Requires Key Item" or "Has Minimum Strength").
 * **Interaction Types:** Supports Instant, Ignored, and Continuous interactions out of the box.
 * **Prompt Arguments:** A Prompt Text such as `Pick up {Item}` is filled by the interactable's handlers through `GetPromptArguments`; an item fills `{Item}` with its Display Name.
+* **Shared Keys:** Interaction can share a key with another action, such as dodge. The *Yield To Interaction* trigger on that action's mapping hands the key to interaction for presses that begin with something focused; neither action may consume input.
 
 ### 🎒 Fragment-Based Inventory & Items
 A data-driven item architecture using `UPrimaryDataAsset` definitions and modular fragments.
