@@ -19,6 +19,26 @@ UKzStateTreeSchema::UKzStateTreeSchema(const FObjectInitializer& ObjectInitializ
 			{ Kz::StateTree::Context::SteeringComponent, UKzSteeringComponent::StaticClass(), FGuid(0x4A5B6C7D, 0x8E9F0A1B, 0x2C3D4E5F, 0x6A7B8C9D) },
 			{ Kz::StateTree::Context::SensorComponent, UKzSensorComponent::StaticClass(), FGuid(0x9D8E7F6A, 0x5B4C3D2E, 0x1F0A9B8C, 0x7D6E5F4A) }
 		});
+	MakeComponentsOptional();
+}
+
+void UKzStateTreeSchema::PostLoad()
+{
+	Super::PostLoad();
+
+	// Trees saved while they were required keep that in their own copy of the descs
+	MakeComponentsOptional();
+}
+
+void UKzStateTreeSchema::MakeComponentsOptional()
+{
+	for (FStateTreeExternalDataDesc& Desc : ContextDataDescs)
+	{
+		if (Desc.Name == Kz::StateTree::Context::SteeringComponent || Desc.Name == Kz::StateTree::Context::SensorComponent)
+		{
+			Desc.Requirement = EStateTreeExternalDataRequirement::Optional;
+		}
+	}
 }
 
 void UKzStateTreeSchema::SetContextData(FContextDataSetter& ContextDataSetter, bool bLogErrors) const
