@@ -30,7 +30,8 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 	const UKzItemDefinition* ItemDef = Equipped && Equipped->IsValid() ? Equipped->ItemDef.Get() : nullptr;
 	const UKzItemFragment_MeleeWeapon* Melee = ItemDef ? ItemDef->FindFragmentByClass<UKzItemFragment_MeleeWeapon>() : nullptr;
 
-	UKzComboGraph* Combo = Melee ? Melee->Combo.LoadSynchronous() : UnarmedCombo.Get();
+	UKzComboGraph* GrantedCombo = Cast<UKzComboGraph>(GetCurrentSourceObject());
+	UKzComboGraph* Combo = Melee ? Melee->Combo.LoadSynchronous() : GrantedCombo ? GrantedCombo : UnarmedCombo.Get();
 	if (!Combo || !CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);

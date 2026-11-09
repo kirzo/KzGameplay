@@ -94,7 +94,7 @@ void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabil
 
 	if (Grant->Ability)
 	{
-		FGameplayAbilitySpec Spec(Grant->Ability, Grant->Level, INDEX_NONE, this);
+		FGameplayAbilitySpec Spec(Grant->Ability, Grant->Level, INDEX_NONE, Grant->SourceObject ? Grant->SourceObject.Get() : this);
 		GrantedAbilities.Add(Capability, ASC->GiveAbility(Spec));
 	}
 

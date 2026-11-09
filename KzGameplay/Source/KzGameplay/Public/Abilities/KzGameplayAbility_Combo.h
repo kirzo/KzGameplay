@@ -15,8 +15,9 @@ class UKzComboInstance;
 class UKzItemDefinition;
 
 /**
- * Plays the combo of the melee weapon in a slot, or its own without one. Starts it with the input that activated it, hands it the presses of the
- * combo's inputs while it runs, and applies what it hits. Ends with the combo.
+ * Plays the combo of the melee weapon in a slot or, without one, the combo graph it was granted with as Source Object, or else its own. So one
+ * ability serves every character: each capability set grants it with that character's unarmed combo. Starts it with the input that activated it,
+ * hands it the presses of the combo's inputs while it runs, and applies what it hits. Ends with the combo.
  */
 UCLASS()
 class KZGAMEPLAY_API UKzGameplayAbility_Combo : public UKzGameplayAbility
@@ -31,10 +32,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combo", meta = (Categories = "Equipment.Slot"))
 	FGameplayTag WeaponSlot;
 
-	/** The combo without a melee weapon in the slot, such as punches. */
+	/** The combo without a melee weapon in the slot nor a combo graph as Source Object, such as punches. */
 	UPROPERTY(EditDefaultsOnly, Category = "Combo|Unarmed")
 	TObjectPtr<UKzComboGraph> UnarmedCombo;
 
+	/** Damage per hit without a melee weapon, before each attack's multiplier, which is what sets one character's attacks apart from another's. */
 	UPROPERTY(EditDefaultsOnly, Category = "Combo|Unarmed", meta = (ClampMin = "0"))
 	float UnarmedDamage = 10.0f;
 

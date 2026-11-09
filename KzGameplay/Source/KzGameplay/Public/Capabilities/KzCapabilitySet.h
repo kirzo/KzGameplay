@@ -38,6 +38,13 @@ struct KZGAMEPLAY_API FKzCapabilityGrant
 	int32 Level = 1;
 
 	/**
+	 * Handed to the ability as its Source Object, so one ability serves owners that differ only in data: the combo a combo
+	 * ability plays without a weapon, for instance.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Capability")
+	TObjectPtr<UObject> SourceObject;
+
+	/**
 	 * Controls that come with the capability. Knowing how to do something and having the buttons for it
 	 * are the same fact, so whatever grants the capability never has to mention inputs at all.
 	 */
