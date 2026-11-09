@@ -109,6 +109,9 @@ protected:
 	virtual EKzInteractionResult GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 	virtual void OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction) override;
 
+	/** {Item}: the item's Display Name. */
+	virtual TMap<FString, FText> GetPromptArguments_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
+
 private:
 	/** Keeps what the item's fragments preload in memory while the actor plays. */
 	TSharedPtr<FStreamableHandle> PreloadHandle;

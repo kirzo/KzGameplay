@@ -14,8 +14,19 @@ void UKzInteractionPromptWidget::NativeConstruct()
 	Super::NativeConstruct();
 
 	Shown = nullptr;
+	Anchor = nullptr;
+	bPromptShown = false;
 	bShownAvailable = true;
-	ShownText = FText::GetEmpty();
+	Prompt->SetVisibility(ESlateVisibility::Collapsed);
+}
+
+void UKzInteractionPromptWidget::OnShowPrompt_Implementation()
+{
+	Prompt->SetVisibility(ESlateVisibility::HitTestInvisible);
+}
+
+void UKzInteractionPromptWidget::OnHidePrompt_Implementation()
+{
 	Prompt->SetVisibility(ESlateVisibility::Collapsed);
 }
 
@@ -31,36 +42,50 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 		Interactor = UKzSystemLibrary::FindComponentInActorOrController<UKzInteractorComponent>(Pawn);
 	}
 
-	const UKzInteractorComponent* InteractorComponent = Interactor.Get();
+	UKzInteractorComponent* InteractorComponent = Interactor.Get();
 	UKzInteractableComponent* Focus = InteractorComponent && !InteractorComponent->IsInteractingContinuously() ? InteractorComponent->GetCurrentFocus() : nullptr;
+	const bool bShow = Focus != nullptr;
 	const bool bAvailable = !Focus || InteractorComponent->IsFocusAvailable();
+	const bool bFocusChanged = Focus != Shown.Get() || bShow != bPromptShown;
 
-	if (Focus != Shown.Get() || bAvailable != bShownAvailable)
+	// On every new focus, even if empty, and when Prompt Text changes; formatting with the arguments only then, not every frame
+	if (Focus && PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(Focus->PromptText)))
+	{
+		ShownPromptText = Focus->PromptText;
+		PromptText->SetText(Focus->GetPromptText(InteractorComponent));
+	}
+
+	if (bFocusChanged || bAvailable != bShownAvailable)
 	{
 		Shown = Focus;
 		bShownAvailable = bAvailable;
-		Prompt->SetVisibility(Focus ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (Focus)
+		{
+			Anchor = Focus;
+		}
 		if (PromptText)
 		{
 			PromptText->SetIsEnabled(bAvailable);
 		}
+
+		if (bShow != bPromptShown)
+		{
+			bPromptShown = bShow;
+			if (bShow)
+			{
+				OnShowPrompt();
+			}
+			else
+			{
+				OnHidePrompt();
+			}
+		}
 		OnPromptChanged(Focus, bAvailable, Focus ? InteractorComponent->GetFocusUnavailableReason() : FGameplayTag());
 	}
 
-	if (!Focus)
-	{
-		return;
-	}
-
-	// Compared with what was set, not with the text block's own, which a KzTextBlock may rewrite: Prompt Text can change while focused
-	if (PromptText && !ShownText.IdenticalTo(Focus->PromptText))
-	{
-		ShownText = Focus->PromptText;
-		PromptText->SetText(ShownText);
-	}
-
 	FVector2D Position;
-	if (UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, Focus->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
+	const UKzInteractableComponent* AnchorComponent = Anchor.Get();
+	if (AnchorComponent && Prompt->IsVisible() && UKzUIFunctionLibrary::ProjectWorldLocationToViewport(this, AnchorComponent->GetComponentLocation() + WorldOffset, Position, bKeepOnScreen, EdgeMargin))
 	{
 		Prompt->SetRenderTranslation(Position);
 	}

@@ -86,6 +86,16 @@ EKzInteractionResult UKzItemComponent::GetInteractionResult_Implementation(UKzIn
 	return bCanPickUp ? EKzInteractionResult::Completed : EKzInteractionResult::Ignored;
 }
 
+TMap<FString, FText> UKzItemComponent::GetPromptArguments_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
+{
+	TMap<FString, FText> Arguments;
+	if (ItemInstance.ItemDef)
+	{
+		Arguments.Add(TEXT("Item"), ItemInstance.ItemDef->DisplayName);
+	}
+	return Arguments;
+}
+
 void UKzItemComponent::OnInteractionBegun_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable, const FKzInteraction& Interaction)
 {
 	if (!GetOwner()->HasAuthority() || !ItemInstance.IsValid() || !Interactor)

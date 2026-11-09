@@ -12,6 +12,7 @@ public class KzGameplayUI : ModuleRules
 			new string[]
 			{
 				"Core",
+				"GameplayAbilities",
 				"GameplayTags",
 				"KzUI",
 				"UMG"

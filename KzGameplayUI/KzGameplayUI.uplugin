@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "KzGameplay - KzUI Integration",
-	"Description": "Shows KzGameplay inputs in KzUI: an icon source and {Input.Tag} tokens that display the key of the action an input tag fires for the player now, through the input profiles of their pawn, and an interaction prompt that follows the focused interactable on screen. Requires the KzUI plugin.",
+	"Description": "Shows KzGameplay inputs in KzUI: an icon source and {Input.Tag} tokens that display the key of the action an input tag fires for the player now, through the input profiles of their pawn, an interaction prompt that follows the focused interactable on screen, and bars for the player's gameplay attributes. Requires the KzUI plugin.",
 	"Category": "Gameplay",
 	"CreatedBy": "kirzo",
 	"CreatedByURL": "https://kirzo.dev",
@@ -23,6 +23,10 @@
 		}
 	],
 	"Plugins": [
+		{
+			"Name": "GameplayAbilities",
+			"Enabled": true
+		},
 		{
 			"Name": "KzGameplay",
 			"Enabled": true

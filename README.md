@@ -36,7 +36,7 @@ This plugin relies on the following custom modules to function:
 Integrations with other plugins live in this repository next to KzGameplay, each as its own plugin and disabled by default, so KzGameplay never depends on them. Enable the ones you need in **Edit -> Plugins**:
 
 * **KzGameplay - Limbic Integration** (`KzGameplayLimbic`): requires **[Limbic](https://github.com/kirzo/Limbic)**. Adds the *Limbic Pose* item fragment, which holds a Limbic pose while the item is equipped.
-* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn, and `KzInteractionPromptWidget`, a prompt that follows the interactable the player's interactor focuses on screen.
+* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn, `KzInteractionPromptWidget`, a prompt that follows the interactable the player's interactor focuses on screen, and `KzAttributeBarWidget`, a bar for a gameplay attribute of the player's pawn over its maximum, such as health.
 
 ## 🌟 Core Systems
 
@@ -57,6 +57,7 @@ A highly optimized interaction system powered by a dual Spatial Hash Grid.
 * **Smart Target Evaluation:** Uses `UKzTargetScoringProfile` to evaluate the best candidate based on customizable scorers (e.g., Distance, Angle).
 * **Scriptable Requirements:** Interactions can be gated behind node-based logic (e.g., "Requires Key Item" or "Has Minimum Strength").
 * **Interaction Types:** Supports Instant, Ignored, and Continuous interactions out of the box.
+* **Prompt Arguments:** A Prompt Text such as `Pick up {Item}` is filled by the interactable's handlers through `GetPromptArguments`; an item fills `{Item}` with its Display Name.
 
 ### 🎒 Fragment-Based Inventory & Items
 A data-driven item architecture using `UPrimaryDataAsset` definitions and modular fragments.
