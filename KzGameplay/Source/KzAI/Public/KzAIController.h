@@ -5,8 +5,10 @@
 #include "CoreMinimal.h"
 #include "AIController.h"
 #include "GameplayTagAssetInterface.h"
+#include "Abilities/GameplayAbilityTypes.h"
 #include "KzAIController.generated.h"
 
+class UKzAbilitySystemComponent;
 class UKzStateTreeComponent;
 
 /**
@@ -35,4 +37,14 @@ protected:
 	/** What the pawn it drives is, such as Character.Enemy or Character.NPC. The same pawn can be an ally or an enemy by who drives it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "KzAI")
 	FGameplayTagContainer PawnTags;
+
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
+
+private:
+	/** Hands the pawn's gameplay events to the StateTree, with their data as payload, so transitions can wait on them: a hit, a reaction. */
+	UFUNCTION()
+	void HandlePawnGameplayEvent(const FGameplayTag& Tag, FGameplayEventData EventData);
+
+	TWeakObjectPtr<UKzAbilitySystemComponent> PawnAbilitySystem;
 };
