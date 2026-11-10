@@ -13,9 +13,10 @@ AKzAIController::AKzAIController(const FObjectInitializer& ObjectInitializer)
 	StateTreeComponent = CreateDefaultSubobject<UKzStateTreeComponent>(TEXT("StateTreeComponent"));
 	FactionComponent = CreateDefaultSubobject<UKzFactionComponent>(TEXT("FactionComponent"));
 
-	// Default behavior matches standard UE5 AI practices
-	bStartAILogicOnPossess = true;
+	// The tree usually comes from the pawn, which may have started it already: the logic starts once, in OnPossess
+	bStartAILogicOnPossess = false;
 	bStopAILogicOnUnposses = true;
+	StateTreeComponent->SetStartLogicAutomatically(false);
 }
 
 void AKzAIController::OnPossess(APawn* InPawn)
@@ -26,6 +27,12 @@ void AKzAIController::OnPossess(APawn* InPawn)
 	if (PawnAbilitySystem.IsValid())
 	{
 		PawnAbilitySystem->OnGameplayEvent.AddUniqueDynamic(this, &ThisClass::HandlePawnGameplayEvent);
+	}
+
+	// A tree set on the controller itself; without one this does nothing
+	if (!StateTreeComponent->IsRunning())
+	{
+		StateTreeComponent->StartLogic();
 	}
 }
 

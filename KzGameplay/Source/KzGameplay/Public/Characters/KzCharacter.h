@@ -8,6 +8,7 @@
 #include "GameplayTagAssetInterface.h"
 #include "Containers/KzPriorityStack.h"
 #include "Curves/CurveFloat.h"
+#include "ScriptableTasks/ScriptableAction.h"
 #include "KzCharacter.generated.h"
 
 class UKzAbilitySystemComponent;
@@ -115,9 +116,26 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	FGameplayTagContainer FaceControlRotationTags;
 
+	/**
+	 * Runs whenever something possesses the character, a player or an AI, before the action for that kind: what both share. Undone when
+	 * it is let go. Its context has the Character and its Controller.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Possession", meta = (DisplayName = "On Possessed"))
+	FScriptableAction OnPossessedAction;
+
+	/** Runs when an AI possesses the character, such as Run StateTree with how it behaves. Undone when it is let go. */
+	UPROPERTY(EditAnywhere, Category = "Possession", meta = (DisplayName = "On Possessed By AI"))
+	FScriptableAction OnPossessedByAIAction;
+
+	/** Runs when a player possesses the character. Undone when it is let go. */
+	UPROPERTY(EditAnywhere, Category = "Possession", meta = (DisplayName = "On Possessed By Player"))
+	FScriptableAction OnPossessedByPlayerAction;
+
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
 
 	/** Move goes to the movement component and Look turns the control rotation. Override for other schemes, such as twin-stick aiming. */
 	UFUNCTION()
@@ -147,4 +165,12 @@ private:
 	void HandleWalkSpeedTagChanged(const FGameplayTag Tag, int32 NewCount);
 
 	void HandleFaceControlRotationTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+	/** The kind-specific possession action running, so it is the one undone. Null while none runs. */
+	FScriptableAction* RunningPossessionAction = nullptr;
+
+	/** Runs the possession actions for the current controller, once: at BeginPlay, or on possession after it. */
+	void RunPossessionActions();
+
+	void ResetPossessionActions();
 };

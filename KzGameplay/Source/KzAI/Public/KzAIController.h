@@ -12,8 +12,8 @@ class UKzFactionComponent;
 class UKzStateTreeComponent;
 
 /**
- * Base AI Controller for the KzAI framework.
- * Contains the execution logic for the StateTree component.
+ * Base AI Controller for the KzAI framework. Runs a StateTree: usually the one the pawn's On Possessed By AI action gives it with
+ * Run StateTree, so how a character behaves travels with the character, or else one set on the controller itself.
  */
 UCLASS()
 class KZAI_API AKzAIController : public AAIController

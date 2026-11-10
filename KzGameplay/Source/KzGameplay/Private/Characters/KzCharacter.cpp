@@ -8,6 +8,7 @@
 #include "Input/KzInputTags.h"
 
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
 #include "InputActionValue.h"
 #include "InputTriggers.h"
 
@@ -17,6 +18,12 @@ AKzCharacter::AKzCharacter(const FObjectInitializer& ObjectInitializer)
 	AbilitySystemComponent = CreateDefaultSubobject<UKzAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
 	CapabilityComponent = CreateDefaultSubobject<UKzCapabilityComponent>(TEXT("CapabilityComponent"));
 	InputHandlerComponent = CreateDefaultSubobject<UKzInputHandlerComponent>(TEXT("InputHandlerComponent"));
+
+	for (FScriptableAction* Action : { &OnPossessedAction, &OnPossessedByAIAction, &OnPossessedByPlayerAction })
+	{
+		Action->AddContextProperty<AActor*>(TEXT("Character"));
+		Action->AddContextProperty<AController*>(TEXT("Controller"));
+	}
 }
 
 UAbilitySystemComponent* AKzCharacter::GetAbilitySystemComponent() const
@@ -51,6 +58,15 @@ void AKzCharacter::BeginPlay()
 	InputHandlerComponent->OnInputAxis.AddDynamic(this, &ThisClass::HandleInputAxis);
 
 	Super::BeginPlay();
+
+	RunPossessionActions();
+}
+
+void AKzCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ResetPossessionActions();
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void AKzCharacter::Tick(float DeltaSeconds)
@@ -66,6 +82,48 @@ void AKzCharacter::PossessedBy(AController* NewController)
 	AbilitySystemComponent->InitAbilityActorInfo(this, this);
 
 	Super::PossessedBy(NewController);
+
+	// A character placed or spawned is possessed before BeginPlay, which runs them once it is ready for their tasks
+	if (HasActorBegunPlay())
+	{
+		RunPossessionActions();
+	}
+}
+
+void AKzCharacter::UnPossessed()
+{
+	ResetPossessionActions();
+
+	Super::UnPossessed();
+}
+
+void AKzCharacter::RunPossessionActions()
+{
+	AController* CurrentController = GetController();
+	if (!CurrentController || RunningPossessionAction)
+	{
+		return;
+	}
+
+	RunningPossessionAction = CurrentController->IsPlayerController() ? &OnPossessedByPlayerAction : &OnPossessedByAIAction;
+	for (FScriptableAction* Action : { &OnPossessedAction, RunningPossessionAction })
+	{
+		Action->SetContextProperty(TEXT("Character"), static_cast<AActor*>(this));
+		Action->SetContextProperty(TEXT("Controller"), CurrentController);
+		Action->Run(this);
+	}
+}
+
+void AKzCharacter::ResetPossessionActions()
+{
+	if (!RunningPossessionAction)
+	{
+		return;
+	}
+
+	RunningPossessionAction->Reset();
+	OnPossessedAction.Reset();
+	RunningPossessionAction = nullptr;
 }
 
 void AKzCharacter::PushMaxWalkSpeed(FName SourceID, const FKzWalkSpeed& WalkSpeed)
