@@ -17,6 +17,8 @@
 #include "Combat/KzComboNodeBodies.h"
 #include "Combat/KzComboGraph.h"
 #include "Factions/KzFactionSettings.h"
+#include "Engagement/KzEngagementComponent.h"
+#include "Engagement/KzEngagementVisualizer.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -110,6 +112,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 	KzComboNodeBodies::Register();
 
 	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
+
+	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()

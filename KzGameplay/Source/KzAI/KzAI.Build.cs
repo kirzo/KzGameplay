@@ -29,6 +29,7 @@ public class KzAI : ModuleRules
 			{
 				"CoreUObject",
 				"Engine",
+				"NavigationSystem",
 			}
 			);
 	}
