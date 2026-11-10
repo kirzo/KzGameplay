@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "KzGraphNode.h"
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Math/Geometry/Shapes/KzWedge.h"
 #include "KzComboNodes.generated.h"
 
 class UKzAnimationSource;
@@ -135,6 +136,14 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	/** Turns to the target, or to the direction pressed without one, until the first Hit Window opens. */
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	bool bFaceTarget = true;
+
+	/** Looks for targets in its own shape instead of the one of the user's Sensor.Targeting sensor, whose filters still apply. */
+	UPROPERTY(EditAnywhere, Category = "Targeting")
+	bool bOverrideTargetShape = false;
+
+	/** Where it looks for targets, such as farther for a lunge or all around for a spin: on the user, turned to the direction pressed. */
+	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (EditCondition = "bOverrideTargetShape", EditConditionHides))
+	FKzShapeInstance TargetShape = FKzShapeInstance::Make<FKzWedge>();
 
 	/** How long attacker and target freeze when it hits. */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Seconds"))

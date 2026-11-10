@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Abilities/KzGameplayAbility.h"
 #include "Combat/KzCombatTypes.h"
-#include "Components/KzComponentReference.h"
 #include "Engine/EngineTypes.h"
 #include "KzGameplayAbility_Combo.generated.h"
 
@@ -42,10 +41,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Combo|Unarmed")
 	TSubclassOf<UGameplayEffect> UnarmedDamageEffect;
-
-	/** The avatar's sensor that finds targets; none only turns attacks to the direction pressed. */
-	UPROPERTY(EditDefaultsOnly, Category = "Combo", meta = (AllowedClasses = "/Script/KzGameplay.KzSensorComponent"))
-	FKzComponentReference TargetSensor;
 
 	/** What hitboxes hit; empty hits every dynamic object. */
 	UPROPERTY(EditDefaultsOnly, Category = "Combo")

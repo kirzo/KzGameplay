@@ -28,11 +28,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (ClampMin = "0", Units = "Seconds"))
 	float InputBuffer = 0.15f;
 
-	/** How far to each side of the direction pressed a target is taken. */
-	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (ClampMin = "0", ClampMax = "180", Units = "Degrees"))
-	float TargetAngle = 60.0f;
-
-	/** Picks among the targets inside that angle; empty takes the closest. */
+	/**
+	 * Picks among the targets of the user's Sensor.Targeting sensor, whose shape, or the attack's own, turns to the direction pressed. Empty takes
+	 * the closest.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Targeting")
 	FKzTargetScoringProfile TargetScoring;
 

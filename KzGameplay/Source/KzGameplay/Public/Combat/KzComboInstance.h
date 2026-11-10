@@ -17,6 +17,7 @@ class UKzSensorComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
 struct FKzComboNode_Attack;
+struct FKzShapeInstance;
 
 /** Who plays a combo, and with what. */
 USTRUCT(BlueprintType)
@@ -44,11 +45,7 @@ struct KZGAMEPLAY_API FKzComboContext
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 
-	/** Finds the targets attacks turn to and close in on. */
-	UPROPERTY(BlueprintReadWrite, Category = "Combo")
-	TObjectPtr<UKzSensorComponent> Sensor;
-
-	/** The target, for drivers that already know it, such as an AI; it takes the sensor's place. */
+	/** The target, for drivers that already know it; it takes the place of the user's Sensor.Targeting sensor. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> Target;
 };
@@ -109,6 +106,12 @@ public:
 	virtual UWorld* GetTickableGameObjectWorld() const override { return GetWorld(); }
 	virtual TStatId GetStatId() const override;
 
+	/**
+	 * Where an attack looks for targets: its own shape or else the sensor's, at the sensor's offset from the user and turned with it to Direction,
+	 * the direction pressed. False with neither.
+	 */
+	static bool GetTargetingShape(const FKzComboNode_Attack& Attack, const UKzSensorComponent* Sensor, const FTransform& UserTransform, const FVector& Direction, FKzShapeInstance& OutShape, FTransform& OutTransform);
+
 private:
 	/** Plays an attack node in place of the one playing; a node that plays nothing ends the combo. */
 	bool PlayAttack(int32 NodeIndex, const FVector& Direction);
@@ -122,7 +125,7 @@ private:
 	/** Sweeps every hitbox of the attack from where it was to where it is. */
 	void SweepHitboxes();
 
-	/** The best target the sensor finds around Direction, or the context's own. */
+	/** The best target the targeting sensor finds with the attack's shape turned to Direction, or the context's own. */
 	AActor* FindTarget(const FVector& Direction) const;
 
 	/** Turns the attacker towards the target, or the direction pressed, until the first Hit Window opens. */
@@ -148,6 +151,9 @@ private:
 
 	UPROPERTY()
 	FKzComboContext Context;
+
+	/** The user's Sensor.Targeting sensor. */
+	TWeakObjectPtr<UKzSensorComponent> Sensor;
 
 	TSharedPtr<FKzAnimationPlay> Play;
 	int32 Node = INDEX_NONE;

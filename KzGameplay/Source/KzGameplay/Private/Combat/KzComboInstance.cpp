@@ -17,12 +17,14 @@
 #include "Items/Fragments/KzItemFragment_Defense.h"
 #include "Items/KzItemDefinition.h"
 #include "KzDrawDebugHelpers.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
 
 namespace
 {
 	TAutoConsoleVariable<bool> CVarDrawHitboxes(TEXT("kz.Combo.DrawHitboxes"), false, TEXT("Draws combo hitboxes as they sweep: green, red where they hit."));
+	TAutoConsoleVariable<bool> CVarDrawTargeting(TEXT("kz.Combo.DrawTargeting"), false, TEXT("Draws the shape each attack looks for targets in: yellow, red when it found one."));
 
 	constexpr float HitStopDilation = 0.01f;
 
@@ -65,6 +67,7 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	UKzComboInstance* Instance = NewObject<UKzComboInstance>(Context.User ? static_cast<UObject*>(Context.User) : GetTransientPackage());
 	Instance->Combo = Combo;
 	Instance->Context = Context;
+	Instance->Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Context.User, KzTags::Combat::Sensor_Targeting);
 	Instance->bRunning = true;
 	return Instance->PlayAttack(Links[0].Node, Direction) ? Instance : nullptr;
 }
@@ -334,34 +337,59 @@ AActor* UKzComboInstance::FindTarget(const FVector& Direction) const
 	}
 
 	const AActor* User = Context.User;
-	if (!Context.Sensor || !User)
+	UKzSensorComponent* TargetSensor = Sensor.Get();
+	const FKzComboNode_Attack* Attack = GetAttack();
+	FKzShapeInstance Shape;
+	FTransform Transform;
+	if (!User || !TargetSensor || !Attack || !GetTargetingShape(*Attack, TargetSensor, User->GetActorTransform(), Direction, Shape, Transform))
 	{
 		return nullptr;
 	}
 
+	TArray<FKzOverlapResult> Candidates;
+	TargetSensor->Query(Shape, Transform, Candidates);
+
 	const FVector Origin = User->GetActorLocation();
-	const double MinDot = FMath::Cos(FMath::DegreesToRadians(Combo->TargetAngle));
 	const FKzTransformSource OriginSource(FTransform(Direction.Rotation(), Origin));
 
 	AActor* Best = nullptr;
 	double BestScore = -UE_BIG_NUMBER;
-	for (const FKzOverlapResult& Overlap : Context.Sensor->GetOverlapInfos())
+	for (const FKzOverlapResult& Overlap : Candidates)
 	{
 		AActor* Candidate = Overlap.Actor.Get();
-		const FVector ToCandidate = Flatten(Candidate ? Candidate->GetActorLocation() - Origin : FVector::ZeroVector);
-		if (!Candidate || Candidate == User || ToCandidate.IsNearlyZero() || FVector::DotProduct(ToCandidate.GetSafeNormal(), Direction.GetSafeNormal()) < MinDot)
+		if (!Candidate || Candidate == User)
 		{
 			continue;
 		}
 
-		const double Score = Combo->TargetScoring.Entries.IsEmpty() ? -ToCandidate.Size() : UKzTargetScoringLibrary::EvaluateTarget(OriginSource, FKzTransformSource(Candidate), Combo->TargetScoring);
+		const double Score = Combo->TargetScoring.Entries.IsEmpty() ? -Flatten(Candidate->GetActorLocation() - Origin).Size() : UKzTargetScoringLibrary::EvaluateTarget(OriginSource, FKzTransformSource(Candidate), Combo->TargetScoring);
 		if (Score > BestScore)
 		{
 			BestScore = Score;
 			Best = Candidate;
 		}
 	}
+
+	if (CVarDrawTargeting.GetValueOnGameThread())
+	{
+		DrawDebugShape(User->GetWorld(), Transform.GetLocation(), Transform.GetRotation(), Shape, Best ? FColor::Red : FColor::Yellow, false, 1.0f);
+	}
 	return Best;
+}
+
+bool UKzComboInstance::GetTargetingShape(const FKzComboNode_Attack& Attack, const UKzSensorComponent* Sensor, const FTransform& UserTransform, const FVector& Direction, FKzShapeInstance& OutShape, FTransform& OutTransform)
+{
+	if (!Attack.bOverrideTargetShape && !Sensor)
+	{
+		return false;
+	}
+
+	OutShape = Attack.bOverrideTargetShape ? Attack.TargetShape : Sensor->Shape * Sensor->GetComponentScale();
+
+	const FQuat Rotation = Flatten(Direction).ToOrientationQuat();
+	const FVector Offset = Sensor ? UserTransform.InverseTransformPositionNoScale(Sensor->GetComponentLocation()) : FVector::ZeroVector;
+	OutTransform = FTransform(Rotation, UserTransform.GetLocation() + Rotation.RotateVector(Offset));
+	return true;
 }
 
 void UKzComboInstance::UpdateFacing(float DeltaTime)

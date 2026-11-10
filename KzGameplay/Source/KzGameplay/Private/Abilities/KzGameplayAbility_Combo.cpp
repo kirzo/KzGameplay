@@ -12,7 +12,6 @@
 #include "GameplayEffect.h"
 #include "Items/Fragments/KzItemFragment_MeleeWeapon.h"
 #include "Items/KzItemDefinition.h"
-#include "Sensors/KzSensorComponent.h"
 
 UKzGameplayAbility_Combo::UKzGameplayAbility_Combo()
 {
@@ -47,7 +46,6 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 	Context.User = Avatar;
 	Context.Item = Item;
 	Context.ObjectTypes = ObjectTypes;
-	Context.Sensor = Cast<UKzSensorComponent>(TargetSensor.GetComponent(Avatar));
 	if (Melee && Equipped)
 	{
 		Context.Weapon = Equipped->SpawnedActor ? Equipped->SpawnedActor->GetRootComponent() : Equipped->SpawnedComponent.Get();
