@@ -16,7 +16,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	}
 
 	// Components only show the small icon, in the component tree and the Add Component menu
-	for (const TCHAR* Component : { TEXT("Interactable"), TEXT("Interactor"), TEXT("InteractableGroup"), TEXT("Sensor"), TEXT("Sensable"), TEXT("Inventory"), TEXT("Save"), TEXT("AnimLayer"), TEXT("Faction") })
+	for (const TCHAR* Component : { TEXT("Interactable"), TEXT("Interactor"), TEXT("InteractableGroup"), TEXT("Sensor"), TEXT("Sensable"), TEXT("Inventory"), TEXT("Save"), TEXT("AnimLayer"), TEXT("Faction"), TEXT("Engagement") })
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.Kz%sComponent"), Component), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Component, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
