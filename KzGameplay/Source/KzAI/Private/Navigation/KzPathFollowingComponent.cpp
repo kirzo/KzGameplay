@@ -15,7 +15,7 @@ void UKzPathFollowingComponent::PauseMove(FAIRequestID RequestID, EPathFollowing
 {
 	Super::PauseMove(RequestID, VelocityMode);
 
-	if (Status == EPathFollowingStatus::Paused)
+	if (GetStatus() == EPathFollowingStatus::Paused)
 	{
 		ReleaseMove();
 	}
