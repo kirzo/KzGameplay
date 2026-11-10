@@ -4,6 +4,40 @@
 #include "StateTreeExecutionContext.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Factions/KzFactionLibrary.h"
+#include "KzAITags.h"
+
+namespace
+{
+	/** The current target while the sensor still has it with the attitude, else the nearest that has it. */
+	AActor* PickTarget(const FKzStateTreeTask_FindTargetInstanceData& InstanceData)
+	{
+		const FVector Location = InstanceData.Actor->GetActorLocation();
+		AActor* Nearest = nullptr;
+		double NearestDistSq = TNumericLimits<double>::Max();
+
+		for (const FKzOverlapResult& Overlap : InstanceData.Sensor->GetOverlapInfos())
+		{
+			AActor* Candidate = Overlap.Actor.Get();
+			if (!Candidate || UKzFactionLibrary::GetAttitude(InstanceData.Actor, Candidate) != InstanceData.Attitude)
+			{
+				continue;
+			}
+
+			if (Candidate == InstanceData.Target)
+			{
+				return Candidate;
+			}
+
+			const double DistSq = FVector::DistSquared(Location, Candidate->GetActorLocation());
+			if (DistSq < NearestDistSq)
+			{
+				Nearest = Candidate;
+				NearestDistSq = DistSq;
+			}
+		}
+		return Nearest;
+	}
+}
 
 EStateTreeRunStatus FKzStateTreeTask_FindTarget::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
@@ -18,31 +52,11 @@ EStateTreeRunStatus FKzStateTreeTask_FindTarget::Tick(FStateTreeExecutionContext
 		return EStateTreeRunStatus::Failed;
 	}
 
-	const FVector Location = InstanceData.Actor->GetActorLocation();
-	AActor* Nearest = nullptr;
-	double NearestDistSq = TNumericLimits<double>::Max();
-
-	for (const FKzOverlapResult& Overlap : InstanceData.Sensor->GetOverlapInfos())
+	AActor* Target = PickTarget(InstanceData);
+	if (Target != InstanceData.Target)
 	{
-		AActor* Candidate = Overlap.Actor.Get();
-		if (!Candidate || UKzFactionLibrary::GetAttitude(InstanceData.Actor, Candidate) != InstanceData.Attitude)
-		{
-			continue;
-		}
-
-		if (Candidate == InstanceData.Target)
-		{
-			return EStateTreeRunStatus::Running;
-		}
-
-		const double DistSq = FVector::DistSquared(Location, Candidate->GetActorLocation());
-		if (DistSq < NearestDistSq)
-		{
-			Nearest = Candidate;
-			NearestDistSq = DistSq;
-		}
+		InstanceData.Target = Target;
+		Context.SendEvent(KzTags::AI::Target_Changed);
 	}
-
-	InstanceData.Target = Nearest;
 	return EStateTreeRunStatus::Running;
 }

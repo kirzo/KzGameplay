@@ -18,7 +18,7 @@ struct FKzStateTreeTask_FindTargetInstanceData
 	UPROPERTY(EditAnywhere, Category = "Context")
 	TObjectPtr<AActor> Actor = nullptr;
 
-	/** Where the candidates come from: the sensor the schema picks. Its range and requirements are what the AI perceives. */
+	/** Where the candidates come from: the pawn's Sensor.Perception sensor. Its range and requirements are what the AI perceives. */
 	UPROPERTY(EditAnywhere, Category = "Context")
 	TObjectPtr<UKzSensorComponent> Sensor = nullptr;
 
@@ -35,11 +35,19 @@ struct FKzStateTreeTask_FindTargetInstanceData
  * Picks a target among what a sensor perceives, by the pawn's attitude towards it, so a tree speaks of hostiles or allies
  * instead of characters or factions. Meant as a global task: it keeps Target up to date while the tree runs. Promoted to a
  * parameter, the other nodes and linked subtrees read it from there.
+ * It only works on events, such as the AI.Sense.Begin and AI.Sense.End the controller sends, and sends AI.Target.Changed when
+ * Target changes, so transitions wait on it instead of checking every tick.
  */
 USTRUCT(meta = (DisplayName = "Find Target", Category = "KzAI|Perception"))
 struct KZAI_API FKzStateTreeTask_FindTarget : public FStateTreeTaskCommonBase
 {
 	GENERATED_BODY()
+
+	FKzStateTreeTask_FindTarget()
+	{
+		bShouldCallTick = false;
+		bShouldCallTickOnlyOnEvents = true;
+	}
 
 	using FInstanceDataType = FKzStateTreeTask_FindTargetInstanceData;
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
