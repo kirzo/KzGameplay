@@ -19,6 +19,10 @@ AKzCharacter::AKzCharacter(const FObjectInitializer& ObjectInitializer)
 	CapabilityComponent = CreateDefaultSubobject<UKzCapabilityComponent>(TEXT("CapabilityComponent"));
 	InputHandlerComponent = CreateDefaultSubobject<UKzInputHandlerComponent>(TEXT("InputHandlerComponent"));
 
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->PerchRadiusThreshold = 30.0f;
+	Movement->PerchAdditionalHeight = 0.0f;
+
 	for (FScriptableAction* Action : { &OnPossessedAction, &OnPossessedByAIAction, &OnPossessedByPlayerAction })
 	{
 		Action->AddContextProperty<AActor*>(TEXT("Character"));
