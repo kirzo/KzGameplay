@@ -182,11 +182,11 @@ public:
 	float LagTime = 0.3f;
 
 	/** Top speed of the focus. Keep it above the target's normal top speed, so it only bites on sudden moves. 0 means no cap. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lag", meta = (ClampMin = "0", Units = "CentimetersPerSecond"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lag", meta = (ClampMin = "0", ForceUnits = "CentimetersPerSecond"))
 	float MaxSpeed = 0.0f;
 
 	/** Top acceleration of the focus, which also brakes it in time to stop on the target. 0 means no cap. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lag", meta = (ClampMin = "0", Units = "CentimetersPerSecondSquared"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lag", meta = (ClampMin = "0", ForceUnits = "CentimetersPerSecondSquared"))
 	float MaxAcceleration = 0.0f;
 
 protected:
