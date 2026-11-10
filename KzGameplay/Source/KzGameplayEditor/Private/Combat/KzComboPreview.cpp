@@ -7,7 +7,9 @@
 #include "Animation/KzAnimationPreview.h"
 #include "CanvasTypes.h"
 #include "Combat/KzCombatNotifies.h"
+#include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
+#include "Combat/KzComboInstance.h"
 #include "Combat/KzComboNodeRenderer.h"
 #include "Combat/KzComboNodes.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -16,9 +18,11 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HitProxies.h"
 #include "Items/KzItemDefinition.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "KzEdGraphNode.h"
 #include "KzGraphEditorUtils.h"
 #include "SceneManagement.h"
+#include "Sensors/KzSensorComponent.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -62,6 +66,7 @@ namespace
 	const FLinearColor IdleColor(1.0f, 0.75f, 0.2f);
 	const FLinearColor SelectedColor(0.3f, 0.8f, 1.0f);
 	const FLinearColor TrailColor(0.55f, 0.12f, 0.08f);
+	const FLinearColor TargetingColor(0.35f, 0.8f, 0.4f);
 
 	bool IsComboWindow(const FKzAnimationNotifySpan& Span)
 	{
@@ -285,6 +290,17 @@ void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 	if (!Attack || !Step)
 	{
 		return;
+	}
+
+	// Where the attack looks for targets as it starts, pointing ahead as with no direction pressed. Not clickable: hit testing skips it.
+	AActor* Character = Stage.GetCharacter();
+	const UKzSensorComponent* Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Character, KzTags::Combat::Sensor_Targeting);
+	const FTransform UserTransform = Character ? Character->GetActorTransform() : FTransform::Identity;
+	FKzShapeInstance TargetingShape;
+	FTransform TargetingTransform;
+	if (!PDI->IsHitTesting() && UKzComboInstance::GetTargetingShape(*Attack, Sensor, UserTransform, UserTransform.GetUnitAxis(EAxis::X), TargetingShape, TargetingTransform))
+	{
+		TargetingShape.DrawWire(PDI, TargetingTransform, TargetingColor, 0.0f, SDPG_World);
 	}
 
 	const bool bHitting = Animation && FindHitWindow(Time - Step->Start) != INDEX_NONE;

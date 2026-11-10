@@ -4,6 +4,7 @@
 #include "Combat/KzComboGraph.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Editor.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -34,11 +35,19 @@ namespace
 FKzComboStage::FKzComboStage()
 {
 	ObjectsReplacedHandle = FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FKzComboStage::OnObjectsReplaced);
+	if (GEditor)
+	{
+		BlueprintCompiledHandle = GEditor->OnBlueprintCompiled().AddRaw(this, &FKzComboStage::OnBlueprintCompiled);
+	}
 }
 
 FKzComboStage::~FKzComboStage()
 {
 	FCoreUObjectDelegates::OnObjectsReplaced.Remove(ObjectsReplacedHandle);
+	if (GEditor)
+	{
+		GEditor->OnBlueprintCompiled().Remove(BlueprintCompiledHandle);
+	}
 }
 
 void FKzComboStage::OnObjectsReplaced(const TMap<UObject*, UObject*>& Replaced)

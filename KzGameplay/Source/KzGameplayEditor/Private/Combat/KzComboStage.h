@@ -50,7 +50,11 @@ private:
 	 */
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& Replaced);
 
+	/** Any compiled Blueprint shows everything again, so a change to a default, such as the shape of the character's sensor, shows too. */
+	void OnBlueprintCompiled() { bShown = false; }
+
 	FDelegateHandle ObjectsReplacedHandle;
+	FDelegateHandle BlueprintCompiledHandle;
 
 	TObjectPtr<AActor> Character;
 	TObjectPtr<USkeletalMeshComponent> Mesh;
