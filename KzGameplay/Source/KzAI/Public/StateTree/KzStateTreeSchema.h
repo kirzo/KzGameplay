@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Components/StateTreeAIComponentSchema.h"
-#include "Components/KzComponentReference.h"
 #include "KzStateTreeSchema.generated.h"
 
 namespace Kz::StateTree::Context
@@ -15,7 +14,8 @@ namespace Kz::StateTree::Context
 
 /**
  * Generic StateTree Schema for KzAI.
- * Inherits the standard Unreal AI Component Schema and automatically injects KzAI specific components.
+ * Inherits the standard Unreal AI Component Schema and automatically injects KzAI specific components: the pawn's steering, and as
+ * SensorComponent its Sensor.Perception sensor.
  */
 UCLASS(BlueprintType, EditInlineNew, CollapseCategories, meta = (DisplayName = "KzAI Schema", CommonSchema))
 class KZAI_API UKzStateTreeSchema : public UStateTreeAIComponentSchema
@@ -26,10 +26,6 @@ public:
 	UKzStateTreeSchema(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void PostLoad() override;
-
-	/** The pawn's sensor the tree gets as SensorComponent, by name: what its AI perceives. None gives the first one it has. */
-	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (AllowedClasses = "/Script/KzGameplay.KzSensorComponent"))
-	FKzComponentReference Sensor;
 
 protected:
 	virtual void SetContextData(FContextDataSetter& ContextDataSetter, bool bLogErrors) const override;

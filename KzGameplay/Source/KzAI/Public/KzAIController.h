@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AIController.h"
 #include "Abilities/GameplayAbilityTypes.h"
+#include "Sensors/KzSensorComponent.h"
 #include "KzAIController.generated.h"
 
 class UKzAbilitySystemComponent;
@@ -14,6 +15,7 @@ class UKzStateTreeComponent;
 /**
  * Base AI Controller for the KzAI framework. Runs a StateTree: usually the one the pawn's On Possessed By AI action gives it with
  * Run StateTree, so how a character behaves travels with the character, or else one set on the controller itself.
+ * While it drives a pawn, its Sensor.Perception sensor scans and the tree hears what enters and leaves it.
  */
 UCLASS()
 class KZAI_API AKzAIController : public AAIController
@@ -43,5 +45,17 @@ private:
 	UFUNCTION()
 	void HandlePawnGameplayEvent(const FGameplayTag& Tag, FGameplayEventData EventData);
 
+	/** Hands the perception sensor's entries and exits to the StateTree as AI.Sense.Begin and AI.Sense.End. */
+	UFUNCTION()
+	void HandleSenseBegin(const FKzOverlapResult& OverlapInfo);
+
+	UFUNCTION()
+	void HandleSenseEnd(const FKzOverlapResult& OverlapInfo);
+
 	TWeakObjectPtr<UKzAbilitySystemComponent> PawnAbilitySystem;
+
+	TWeakObjectPtr<UKzSensorComponent> PerceptionSensor;
+
+	/** Whether this controller turned the perception sensor on, so it turns it off on leaving the pawn. */
+	bool bActivatedPerception = false;
 };

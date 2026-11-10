@@ -3,6 +3,8 @@
 #include "StateTree/KzStateTreeSchema.h"
 #include "Steering/KzSteeringComponent.h"
 #include "Sensors/KzSensorComponent.h"
+#include "Sensors/KzSensorTags.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "BrainComponent.h"
 #include "KzAIController.h"
 
@@ -63,7 +65,7 @@ void UKzStateTreeSchema::SetContextData(FContextDataSetter& ContextDataSetter, b
 
 		ContextDataSetter.SetContextDataByName(
 			Kz::StateTree::Context::SensorComponent,
-			FStateTreeDataView(Sensor.ComponentName.IsNone() ? Pawn->FindComponentByClass<UKzSensorComponent>() : Sensor.GetComponent<UKzSensorComponent>(Pawn))
+			FStateTreeDataView(UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Pawn, KzTags::Sensor::Perception))
 		);
 	}
 }
