@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/KzShapeComponent.h"
 #include "GameplayTagContainer.h"
+#include "GameplayTagAssetInterface.h"
 #include "ScriptableConditions/ScriptableRequirement.h"
 #include "KzSensorComponent.generated.h"
 
@@ -34,7 +35,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzSensorObjectEvent, const FKzOverl
  * Evaluates Gameplay Tags natively and applies Scriptable Requirements for logical filtering.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UKzSensorComponent : public UKzShapeComponent
+class KZGAMEPLAY_API UKzSensorComponent : public UKzShapeComponent, public IGameplayTagAssetInterface
 {
 	GENERATED_BODY()
 
@@ -43,8 +44,12 @@ public:
 
 	// --- Configuration ---
 
-	/** How often to perform the geometric scan (in seconds). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KzSensor", meta = (ClampMin = "0.01", Units = "Seconds"))
+	/** What the sensor is for, so whoever needs one finds it among the actor's sensors, such as Sensor.Targeting for the combo. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KzSensor")
+	FGameplayTagContainer GameplayTags;
+
+	/** How often to perform the geometric scan (in seconds). 0 never scans on its own: it only answers Query. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "KzSensor", meta = (ClampMin = "0", Units = "Seconds"))
 	float ScanInterval = 0.1f;
 
 	/** Fast native filter: Only objects matching this query will be evaluated. */
@@ -70,6 +75,11 @@ public:
 	FKzSensorObjectEvent OnObjectEndOverlap;
 
 	// --- Public API ---
+
+	virtual void GetOwnedGameplayTags(FGameplayTagContainer& TagContainer) const override { TagContainer.AppendTags(GameplayTags); }
+
+	/** What a shape at a transform senses right now, through this sensor's filters, without touching what it keeps or firing its events. */
+	void Query(const FKzShapeInstance& QueryShape, const FTransform& QueryTransform, TArray<FKzOverlapResult>& OutResults);
 
 	/** Returns the full overlap info (Actor + Sensable Component). */
 	UFUNCTION(BlueprintPure, Category = "KzSensor")

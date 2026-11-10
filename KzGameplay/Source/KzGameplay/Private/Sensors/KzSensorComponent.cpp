@@ -40,7 +40,7 @@ void UKzSensorComponent::BeginPlay()
 	Super::BeginPlay();
 
 	// Only run scanning on the server or standalone to avoid state desyncs in MP
-	if (GetOwner() && GetOwner()->HasAuthority())
+	if (ScanInterval > 0.0f && GetOwner() && GetOwner()->HasAuthority())
 	{
 		if (UWorld* World = GetWorld())
 		{
@@ -58,24 +58,21 @@ void UKzSensorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void UKzSensorComponent::PerformScan()
+void UKzSensorComponent::Query(const FKzShapeInstance& QueryShape, const FTransform& QueryTransform, TArray<FKzOverlapResult>& OutResults)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UKzSensorComponent::PerformScan);
+	OutResults.Reset();
 
-	UKzSpatialSenseSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>();
+	UKzSpatialSenseSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>() : nullptr;
 	if (!Subsystem) return;
 
 	// 1. Broadphase: O(1) Spatial Query + O(N) Tag Filter natively
 	Subsystem->QuerySensables(
 		ScratchSensables,
-		Shape * GetComponentScale(),
-		GetComponentLocation(),
-		GetComponentQuat(),
+		QueryShape,
+		QueryTransform.GetLocation(),
+		QueryTransform.GetRotation(),
 		SearchTagQuery
 	);
-
-	TArray<FKzOverlapResult>& NewOverlaps = ScratchOverlaps;
-	NewOverlaps.Reset();
 
 	AActor* InstigatorActor = GetOwner();
 	const bool bHasRequirement = !DetectionRequirement.IsEmpty();
@@ -103,7 +100,7 @@ void UKzSensorComponent::PerformScan()
 		}
 
 		// Ensure we don't add duplicates if multiple Sensables exist on the same Actor
-		bool bAlreadyAdded = NewOverlaps.ContainsByPredicate([TargetActor](const FKzOverlapResult& Item)
+		bool bAlreadyAdded = OutResults.ContainsByPredicate([TargetActor](const FKzOverlapResult& Item)
 			{
 				return Item.Actor.Get() == TargetActor;
 			});
@@ -113,9 +110,17 @@ void UKzSensorComponent::PerformScan()
 			FKzOverlapResult NewResult;
 			NewResult.Actor = TargetActor;
 			NewResult.SensableComponent = Candidate;
-			NewOverlaps.Add(NewResult);
+			OutResults.Add(NewResult);
 		}
 	}
+}
+
+void UKzSensorComponent::PerformScan()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UKzSensorComponent::PerformScan);
+
+	TArray<FKzOverlapResult>& NewOverlaps = ScratchOverlaps;
+	Query(Shape * GetComponentScale(), GetComponentTransform(), NewOverlaps);
 
 	// 3. Process Begin Overlaps (Entries)
 	for (const FKzOverlapResult& NewResult : NewOverlaps)
