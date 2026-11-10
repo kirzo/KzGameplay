@@ -63,7 +63,7 @@ void UKzStateTreeSchema::SetContextData(FContextDataSetter& ContextDataSetter, b
 
 		ContextDataSetter.SetContextDataByName(
 			Kz::StateTree::Context::SensorComponent,
-			FStateTreeDataView(Pawn->FindComponentByClass<UKzSensorComponent>())
+			FStateTreeDataView(Sensor.ComponentName.IsNone() ? Pawn->FindComponentByClass<UKzSensorComponent>() : Sensor.GetComponent<UKzSensorComponent>(Pawn))
 		);
 	}
 }

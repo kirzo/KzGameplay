@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/StateTreeAIComponentSchema.h"
+#include "Components/KzComponentReference.h"
 #include "KzStateTreeSchema.generated.h"
 
 namespace Kz::StateTree::Context
@@ -25,6 +26,10 @@ public:
 	UKzStateTreeSchema(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void PostLoad() override;
+
+	/** The pawn's sensor the tree gets as SensorComponent, by name: what its AI perceives. None gives the first one it has. */
+	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (AllowedClasses = "/Script/KzGameplay.KzSensorComponent"))
+	FKzComponentReference Sensor;
 
 protected:
 	virtual void SetContextData(FContextDataSetter& ContextDataSetter, bool bLogErrors) const override;
