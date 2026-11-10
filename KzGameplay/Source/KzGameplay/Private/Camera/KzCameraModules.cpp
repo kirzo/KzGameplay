@@ -223,8 +223,10 @@ FKzCameraPose UKzCameraModule_Lag::Evaluate_Implementation(const FKzCameraContex
 			{
 				NewVelocity = Velocity + (NewVelocity - Velocity).GetClampedToMaxSize(MaxAcceleration * DeltaTime);
 
-				// Never faster than what can still stop on the target.
-				NewVelocity = NewVelocity.GetClampedToMaxSize(FMath::Sqrt(2.0 * MaxAcceleration * FVector::Dist(Position, Pose.Focus)));
+				// Never faster than what can still stop on the target, nor than what reaches it this frame: overshooting
+				// it near rest would swing the focus back and forth around it.
+				const double Remaining = FVector::Dist(Position, Pose.Focus);
+				NewVelocity = NewVelocity.GetClampedToMaxSize(FMath::Min(FMath::Sqrt(2.0 * MaxAcceleration * Remaining), Remaining / DeltaTime));
 			}
 
 			if (MaxSpeed > 0.0f)
