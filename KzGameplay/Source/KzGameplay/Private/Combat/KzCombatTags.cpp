@@ -12,8 +12,6 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Playing a combo, from its first attack until it ends.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_ComboWindow, "State.ComboWindow", "A Combo Window of the attack playing is open: a press of the combo's inputs chains now.");
 
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Sensor_Targeting, "Sensor.Targeting", "The sensor combos pick their targets with: its filters, and its shape unless the attack overrides it.");
-
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Unblockable, "Attack.Unblockable", "Neither blocked nor parried.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Undodgeable, "Attack.Undodgeable", "Hits through State.Invulnerable.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_GuardBreak, "Attack.GuardBreak", "Breaks a block: Reaction.GuardBreak instead of Reaction.Block.");

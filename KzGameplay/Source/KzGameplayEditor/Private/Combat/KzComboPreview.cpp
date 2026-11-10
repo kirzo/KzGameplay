@@ -7,7 +7,6 @@
 #include "Animation/KzAnimationPreview.h"
 #include "CanvasTypes.h"
 #include "Combat/KzCombatNotifies.h"
-#include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboInstance.h"
 #include "Combat/KzComboNodeRenderer.h"
@@ -23,6 +22,7 @@
 #include "KzGraphEditorUtils.h"
 #include "SceneManagement.h"
 #include "Sensors/KzSensorComponent.h"
+#include "Sensors/KzSensorTags.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -294,7 +294,7 @@ void FKzComboPreview::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 
 	// Where the attack looks for targets as it starts, pointing ahead as with no direction pressed. Not clickable: hit testing skips it.
 	AActor* Character = Stage.GetCharacter();
-	const UKzSensorComponent* Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Character, KzTags::Combat::Sensor_Targeting);
+	const UKzSensorComponent* Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Character, KzTags::Sensor::Targeting);
 	const FTransform UserTransform = Character ? Character->GetActorTransform() : FTransform::Identity;
 	FKzShapeInstance TargetingShape;
 	FTransform TargetingTransform;

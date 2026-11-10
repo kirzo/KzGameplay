@@ -20,6 +20,7 @@
 #include "Kismet/KzSystemLibrary.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
+#include "Sensors/KzSensorTags.h"
 
 namespace
 {
@@ -67,7 +68,7 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	UKzComboInstance* Instance = NewObject<UKzComboInstance>(Context.User ? static_cast<UObject*>(Context.User) : GetTransientPackage());
 	Instance->Combo = Combo;
 	Instance->Context = Context;
-	Instance->Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Context.User, KzTags::Combat::Sensor_Targeting);
+	Instance->Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Context.User, KzTags::Sensor::Targeting);
 	Instance->bRunning = true;
 	return Instance->PlayAttack(Links[0].Node, Direction) ? Instance : nullptr;
 }
