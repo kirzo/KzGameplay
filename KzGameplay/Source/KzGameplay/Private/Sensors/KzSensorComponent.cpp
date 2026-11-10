@@ -39,13 +39,9 @@ void UKzSensorComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Only run scanning on the server or standalone to avoid state desyncs in MP
-	if (ScanInterval > 0.0f && GetOwner() && GetOwner()->HasAuthority())
+	if (IsActive())
 	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().SetTimer(ScanTimerHandle, this, &UKzSensorComponent::PerformScan, ScanInterval, true);
-		}
+		StartScanning();
 	}
 }
 
@@ -56,6 +52,48 @@ void UKzSensorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		World->GetTimerManager().ClearTimer(ScanTimerHandle);
 	}
 	Super::EndPlay(EndPlayReason);
+}
+
+void UKzSensorComponent::Activate(bool bReset)
+{
+	Super::Activate(bReset);
+
+	if (IsActive() && HasBegunPlay())
+	{
+		StartScanning();
+	}
+}
+
+void UKzSensorComponent::Deactivate()
+{
+	Super::Deactivate();
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(ScanTimerHandle);
+	}
+
+	// Whoever listens doesn't keep what the sensor no longer sees
+	const TArray<FKzOverlapResult> Lost = MoveTemp(CachedOverlaps);
+	CachedOverlaps.Reset();
+	LastDetectedActor = nullptr;
+	for (const FKzOverlapResult& Result : Lost)
+	{
+		if (Result.Actor.IsValid())
+		{
+			OnObjectEndOverlap.Broadcast(Result);
+		}
+	}
+}
+
+void UKzSensorComponent::StartScanning()
+{
+	// Only run scanning on the server or standalone to avoid state desyncs in MP
+	UWorld* World = GetWorld();
+	if (ScanInterval > 0.0f && World && GetOwner() && GetOwner()->HasAuthority())
+	{
+		World->GetTimerManager().SetTimer(ScanTimerHandle, this, &UKzSensorComponent::PerformScan, ScanInterval, true);
+	}
 }
 
 void UKzSensorComponent::Query(const FKzShapeInstance& QueryShape, const FTransform& QueryTransform, TArray<FKzOverlapResult>& OutResults)

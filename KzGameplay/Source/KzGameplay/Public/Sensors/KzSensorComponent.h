@@ -106,9 +106,15 @@ public:
 		return Result;
 	}
 
+	/** Scans only while active: deactivated, it stops and loses what it sensed, firing its end events. */
+	virtual void Activate(bool bReset = false) override;
+	virtual void Deactivate() override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	void StartScanning();
 
 	/** The timer function that periodically scans the world. */
 	void PerformScan();
