@@ -226,6 +226,11 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 		}
 		else if (Warp == Notify)
 		{
+			// The end arrives before the window's last step: take it, so a leap lands where it aimed.
+			if (WarpTimeLeft > 0.0f)
+			{
+				UpdateWarp(WarpTimeLeft);
+			}
 			SetWarp(nullptr, 0.0f);
 		}
 	}
@@ -468,6 +473,14 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 
 void UKzComboInstance::SetWarp(const UKzAnimationNotifyState* Notify, float Duration)
 {
+	// The arc's vertical speed where it is left, the derivative of 4·H·t·(1−t), so it keeps falling instead of stopping in the air.
+	float ExitSpeed = 0.0f;
+	if (const UKzAnimNotifyState_WarpWindow* Open = bWarpAirborne ? Cast<UKzAnimNotifyState_WarpWindow>(Warp.Get()) : nullptr)
+	{
+		const float T = FMath::Clamp(1.0f - WarpTimeLeft / WarpDuration, 0.0f, 1.0f);
+		ExitSpeed = 4.0f * Open->Height * (1.0f - 2.0f * T) / WarpDuration;
+	}
+
 	Warp = Notify;
 	WarpDuration = Duration;
 	WarpTimeLeft = Duration;
@@ -489,6 +502,7 @@ void UKzComboInstance::SetWarp(const UKzAnimationNotifyState* Notify, float Dura
 		{
 			Movement->StopMovementImmediately();
 			Movement->SetMovementMode(bAirborne ? MOVE_Flying : MOVE_Falling);
+			Movement->Velocity.Z = ExitSpeed;
 		}
 	}
 
