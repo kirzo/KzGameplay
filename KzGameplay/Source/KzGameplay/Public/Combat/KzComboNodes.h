@@ -192,11 +192,11 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Instanced, Category = "Attack")
 	TObjectPtr<UKzAnimationSource> Animation;
 
-	/** Times the weapon's base damage. */
+	/** Times the weapon's base damage, and times each Hit Window's own multiplier. */
 	UPROPERTY(EditAnywhere, Category = "Attack", meta = (ClampMin = "0"))
 	float DamageMultiplier = 1.0f;
 
-	/** Sent with each hit, for defenses and reactions: Attack.Unblockable, Attack.Undodgeable, Attack.GuardBreak. */
+	/** Sent with each hit along with its Hit Window's, for defenses and reactions: Attack.Unblockable, Attack.Undodgeable, Attack.GuardBreak. */
 	UPROPERTY(EditAnywhere, Category = "Attack", meta = (Categories = "Attack"))
 	FGameplayTagContainer AttackTags;
 

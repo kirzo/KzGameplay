@@ -54,7 +54,7 @@ struct KZGAMEPLAY_API FKzComboHit
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	EKzHitResult Result = EKzHitResult::Hit;
 
-	/** Times the weapon's base damage, as the attack sets it. */
+	/** Times the weapon's base damage: the attack's multiplier times its Hit Window's. */
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	float DamageMultiplier = 1.0f;
 
@@ -62,6 +62,7 @@ struct KZGAMEPLAY_API FKzComboHit
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	FGameplayTag Reaction;
 
+	/** The attack's and its Hit Window's. */
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	FGameplayTagContainer AttackTags;
 

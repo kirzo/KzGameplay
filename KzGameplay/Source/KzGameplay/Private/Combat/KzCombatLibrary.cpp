@@ -87,6 +87,7 @@ namespace
 		Parameters.SourceObject = SourceObject;
 		Parameters.PhysicalMaterial = Hit.Hit.PhysMaterial.Get();
 		Parameters.RawMagnitude = Damage;
+		Parameters.AggregatedSourceTags = Hit.AttackTags;
 		ASC->ExecuteGameplayCue(Hit.ImpactCue, Parameters);
 	}
 
@@ -104,6 +105,7 @@ namespace
 		Parameters.EffectCauser = Attacker;
 		Parameters.SourceObject = SourceObject;
 		Parameters.RawMagnitude = Damage;
+		Parameters.AggregatedSourceTags = Hit.AttackTags;
 		ASC->ExecuteGameplayCue(Cue, Parameters);
 	}
 }
@@ -162,6 +164,7 @@ void UKzCombatLibrary::ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, T
 			if (Spec.IsValid())
 			{
 				Spec.Data->SetSetByCallerMagnitude(Data_Damage, Damage);
+				Spec.Data->AppendDynamicAssetTags(Hit.AttackTags);
 				AttackerASC->ApplyGameplayEffectSpecToTarget(*Spec.Data, TargetASC);
 			}
 		}

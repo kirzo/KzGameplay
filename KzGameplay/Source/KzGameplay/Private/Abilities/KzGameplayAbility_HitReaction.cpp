@@ -44,6 +44,10 @@ void UKzGameplayAbility_HitReaction::ActivateAbility(const FGameplayAbilitySpecH
 	Context.Mesh = ActorInfo->SkeletalMeshComponent.Get();
 	Context.User = Avatar;
 	Context.Tags.AddTag(Reaction);
+	if (TriggerEventData)
+	{
+		Context.Tags.AppendTags(TriggerEventData->InstigatorTags);
+	}
 	if (const AActor* Instigator = TriggerEventData ? TriggerEventData->Instigator.Get() : nullptr)
 	{
 		Context.Tags.AddTag(UKzCombatLibrary::GetDirectionTag(Avatar, Instigator->GetActorLocation()));

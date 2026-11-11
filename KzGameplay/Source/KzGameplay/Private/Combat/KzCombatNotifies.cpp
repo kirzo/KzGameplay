@@ -16,6 +16,12 @@ namespace
 		const AActor* Owner = MeshComp ? MeshComp->GetOwner() : nullptr;
 		return Owner ? Owner->FindComponentByClass<UKzInputHandlerComponent>() : nullptr;
 	}
+
+	FString GetLeaf(const FGameplayTag& Tag)
+	{
+		FString Leaf;
+		return Tag.ToString().Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd) ? Leaf : Tag.ToString();
+	}
 }
 
 UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
@@ -23,6 +29,20 @@ UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
 #if WITH_EDITORONLY_DATA
 	NotifyColor = FColor(220, 60, 50);
 #endif
+}
+
+FString UKzAnimNotifyState_HitWindow::GetNotifyName_Implementation() const
+{
+	TArray<FString> Parts;
+	if (!FMath::IsNearlyEqual(DamageMultiplier, 1.0f))
+	{
+		Parts.Add(TEXT("x") + FString::SanitizeFloat(DamageMultiplier));
+	}
+	for (const FGameplayTag& Tag : AttackTags)
+	{
+		Parts.Add(GetLeaf(Tag));
+	}
+	return Parts.IsEmpty() ? Super::GetNotifyName_Implementation() : TEXT("Hit Window ") + FString::Join(Parts, TEXT(" "));
 }
 
 UKzAnimNotifyState_ComboWindow::UKzAnimNotifyState_ComboWindow()
@@ -34,12 +54,7 @@ UKzAnimNotifyState_ComboWindow::UKzAnimNotifyState_ComboWindow()
 
 FString UKzAnimNotifyState_ComboWindow::GetNotifyName_Implementation() const
 {
-	FString Name;
-	if (!Window.IsValid() || !Window.ToString().Split(TEXT("."), nullptr, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
-	{
-		return Super::GetNotifyName_Implementation();
-	}
-	return FString::Printf(TEXT("Combo Window: %s"), *Name);
+	return Window.IsValid() ? TEXT("Combo Window: ") + GetLeaf(Window) : Super::GetNotifyName_Implementation();
 }
 
 UKzAnimNotifyState_CancelWindow::UKzAnimNotifyState_CancelWindow()

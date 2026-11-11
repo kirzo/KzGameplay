@@ -12,6 +12,7 @@
 class FKzAnimationPlay;
 class UKzAnimationNotifyState;
 class UKzAnimNotifyState_ComboWindow;
+class UKzAnimNotifyState_HitWindow;
 class UKzComboGraph;
 class UKzItemDefinition;
 class UKzSensorComponent;
@@ -187,8 +188,8 @@ private:
 	/** The attack playing opened a Hit Window, which ends its turning. */
 	bool bOpenedHitWindow = false;
 
-	/** The reaction of the last Hit Window that opened. */
-	FGameplayTag Reaction;
+	/** The last Hit Window that opened, whose reaction, damage and tags its hits take. */
+	TWeakObjectPtr<const UKzAnimNotifyState_HitWindow> HitWindow;
 
 	/** A press that came with no Combo Window open, and when, in case one opens within the combo's InputBuffer. */
 	FGameplayTag KeptInput;

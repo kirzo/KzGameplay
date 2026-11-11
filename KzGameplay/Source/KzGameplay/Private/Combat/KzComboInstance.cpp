@@ -172,7 +172,7 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 	CloseComboWindows();
 	HitWindows = 0;
 	bOpenedHitWindow = false;
-	Reaction = FGameplayTag();
+	HitWindow.Reset();
 	KeptInput = FGameplayTag();
 	SetWarp(nullptr, 0.0f);
 	HitActors.Reset();
@@ -209,14 +209,14 @@ FKzComboBranchContext UKzComboInstance::MakeBranchContext() const
 
 void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration)
 {
-	if (const UKzAnimNotifyState_HitWindow* HitWindow = Cast<UKzAnimNotifyState_HitWindow>(Notify))
+	if (const UKzAnimNotifyState_HitWindow* Window = Cast<UKzAnimNotifyState_HitWindow>(Notify))
 	{
 		// Each window hits each target once, sweeping from where it opens, and once more as it closes, for the stretch since the last tick.
 		if (bBegin)
 		{
 			HitWindows++;
 			bOpenedHitWindow = true;
-			Reaction = HitWindow->Reaction;
+			HitWindow = Window;
 			HitActors.Reset();
 			PreviousParents.Init(TOptional<FTransform>(), PreviousParents.Num());
 			SweepHitboxes();
@@ -296,6 +296,18 @@ void UKzComboInstance::SweepHitboxes()
 		QueryParams.AddIgnoredActor(Context.Weapon->GetOwner());
 	}
 
+	// What every hit of this sweep carries: the attack's, joined by its Hit Window's.
+	const UKzAnimNotifyState_HitWindow* Window = HitWindow.Get();
+	FKzComboHit Template;
+	Template.DamageMultiplier = Attack->DamageMultiplier * (Window ? Window->DamageMultiplier : 1.0f);
+	Template.Reaction = Window ? Window->Reaction : FGameplayTag();
+	Template.AttackTags = Attack->AttackTags;
+	if (Window)
+	{
+		Template.AttackTags.AppendTags(Window->AttackTags);
+	}
+	Template.ImpactCue = Attack->ImpactCue;
+
 	const int32 Playing = Node;
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num() && PreviousParents.IsValidIndex(Index); ++Index)
 	{
@@ -336,13 +348,9 @@ void UKzComboInstance::SweepHitboxes()
 					continue;
 				}
 
-				FKzComboHit ComboHit;
+				FKzComboHit ComboHit = Template;
 				ComboHit.Hit = Hit;
-				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, Attack->AttackTags, ComboHit.Defense);
-				ComboHit.DamageMultiplier = Attack->DamageMultiplier;
-				ComboHit.Reaction = Reaction;
-				ComboHit.AttackTags = Attack->AttackTags;
-				ComboHit.ImpactCue = Attack->ImpactCue;
+				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, ComboHit.AttackTags, ComboHit.Defense);
 
 				// Ignored targets can still be hit if they stop being invulnerable while the window lasts.
 				if (!ComboHit.Counts())

@@ -19,6 +19,16 @@ public:
 	/** How the target reacts, which follows the swing: a slash from the right staggers to the left. None is Reaction.Hit. */
 	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (Categories = "Reaction"))
 	FGameplayTag Reaction;
+
+	/** This hit's share of the attack, as a multiplier on top of the attack's own, such as 0.3 for each of two quick cuts and 1 for the slash that ends them. */
+	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (ClampMin = "0"))
+	float DamageMultiplier = 1.0f;
+
+	/** Sent with this hit along with the attack's, for defenses and reactions: Attack.Unblockable, Attack.Undodgeable, Attack.GuardBreak. */
+	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (Categories = "Attack"))
+	FGameplayTagContainer AttackTags;
+
+	virtual FString GetNotifyName_Implementation() const override;
 };
 
 /** While it lasts, a press chains the next attack. */
