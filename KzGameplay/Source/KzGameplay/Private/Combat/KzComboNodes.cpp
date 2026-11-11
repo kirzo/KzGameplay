@@ -50,15 +50,27 @@ int32 FKzComboHitbox::GetSweepSteps(const FTransform& From, const FTransform& To
 	return FMath::Clamp(FMath::CeilToInt(From.GetRotation().AngularDistance(To.GetRotation()) / MaxStepAngle), 1, MaxSteps);
 }
 
-FName FKzComboOpener::GetOutputName(FGameplayTag Input) const
+const FName FKzComboNode_Branch::DefaultName(TEXT("Default"));
+const FName FKzComboNode_BranchOnHit::HitName(TEXT("Hit"));
+const FName FKzComboNode_BranchOnHit::MissName(TEXT("Miss"));
+
+FName FKzComboNode_SwitchOnWindow::PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const
 {
-	return FName(FString::Printf(TEXT("%s(%s)"), *Input.ToString(), *RequiredTags.ToStringSimple()));
+	OutFallback = DefaultName;
+	return Context.Window.IsValid() && Windows.Contains(Context.Window) ? Context.Window.GetTagName() : DefaultName;
 }
 
-FName FKzComboNode_Entry::GetOutputName(const FGameplayTagContainer& AttackerTags) const
+FName FKzComboNode_BranchOnHit::PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const
 {
-	const FKzComboOpener* Opener = Openers.FindByPredicate([&AttackerTags](const FKzComboOpener& Each) { return AttackerTags.HasAll(Each.RequiredTags); });
-	return Opener ? Opener->GetOutputName(Input) : Input.GetTagName();
+	OutFallback = NAME_None;
+	return Context.bHit ? HitName : MissName;
+}
+
+FName FKzComboNode_SwitchOnTags::PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const
+{
+	OutFallback = DefaultName;
+	const FKzComboTagCase* Case = Cases.FindByPredicate([&Context](const FKzComboTagCase& Each) { return !Each.RequiredTags.IsEmpty() && Context.AttackerTags.HasAll(Each.RequiredTags); });
+	return Case ? Case->GetOutputName() : DefaultName;
 }
 
 #if WITH_EDITOR
@@ -81,6 +93,15 @@ namespace
 	{
 		return FText::FromString(GetLeaf(Input));
 	}
+
+	/** Adds a pin unless one of that name is there, as a case or window listed twice would make. */
+	void AddPin(TArray<FKzGraphPinDesc>& OutPins, FKzGraphPinDesc&& Pin)
+	{
+		if (!OutPins.ContainsByPredicate([&Pin](const FKzGraphPinDesc& Each) { return Each.Name == Pin.Name; }))
+		{
+			OutPins.Add(MoveTemp(Pin));
+		}
+	}
 }
 
 void FKzComboNode_Entry::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
@@ -90,36 +111,7 @@ void FKzComboNode_Entry::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPin
 		return;
 	}
 
-	OutPins.Add({ Input.GetTagName(), GetInputLabel(Input), NAME_None, LOCTEXT("EntryOutputTooltip", "The attack this input starts the combo with.") });
-
-	for (const FKzComboOpener& Opener : Openers)
-	{
-		TArray<FString> States;
-		for (const FGameplayTag Tag : Opener.RequiredTags)
-		{
-			States.Add(GetLeaf(Tag));
-		}
-		const FText Label = FText::Format(LOCTEXT("OpenerLabel", "{0} ({1})"), GetInputLabel(Input), FText::FromString(FString::Join(States, TEXT(", "))));
-		OutPins.Add({ Opener.GetOutputName(Input), Label, NAME_None, FText::Format(LOCTEXT("OpenerTooltip", "The attack this input starts the combo with while the attacker has {0}."), FText::FromString(Opener.RequiredTags.ToStringSimple())) });
-	}
-}
-
-void FKzComboNode_Entry::Validate(TArray<FKzValidationIssue>& OutIssues) const
-{
-	TSet<FName> Listed;
-	for (const FKzComboOpener& Opener : Openers)
-	{
-		bool bListed = false;
-		Listed.Add(Opener.GetOutputName(Input), &bListed);
-		if (Opener.RequiredTags.IsEmpty())
-		{
-			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Warning, LOCTEXT("OpenerNoTags", "An opener requires no tags, so it always wins over the input's own output."), NAME_None));
-		}
-		else if (bListed)
-		{
-			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("DuplicateOpener", "Two openers require the same tags."), NAME_None));
-		}
-	}
+	OutPins.Add({ Input.GetTagName(), GetInputLabel(Input), NAME_None, LOCTEXT("EntryOutputTooltip", "Where this input starts the combo.") });
 }
 
 FSlateIcon FKzComboNode_Entry::GetIcon() const
@@ -131,18 +123,85 @@ FLinearColor FKzComboNode_Entry::GetColor() const
 {
 	return FLinearColor(0.4f, 0.06f, 0.06f);
 }
-#endif
 
-FName FKzComboNode_Attack::GetOutputName(FGameplayTag Input, bool bHit) const
+FLinearColor FKzComboNode_Branch::GetColor() const
 {
-	if (!bBranchOnHit)
-	{
-		return Input.GetTagName();
-	}
-	return FName(FString::Printf(TEXT("%s.%s"), *Input.ToString(), bHit ? TEXT("Hit") : TEXT("Miss")));
+	return FLinearColor(0.12f, 0.12f, 0.12f);
 }
 
-#if WITH_EDITOR
+void FKzComboNode_SwitchOnWindow::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
+{
+	for (const FGameplayTag Window : Windows)
+	{
+		if (Window.IsValid())
+		{
+			AddPin(OutPins, { Window.GetTagName(), FText::FromString(GetLeaf(Window)), NAME_None, LOCTEXT("WindowTooltip", "Where a press in this Combo Window leads.") });
+		}
+	}
+	OutPins.Add({ DefaultName, LOCTEXT("Default", "Default"), NAME_None, LOCTEXT("WindowDefaultTooltip", "Where a press in any other Combo Window leads, or in one above left unlinked.") });
+}
+
+void FKzComboNode_SwitchOnWindow::Validate(TArray<FKzValidationIssue>& OutIssues) const
+{
+	TSet<FGameplayTag> Listed;
+	for (const FGameplayTag Window : Windows)
+	{
+		bool bListed = false;
+		Listed.Add(Window, &bListed);
+		if (!Window.IsValid())
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("EmptyWindow", "A window is empty."), NAME_None));
+		}
+		else if (bListed)
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateWindow", "{0} is listed twice."), FText::FromName(Window.GetTagName())), NAME_None));
+		}
+	}
+}
+
+void FKzComboNode_BranchOnHit::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
+{
+	OutPins.Add({ HitName, LOCTEXT("Hit", "Hit"), NAME_None, LOCTEXT("HitTooltip", "Where it leads once the attack playing hit something.") });
+	OutPins.Add({ MissName, LOCTEXT("Miss", "Miss"), NAME_None, LOCTEXT("MissTooltip", "Where it leads while the attack playing hit nothing.") });
+}
+
+void FKzComboNode_SwitchOnTags::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
+{
+	for (const FKzComboTagCase& Case : Cases)
+	{
+		if (Case.RequiredTags.IsEmpty())
+		{
+			continue;
+		}
+
+		TArray<FString> Leaves;
+		for (const FGameplayTag Tag : Case.RequiredTags)
+		{
+			Leaves.Add(GetLeaf(Tag));
+		}
+		AddPin(OutPins, { Case.GetOutputName(), FText::FromString(FString::Join(Leaves, TEXT(", "))), NAME_None, FText::Format(LOCTEXT("CaseTooltip", "Where it leads while the attacker has {0}."), FText::FromString(Case.RequiredTags.ToStringSimple())) });
+	}
+	OutPins.Add({ DefaultName, LOCTEXT("Default", "Default"), NAME_None, LOCTEXT("TagsDefaultTooltip", "Where it leads for an attacker that matches no case above, or one left unlinked.") });
+}
+
+void FKzComboNode_SwitchOnTags::Validate(TArray<FKzValidationIssue>& OutIssues) const
+{
+	TSet<FName> Listed;
+	for (const FKzComboTagCase& Case : Cases)
+	{
+		bool bListed = false;
+		Listed.Add(Case.GetOutputName(), &bListed);
+		if (Case.RequiredTags.IsEmpty())
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("EmptyCase", "A case requires no tags; add them or remove it."), NAME_None));
+		}
+		else if (bListed)
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateCase", "Two cases require {0}."), FText::FromString(Case.RequiredTags.ToStringSimple())), NAME_None));
+		}
+	}
+}
+
 void FKzComboNode_Attack::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
 {
 	const UKzComboGraph* Combo = Cast<UKzComboGraph>(&Graph);
@@ -160,15 +219,7 @@ void FKzComboNode_Attack::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPi
 			continue;
 		}
 
-		const FText Label = GetInputLabel(Input);
-		if (!bBranchOnHit)
-		{
-			OutPins.Add({ GetOutputName(Input, true), bSeveral ? Label : FText::GetEmpty(), NAME_None, LOCTEXT("NextTooltip", "The attack this input chains to.") });
-			continue;
-		}
-
-		OutPins.Add({ GetOutputName(Input, true), bSeveral ? FText::Format(LOCTEXT("InputHit", "{0} Hit"), Label) : LOCTEXT("Hit", "Hit"), NAME_None, LOCTEXT("HitTooltip", "The attack this input chains to once this one hit something.") });
-		OutPins.Add({ GetOutputName(Input, false), bSeveral ? FText::Format(LOCTEXT("InputMiss", "{0} Miss"), Label) : LOCTEXT("Miss", "Miss"), NAME_None, LOCTEXT("MissTooltip", "The attack this input chains to while this one hit nothing.") });
+		OutPins.Add({ Input.GetTagName(), bSeveral ? GetInputLabel(Input) : FText::GetEmpty(), NAME_None, LOCTEXT("NextTooltip", "Where a press of this input in a Combo Window leads.") });
 	}
 }
 

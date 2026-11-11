@@ -29,6 +29,12 @@ class KZGAMEPLAY_API UKzAnimNotifyState_ComboWindow : public UKzAnimationNotifyS
 
 public:
 	UKzAnimNotifyState_ComboWindow();
+
+	/** Names the window, for a Switch on Window to lead a press in it its own way, such as a late, well-timed press to a stronger attack. */
+	UPROPERTY(EditAnywhere, Category = "Combo Window", meta = (Categories = "Combo.Window"))
+	FGameplayTag Window;
+
+	virtual FString GetNotifyName_Implementation() const override;
 };
 
 /** While it lasts, the attack can be cut, such as by a dodge. */

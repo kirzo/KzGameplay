@@ -11,11 +11,13 @@
 
 class FKzAnimationPlay;
 class UKzAnimationNotifyState;
+class UKzAnimNotifyState_ComboWindow;
 class UKzComboGraph;
 class UKzItemDefinition;
 class UKzSensorComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
+struct FKzComboBranchContext;
 struct FKzComboNode_Attack;
 struct FKzShapeInstance;
 
@@ -29,7 +31,7 @@ struct KZGAMEPLAY_API FKzComboContext
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<USkeletalMeshComponent> Mesh;
 
-	/** Who attacks: their database answers By Query animations, their tags pick the Entry's openers, and their own attacks never hit them. */
+	/** Who attacks: their database answers By Query animations, their tags pick Switch on Tags cases, and their own attacks never hit them. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> User;
 
@@ -116,8 +118,11 @@ private:
 	/** Plays an attack node in place of the one playing; a node that plays nothing ends the combo. */
 	bool PlayAttack(int32 NodeIndex, const FVector& Direction);
 
-	/** Plays the attack the input leads to from the current one, given whether it hit. False when it leads nowhere. */
+	/** Plays the attack the input leads to from the current one, through any branches. False when it leads nowhere. */
 	bool Chain(FGameplayTag Input, const FVector& Direction);
+
+	/** What branches choose by now: the latest Combo Window open, whether the attack hit, and the attacker's tags. */
+	FKzComboBranchContext MakeBranchContext() const;
 
 	void OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration);
 	void OnAttackEnded(bool bInterrupted);
@@ -142,8 +147,14 @@ private:
 
 	void SetCancelWindows(int32 Count);
 
-	/** Opens or closes the Combo Window, with State.ComboWindow on the attacker meanwhile, so whoever drives it knows when a press chains. */
-	void SetComboWindow(bool bOpen);
+	/**
+	 * Opens or closes a Combo Window, with State.ComboWindow on the attacker while any is open and the window's name while it is, so whoever
+	 * drives it knows when a press chains, and which way.
+	 */
+	void SetComboWindow(const UKzAnimNotifyState_ComboWindow& Window, bool bOpen);
+
+	/** Closes every Combo Window still open, as a new attack or the end of the combo does. */
+	void CloseComboWindows();
 
 	void End(bool bInterrupted);
 
@@ -168,7 +179,8 @@ private:
 	/** The attack playing has hit something. */
 	bool bHit = false;
 
-	bool bComboWindow = false;
+	/** The Combo Windows open, the latest last: a press counts in that one. */
+	TArray<TWeakObjectPtr<const UKzAnimNotifyState_ComboWindow>> ComboWindows;
 	int32 HitWindows = 0;
 	int32 CancelWindows = 0;
 

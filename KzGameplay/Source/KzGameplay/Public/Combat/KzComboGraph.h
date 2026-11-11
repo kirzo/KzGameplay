@@ -20,7 +20,7 @@ class KZGAMEPLAY_API UKzComboGraph : public UKzGraph
 	GENERATED_BODY()
 
 public:
-	/** The inputs that start and chain attacks, such as Input.Attack, or Input.Attack.Light and Input.Attack.Heavy. Each has its own Entry, and gives each attack an output per result. */
+	/** The inputs that start and chain attacks, such as Input.Attack, or Input.Attack.Light and Input.Attack.Heavy. Each has its own Entry, and gives each attack an output. */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (Categories = "Input"))
 	TArray<FGameplayTag> Inputs;
 

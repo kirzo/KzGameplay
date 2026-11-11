@@ -20,20 +20,7 @@ struct KZGAMEPLAY_API FKzComboNode : public FKzGraphNode
 	GENERATED_BODY()
 };
 
-/** A way to start a combo only in a state, such as attacking while blocking. */
-USTRUCT()
-struct KZGAMEPLAY_API FKzComboOpener
-{
-	GENERATED_BODY()
-
-	/** What the attacker must have, such as State.Blocking. */
-	UPROPERTY(EditAnywhere, Category = "Opener")
-	FGameplayTagContainer RequiredTags;
-
-	FName GetOutputName(FGameplayTag Input) const;
-};
-
-/** Where a combo starts for one of its inputs: one output, followed when that input starts it, and one per opener. The combo keeps one per input. */
+/** Where a combo starts for one of its inputs, with a single output. The combo keeps one per input. */
 USTRUCT(meta = (DisplayName = "Entry", Hidden))
 struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 {
@@ -43,23 +30,105 @@ struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 	UPROPERTY(VisibleAnywhere, Category = "Entry", meta = (Categories = "Input"))
 	FGameplayTag Input;
 
-	/** Outputs taken instead of the input's own while the attacker has their tags; the first that matches wins. */
-	UPROPERTY(EditAnywhere, Category = "Entry", meta = (TitleProperty = "RequiredTags"))
-	TArray<FKzComboOpener> Openers;
-
 	virtual FName GetEntryName() const override { return Input.GetTagName(); }
-
-	/** The output the combo starts through, given the attacker's tags. */
-	FName GetOutputName(const FGameplayTagContainer& AttackerTags) const;
 
 #if WITH_EDITOR
 	virtual void GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override {}
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual FLinearColor GetColor() const override;
 	virtual FSlateIcon GetIcon() const override;
-	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 	virtual bool CanUserDelete() const override { return false; }
 	virtual bool CanDuplicate() const override { return false; }
+#endif
+};
+
+/** What a branch chooses by, when a press chains or a combo starts. */
+struct FKzComboBranchContext
+{
+	/** The name of the Combo Window the press came in, if it had one. */
+	FGameplayTag Window;
+
+	/** Whether the attack playing hit something. */
+	bool bHit = false;
+
+	FGameplayTagContainer AttackerTags;
+};
+
+/** Base of the nodes that play nothing and lead on through one of their outputs. */
+USTRUCT(meta = (Hidden))
+struct KZGAMEPLAY_API FKzComboNode_Branch : public FKzComboNode
+{
+	GENERATED_BODY()
+
+	static const FName DefaultName;
+
+	/** The output to take, and the one to take instead when that leads nowhere, or none. */
+	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const { OutFallback = NAME_None; return NAME_None; }
+
+#if WITH_EDITOR
+	virtual FLinearColor GetColor() const override;
+#endif
+};
+
+/** Leads a press by the Combo Window it came in: one output per window named here, and Default for the rest, or for a named one left unlinked. */
+USTRUCT(meta = (DisplayName = "Switch on Window"))
+struct KZGAMEPLAY_API FKzComboNode_SwitchOnWindow : public FKzComboNode_Branch
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Switch", meta = (Categories = "Combo.Window"))
+	TArray<FGameplayTag> Windows;
+
+	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
+
+#if WITH_EDITOR
+	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
+	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
+#endif
+};
+
+/** Leads one way when the attack playing hit something and another when it missed. */
+USTRUCT(meta = (DisplayName = "Branch on Hit", Shortcut = "B"))
+struct KZGAMEPLAY_API FKzComboNode_BranchOnHit : public FKzComboNode_Branch
+{
+	GENERATED_BODY()
+
+	static const FName HitName;
+	static const FName MissName;
+
+	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
+
+#if WITH_EDITOR
+	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
+#endif
+};
+
+/** A way for an attacker that has some tags, such as State.Blocking to attack from a block. */
+USTRUCT()
+struct KZGAMEPLAY_API FKzComboTagCase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Case")
+	FGameplayTagContainer RequiredTags;
+
+	FName GetOutputName() const { return FName(RequiredTags.ToStringSimple()); }
+};
+
+/** Leads by what the attacker has: the first case whose tags it has, and Default for the rest, or for a case left unlinked. */
+USTRUCT(meta = (DisplayName = "Switch on Tags"))
+struct KZGAMEPLAY_API FKzComboNode_SwitchOnTags : public FKzComboNode_Branch
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Switch", meta = (TitleProperty = "RequiredTags"))
+	TArray<FKzComboTagCase> Cases;
+
+	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
+
+#if WITH_EDITOR
+	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
+	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 #endif
 };
 
@@ -109,7 +178,7 @@ struct KZGAMEPLAY_API FKzComboHitbox
 	static int32 GetSweepSteps(const FTransform& From, const FTransform& To);
 };
 
-/** One attack: how it is animated, its damage and the hitboxes its Hit Windows sweep. Its outputs say where each input leads once it hit or missed. */
+/** One attack: how it is animated, its damage and the hitboxes its Hit Windows sweep. It has an output per input, named after it, for where a press in a Combo Window leads. */
 USTRUCT(meta = (DisplayName = "Attack", Shortcut = "A"))
 struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 {
@@ -128,10 +197,6 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	TArray<FKzComboHitbox> Hitboxes;
-
-	/** Whether each input leads one way when the attack hit and another when it missed. Off, each input has a single output. */
-	UPROPERTY(EditAnywhere, Category = "Attack")
-	bool bBranchOnHit = true;
 
 	/** Turns to the target, or to the direction pressed without one, until the first Hit Window opens. */
 	UPROPERTY(EditAnywhere, Category = "Attack")
@@ -156,9 +221,6 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	/** Executed on the target when it hits: particles, sound, camera shake, slow motion. */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
 	FGameplayTag ImpactCue;
-
-	/** The output an input leads through once the attack hit or missed. */
-	FName GetOutputName(FGameplayTag Input, bool bHit) const;
 
 #if WITH_EDITOR
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;

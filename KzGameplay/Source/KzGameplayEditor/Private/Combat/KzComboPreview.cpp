@@ -73,6 +73,55 @@ namespace
 		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_ComboWindow>();
 	}
 
+	/** The Combo Window to press in: the one of that name, or for none the first unnamed one, else the first of all. */
+	const FKzAnimationNotifySpan* FindComboWindow(const TArray<FKzAnimationNotifySpan>& Spans, FGameplayTag Name)
+	{
+		auto NameOf = [](const FKzAnimationNotifySpan& Span)
+		{
+			const UKzAnimNotifyState_ComboWindow* Window = Cast<UKzAnimNotifyState_ComboWindow>(Span.Notify);
+			return Window ? Window->Window : FGameplayTag();
+		};
+
+		if (Name.IsValid())
+		{
+			return Spans.FindByPredicate([&NameOf, Name](const FKzAnimationNotifySpan& Span) { return IsComboWindow(Span) && NameOf(Span) == Name; });
+		}
+		const FKzAnimationNotifySpan* Unnamed = Spans.FindByPredicate([&NameOf](const FKzAnimationNotifySpan& Span) { return IsComboWindow(Span) && !NameOf(Span).IsValid(); });
+		return Unnamed ? Unnamed : Spans.FindByPredicate(&IsComboWindow);
+	}
+
+	/** The first attack an output leads to, through branches by their outputs in order. */
+	UKzEdGraphNode* FindAttackFrom(UEdGraphPin& Output, EKzGraphFlow Flow, int32 Depth = 0)
+	{
+		if (Depth > MaxDepth)
+		{
+			return nullptr;
+		}
+
+		TArray<UEdGraphPin*> Targets;
+		KzGraphEditor::GatherTargets(Output, Flow, Targets);
+		for (UEdGraphPin* Input : Targets)
+		{
+			UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
+			if (Next && Next->Node.GetPtr<FKzComboNode_Attack>())
+			{
+				return Next;
+			}
+			if (Next && Next->Node.GetPtr<FKzComboNode_Branch>())
+			{
+				for (UEdGraphPin* BranchOutput : Next->Pins)
+				{
+					UKzEdGraphNode* Found = BranchOutput->Direction == EGPD_Output ? FindAttackFrom(*BranchOutput, Flow, Depth + 1) : nullptr;
+					if (Found)
+					{
+						return Found;
+					}
+				}
+			}
+		}
+		return nullptr;
+	}
+
 	/** The Entry of each of the combo's inputs, in their order. */
 	TArray<UKzEdGraphNode*> FindEntries(const UEdGraph& Graph, const UKzComboGraph& Combo)
 	{
@@ -678,6 +727,7 @@ void FKzComboPreview::BuildSteps()
 	}
 
 	TArray<TWeakObjectPtr<UKzEdGraphNode>> Nodes;
+	TArray<FGameplayTag> Windows;
 	if (bComboMode)
 	{
 		FindPaths();
@@ -685,6 +735,7 @@ void FKzComboPreview::BuildSteps()
 		if (Paths.IsValidIndex(PathIndex))
 		{
 			Nodes = Paths[PathIndex].Nodes;
+			Windows = Paths[PathIndex].Windows;
 		}
 	}
 	if (Nodes.IsEmpty())
@@ -711,7 +762,7 @@ void FKzComboPreview::BuildSteps()
 		Step.End = Start + Step.Length;
 		if (Index < Nodes.Num() - 1)
 		{
-			const FKzAnimationNotifySpan* Window = Step.Notifies.FindByPredicate(&IsComboWindow);
+			const FKzAnimationNotifySpan* Window = FindComboWindow(Step.Notifies, Windows.IsValidIndex(Index + 1) ? Windows[Index + 1] : FGameplayTag());
 			Step.bNoComboWindow = !Window;
 			if (Window)
 			{
@@ -737,40 +788,76 @@ void FKzComboPreview::FindPaths()
 	}
 
 	TArray<UKzEdGraphNode*> Walked;
+	TArray<FGameplayTag> Windows;
 	TArray<FText> Outputs;
+	TArray<UKzEdGraphNode*> Branches;
 	TFunction<void(UKzEdGraphNode&)> Walk;
-	Walk = [&](UKzEdGraphNode& From)
+	TFunction<void(UEdGraphPin&, FGameplayTag)> Follow;
+	Follow = [&](UEdGraphPin& Output, FGameplayTag Window)
 	{
-		for (UEdGraphPin* Output : From.Pins)
+		TArray<UEdGraphPin*> Targets;
+		KzGraphEditor::GatherTargets(Output, Asset->GetFlow(), Targets);
+		for (UEdGraphPin* Input : Targets)
 		{
-			if (Output->Direction != EGPD_Output || Paths.Num() >= MaxPaths)
+			UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
+			if (!Next || Paths.Num() >= MaxPaths)
 			{
 				continue;
 			}
 
-			TArray<UEdGraphPin*> Targets;
-			KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
-			for (UEdGraphPin* Input : Targets)
+			// A branch is gone through by each of its outputs, and a Switch on Window's names the window the press comes in.
+			if (Next->Node.GetPtr<FKzComboNode_Branch>())
 			{
-				UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
-				if (!Next || Walked.Contains(Next) || !Next->Node.GetPtr<FKzComboNode_Attack>())
+				if (Branches.Contains(Next))
 				{
 					continue;
 				}
 
-				Walked.Add(Next);
-				Outputs.Add(Output->GetDisplayName());
-				if (Next == Target)
+				Branches.Add(Next);
+				const bool bByWindow = Next->Node.GetPtr<FKzComboNode_SwitchOnWindow>() != nullptr;
+				for (UEdGraphPin* BranchOutput : Next->Pins)
 				{
-					FPath& Path = Paths.AddDefaulted_GetRef();
-					Path.Nodes.Append(Walked);
-					Path.Label = FText::Join(FText::FromString(TEXT(" > ")), Outputs);
+					if (BranchOutput->Direction == EGPD_Output)
+					{
+						Outputs.Add(BranchOutput->PinFriendlyName);
+						Follow(*BranchOutput, bByWindow ? FGameplayTag::RequestGameplayTag(BranchOutput->PinName, false) : Window);
+						Outputs.Pop();
+					}
 				}
-				else if (Walked.Num() < MaxDepth)
-				{
-					Walk(*Next);
-				}
-				Walked.Pop();
+				Branches.Pop();
+				continue;
+			}
+
+			if (Walked.Contains(Next) || !Next->Node.GetPtr<FKzComboNode_Attack>())
+			{
+				continue;
+			}
+
+			Walked.Add(Next);
+			Windows.Add(Window);
+			if (Next == Target)
+			{
+				FPath& Path = Paths.AddDefaulted_GetRef();
+				Path.Nodes.Append(Walked);
+				Path.Windows = Windows;
+				Path.Label = FText::Join(FText::FromString(TEXT(" > ")), Outputs.FilterByPredicate([](const FText& Part) { return !Part.IsEmpty(); }));
+			}
+			else if (Walked.Num() < MaxDepth)
+			{
+				Walk(*Next);
+			}
+			Walked.Pop();
+			Windows.Pop();
+		}
+	};
+	Walk = [&](UKzEdGraphNode& From)
+	{
+		for (UEdGraphPin* Output : From.Pins)
+		{
+			if (Output->Direction == EGPD_Output && Paths.Num() < MaxPaths)
+			{
+				Outputs.Add(Output->PinFriendlyName);
+				Follow(*Output, FGameplayTag());
 				Outputs.Pop();
 			}
 		}
@@ -795,20 +882,10 @@ UKzEdGraphNode* FKzComboPreview::FindFirstAttack() const
 	{
 		for (UEdGraphPin* Output : Entry->Pins)
 		{
-			if (Output->Direction != EGPD_Output)
+			UKzEdGraphNode* Found = Output->Direction == EGPD_Output ? FindAttackFrom(*Output, Asset->GetFlow()) : nullptr;
+			if (Found)
 			{
-				continue;
-			}
-
-			TArray<UEdGraphPin*> Targets;
-			KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
-			for (UEdGraphPin* Input : Targets)
-			{
-				UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
-				if (Next && Next->Node.GetPtr<FKzComboNode_Attack>())
-				{
-					return Next;
-				}
+				return Found;
 			}
 		}
 	}

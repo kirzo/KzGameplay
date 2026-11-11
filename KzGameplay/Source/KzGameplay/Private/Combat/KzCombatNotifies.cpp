@@ -32,6 +32,16 @@ UKzAnimNotifyState_ComboWindow::UKzAnimNotifyState_ComboWindow()
 #endif
 }
 
+FString UKzAnimNotifyState_ComboWindow::GetNotifyName_Implementation() const
+{
+	FString Name;
+	if (!Window.IsValid() || !Window.ToString().Split(TEXT("."), nullptr, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	{
+		return Super::GetNotifyName_Implementation();
+	}
+	return FString::Printf(TEXT("Combo Window: %s"), *Name);
+}
+
 UKzAnimNotifyState_CancelWindow::UKzAnimNotifyState_CancelWindow()
 {
 #if WITH_EDITORONLY_DATA

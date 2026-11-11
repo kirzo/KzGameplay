@@ -32,10 +32,42 @@ namespace
 	TAutoConsoleVariable<bool> CVarDrawTargeting(TEXT("kz.Combo.DrawTargeting"), false, TEXT("Draws the shape each attack looks for targets in: yellow, red when it found one."));
 
 	constexpr float HitStopDilation = 0.01f;
+	constexpr int32 MaxBranchSteps = 16;
 
 	FVector Flatten(const FVector& Vector)
 	{
 		return FVector(Vector.X, Vector.Y, 0.0);
+	}
+
+	/** The node an output leads to past any branches on the way, or INDEX_NONE. A loop of branches, which validation reports, leads nowhere. */
+	int32 FollowOutput(const FKzGraphData& Data, int32 Node, FName Output, const FKzComboBranchContext& Branch)
+	{
+		for (int32 Step = 0; Step < MaxBranchSteps; ++Step)
+		{
+			const int32 Index = Data.FindOutput(Node, Output);
+			const TConstArrayView<FKzGraphLink> Links = Index != INDEX_NONE ? Data.GetLinks(Node, Index) : TConstArrayView<FKzGraphLink>();
+			if (Links.IsEmpty())
+			{
+				return INDEX_NONE;
+			}
+
+			Node = Links[0].Node;
+			const FKzComboNode_Branch* BranchNode = Data.GetNode<FKzComboNode_Branch>(Node);
+			if (!BranchNode)
+			{
+				return Node;
+			}
+
+			// An output left unlinked gives way to the branch's fallback, such as Default.
+			FName Fallback;
+			Output = BranchNode->PickOutput(Branch, Fallback);
+			const int32 Picked = Data.FindOutput(Node, Output);
+			if (!Fallback.IsNone() && (Picked == INDEX_NONE || Data.GetLinks(Node, Picked).IsEmpty()))
+			{
+				Output = Fallback;
+			}
+		}
+		return INDEX_NONE;
 	}
 }
 
@@ -48,23 +80,7 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 
 	const FKzGraphData& Data = Combo->GetData();
 	const int32 Entry = Data.FindEntry(Input.GetTagName());
-	const FKzComboNode_Entry* EntryNode = Entry != INDEX_NONE ? Data.GetNode<FKzComboNode_Entry>(Entry) : nullptr;
-	if (!EntryNode)
-	{
-		return nullptr;
-	}
-
-	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User);
-	const int32 Opener = Data.FindOutput(Entry, EntryNode->GetOutputName(ASC ? ASC->GetOwnedGameplayTags() : FGameplayTagContainer()));
-	const int32 Plain = Data.FindOutput(Entry, Input.GetTagName());
-
-	// An opener left unlinked starts as the input does.
-	TConstArrayView<FKzGraphLink> Links = Opener != INDEX_NONE ? Data.GetLinks(Entry, Opener) : TConstArrayView<FKzGraphLink>();
-	if (Links.IsEmpty() && Plain != INDEX_NONE)
-	{
-		Links = Data.GetLinks(Entry, Plain);
-	}
-	if (Links.IsEmpty())
+	if (Entry == INDEX_NONE)
 	{
 		return nullptr;
 	}
@@ -73,8 +89,15 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	Instance->Combo = Combo;
 	Instance->Context = Context;
 	Instance->Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Context.User, KzTags::Sensor::Targeting);
+
+	const int32 First = FollowOutput(Data, Entry, Input.GetTagName(), Instance->MakeBranchContext());
+	if (First == INDEX_NONE)
+	{
+		return nullptr;
+	}
+
 	Instance->bRunning = true;
-	return Instance->PlayAttack(Links[0].Node, Direction) ? Instance : nullptr;
+	return Instance->PlayAttack(First, Direction) ? Instance : nullptr;
 }
 
 void UKzComboInstance::Press(FGameplayTag Input, FVector Direction)
@@ -84,7 +107,7 @@ void UKzComboInstance::Press(FGameplayTag Input, FVector Direction)
 		return;
 	}
 
-	if (bComboWindow)
+	if (!ComboWindows.IsEmpty())
 	{
 		Chain(Input, Direction);
 		return;
@@ -146,7 +169,7 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 	Play = NewPlay;
 	Node = NodeIndex;
 	bHit = false;
-	SetComboWindow(false);
+	CloseComboWindows();
 	HitWindows = 0;
 	bOpenedHitWindow = false;
 	Reaction = FGameplayTag();
@@ -167,11 +190,21 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 
 bool UKzComboInstance::Chain(FGameplayTag Input, const FVector& Direction)
 {
-	const FKzComboNode_Attack* Attack = GetAttack();
-	const FKzGraphData& Data = Combo->GetData();
-	const int32 Output = Attack ? Data.FindOutput(Node, Attack->GetOutputName(Input, bHit)) : INDEX_NONE;
-	const TConstArrayView<FKzGraphLink> Links = Output != INDEX_NONE ? Data.GetLinks(Node, Output) : TConstArrayView<FKzGraphLink>();
-	return !Links.IsEmpty() && PlayAttack(Links[0].Node, Direction);
+	const int32 Next = GetAttack() ? FollowOutput(Combo->GetData(), Node, Input.GetTagName(), MakeBranchContext()) : INDEX_NONE;
+	return Next != INDEX_NONE && PlayAttack(Next, Direction);
+}
+
+FKzComboBranchContext UKzComboInstance::MakeBranchContext() const
+{
+	FKzComboBranchContext Branch;
+	const UKzAnimNotifyState_ComboWindow* Window = ComboWindows.IsEmpty() ? nullptr : ComboWindows.Last().Get();
+	Branch.Window = Window ? Window->Window : FGameplayTag();
+	Branch.bHit = bHit;
+	if (const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
+	{
+		Branch.AttackerTags = ASC->GetOwnedGameplayTags();
+	}
+	return Branch;
 }
 
 void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration)
@@ -200,9 +233,9 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 		return;
 	}
 
-	if (Notify->IsA<UKzAnimNotifyState_ComboWindow>())
+	if (const UKzAnimNotifyState_ComboWindow* ComboWindow = Cast<UKzAnimNotifyState_ComboWindow>(Notify))
 	{
-		SetComboWindow(bBegin);
+		SetComboWindow(*ComboWindow, bBegin);
 		if (bBegin && KeptInput.IsValid() && Clock - KeptAt <= Combo->InputBuffer)
 		{
 			const FGameplayTag Input = KeptInput;
@@ -578,20 +611,31 @@ void UKzComboInstance::End(bool bInterrupted)
 	Node = INDEX_NONE;
 	HitWindows = 0;
 	CancelWindows = 0;
-	SetComboWindow(false);
+	CloseComboWindows();
 	SetWarp(nullptr, 0.0f);
 	OnEnded.Broadcast(bInterrupted);
 }
 
-void UKzComboInstance::SetComboWindow(bool bOpen)
+void UKzComboInstance::SetComboWindow(const UKzAnimNotifyState_ComboWindow& Window, bool bOpen)
 {
-	if (bComboWindow == bOpen)
+	const bool bWasOpen = !ComboWindows.IsEmpty();
+	if (bOpen)
+	{
+		ComboWindows.Add(&Window);
+	}
+	else if (ComboWindows.Remove(&Window) == 0)
+	{
+		// Already closed by a new attack, as the previous one blends out.
+		return;
+	}
+
+	UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User);
+	if (!ASC)
 	{
 		return;
 	}
 
-	bComboWindow = bOpen;
-	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
+	if (bWasOpen != !ComboWindows.IsEmpty())
 	{
 		if (bOpen)
 		{
@@ -602,6 +646,39 @@ void UKzComboInstance::SetComboWindow(bool bOpen)
 			ASC->RemoveLooseGameplayTag(KzTags::Combat::State_ComboWindow);
 		}
 	}
+
+	if (Window.Window.IsValid())
+	{
+		if (bOpen)
+		{
+			ASC->AddLooseGameplayTag(Window.Window);
+		}
+		else
+		{
+			ASC->RemoveLooseGameplayTag(Window.Window);
+		}
+	}
+}
+
+void UKzComboInstance::CloseComboWindows()
+{
+	if (ComboWindows.IsEmpty())
+	{
+		return;
+	}
+
+	if (UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
+	{
+		for (const TWeakObjectPtr<const UKzAnimNotifyState_ComboWindow>& Window : ComboWindows)
+		{
+			if (Window.IsValid() && Window->Window.IsValid())
+			{
+				ASC->RemoveLooseGameplayTag(Window->Window);
+			}
+		}
+		ASC->RemoveLooseGameplayTag(KzTags::Combat::State_ComboWindow);
+	}
+	ComboWindows.Reset();
 }
 
 const FKzComboNode_Attack* UKzComboInstance::GetAttack() const

@@ -87,6 +87,59 @@ void UKzComboGraph::ValidateGraph(const FKzGraphData& InData, TArray<FKzValidati
 			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("NoEntry", "{0} has no Entry."), FText::FromName(Input.GetTagName())), NAME_None));
 		}
 	}
+
+	auto AddNodeIssue = [&InData, &OutIssues](int32 Node, EKzValidationSeverity Severity, const FText& Message)
+	{
+		FKzValidationIssue& Issue = OutIssues.Add_GetRef(FKzValidationIssue(Severity, Message, NAME_None));
+		Issue.ContextId = InData.GetNodeGuid(Node);
+	};
+
+	// The branches a node leads to straight away, and the ones those lead to in turn, with no attack between.
+	auto GatherBranchesAfter = [&InData](int32 From)
+	{
+		TArray<int32> Found;
+		TArray<int32> Pending = { From };
+		while (!Pending.IsEmpty())
+		{
+			const int32 Node = Pending.Pop();
+			for (int32 Output = 0; Output < InData.NumOutputs(Node); ++Output)
+			{
+				for (const FKzGraphLink& Link : InData.GetLinks(Node, Output))
+				{
+					if (InData.GetNode<FKzComboNode_Branch>(Link.Node) && !Found.Contains(Link.Node))
+					{
+						Found.Add(Link.Node);
+						Pending.Add(Link.Node);
+					}
+				}
+			}
+		}
+		return Found;
+	};
+
+	for (int32 Node = 0; Node < InData.NumNodes(); ++Node)
+	{
+		if (InData.GetNode<FKzComboNode_Branch>(Node) && GatherBranchesAfter(Node).Contains(Node))
+		{
+			AddNodeIssue(Node, EKzValidationSeverity::Error, LOCTEXT("BranchLoop", "Its branches lead back to it with no attack between, so a press that comes here leads nowhere."));
+		}
+	}
+
+	// Before the first attack there is no hit yet and no Combo Window.
+	for (const FKzGraphEntry& Entry : InData.GetEntries())
+	{
+		for (const int32 Node : GatherBranchesAfter(Entry.Node))
+		{
+			if (InData.GetNode<FKzComboNode_BranchOnHit>(Node))
+			{
+				AddNodeIssue(Node, EKzValidationSeverity::Warning, LOCTEXT("HitFromEntry", "Comes before any attack, so it always takes Miss."));
+			}
+			else if (InData.GetNode<FKzComboNode_SwitchOnWindow>(Node))
+			{
+				AddNodeIssue(Node, EKzValidationSeverity::Warning, LOCTEXT("WindowFromEntry", "Comes before any attack, so it always takes Default."));
+			}
+		}
+	}
 }
 #endif
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationSource.h"
 #include "Combat/KzComboStage.h"
+#include "GameplayTagContainer.h"
 #include "KzGraphPreview.h"
 #include "ScopedTransaction.h"
 #include "UObject/GCObject.h"
@@ -19,8 +20,8 @@ struct FKzComboNode_Attack;
 
 /**
  * The combo editor's viewport: the selected attack's animation, or the one the combo starts with until one is picked, on the combo's preview character, holding the preview item, with the attack's hitboxes
- * and the trail they sweep through its Hit Windows. In combo mode it plays the attacks from the Entry up to the selected one instead, chaining each at
- * the combo's preview timing. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses, steps and scrubs,
+ * and the trail they sweep through its Hit Windows. In combo mode it plays the attacks from an Entry up to the selected one instead, chaining each at
+ * the combo's preview timing, in the Combo Window the way takes. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses, steps and scrubs,
  * with the windows as bands.
  */
 class FKzComboPreview : public FKzGraphPreview, public FGCObject
@@ -73,10 +74,14 @@ public:
 	const TArray<FStep>& GetSteps() const { return Steps; }
 
 private:
-	/** A way from the Entry to the selected attack, and the outputs it takes. */
+	/** A way from an Entry to the selected attack, and the outputs it takes. */
 	struct FPath
 	{
 		TArray<TWeakObjectPtr<UKzEdGraphNode>> Nodes;
+
+		/** Per attack, the Combo Window of the one before that the press chaining to it came in, by a Switch on Window's output, or none. */
+		TArray<FGameplayTag> Windows;
+
 		FText Label;
 	};
 
@@ -91,10 +96,10 @@ private:
 	/** Lays out what plays: the selected attack, or in combo mode the attacks of the chosen way to it. Keeps the playhead where it was. */
 	void BuildSteps();
 
-	/** Every way from the Entry to the selected attack that passes no attack twice, shortest first. */
+	/** Every way from an Entry to the selected attack, through each output of the branches on it, that passes no attack twice, shortest first. */
 	void FindPaths();
 
-	/** The attack the Entry's first linked output starts the combo with. */
+	/** The first attack the first Entry leads to, through branches. */
 	UKzEdGraphNode* FindFirstAttack() const;
 
 	/** Poses the character at Time, putting on the animation of the attack playing then. */
