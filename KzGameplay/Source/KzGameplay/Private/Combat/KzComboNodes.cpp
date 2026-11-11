@@ -8,8 +8,6 @@
 
 #define LOCTEXT_NAMESPACE "KzComboNodes"
 
-const FName FKzComboNode_Entry::EntryName(TEXT("Entry"));
-
 namespace
 {
 	// What holds a hitbox turns this much at most between two steps of a sweep.
@@ -52,15 +50,15 @@ int32 FKzComboHitbox::GetSweepSteps(const FTransform& From, const FTransform& To
 	return FMath::Clamp(FMath::CeilToInt(From.GetRotation().AngularDistance(To.GetRotation()) / MaxStepAngle), 1, MaxSteps);
 }
 
-FName FKzComboOpener::GetOutputName() const
+FName FKzComboOpener::GetOutputName(FGameplayTag Input) const
 {
 	return FName(FString::Printf(TEXT("%s(%s)"), *Input.ToString(), *RequiredTags.ToStringSimple()));
 }
 
-FName FKzComboNode_Entry::GetOutputName(FGameplayTag Input, const FGameplayTagContainer& AttackerTags) const
+FName FKzComboNode_Entry::GetOutputName(const FGameplayTagContainer& AttackerTags) const
 {
-	const FKzComboOpener* Opener = Openers.FindByPredicate([&](const FKzComboOpener& Each) { return Each.Input == Input && AttackerTags.HasAll(Each.RequiredTags); });
-	return Opener ? Opener->GetOutputName() : Input.GetTagName();
+	const FKzComboOpener* Opener = Openers.FindByPredicate([&AttackerTags](const FKzComboOpener& Each) { return AttackerTags.HasAll(Each.RequiredTags); });
+	return Opener ? Opener->GetOutputName(Input) : Input.GetTagName();
 }
 
 #if WITH_EDITOR
@@ -87,34 +85,40 @@ namespace
 
 void FKzComboNode_Entry::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
 {
-	const UKzComboGraph* Combo = Cast<UKzComboGraph>(&Graph);
-	if (!Combo)
+	if (!Input.IsValid())
 	{
 		return;
 	}
 
-	for (const FGameplayTag Input : Combo->Inputs)
-	{
-		if (Input.IsValid())
-		{
-			OutPins.Add({ Input.GetTagName(), GetInputLabel(Input), NAME_None, LOCTEXT("EntryOutputTooltip", "The attack this input starts the combo with.") });
-		}
-	}
+	OutPins.Add({ Input.GetTagName(), GetInputLabel(Input), NAME_None, LOCTEXT("EntryOutputTooltip", "The attack this input starts the combo with.") });
 
 	for (const FKzComboOpener& Opener : Openers)
 	{
-		if (!Opener.Input.IsValid())
-		{
-			continue;
-		}
-
 		TArray<FString> States;
 		for (const FGameplayTag Tag : Opener.RequiredTags)
 		{
 			States.Add(GetLeaf(Tag));
 		}
-		const FText Label = FText::Format(LOCTEXT("OpenerLabel", "{0} ({1})"), GetInputLabel(Opener.Input), FText::FromString(FString::Join(States, TEXT(", "))));
-		OutPins.Add({ Opener.GetOutputName(), Label, NAME_None, FText::Format(LOCTEXT("OpenerTooltip", "The attack this input starts the combo with while the attacker has {0}."), FText::FromString(Opener.RequiredTags.ToStringSimple())) });
+		const FText Label = FText::Format(LOCTEXT("OpenerLabel", "{0} ({1})"), GetInputLabel(Input), FText::FromString(FString::Join(States, TEXT(", "))));
+		OutPins.Add({ Opener.GetOutputName(Input), Label, NAME_None, FText::Format(LOCTEXT("OpenerTooltip", "The attack this input starts the combo with while the attacker has {0}."), FText::FromString(Opener.RequiredTags.ToStringSimple())) });
+	}
+}
+
+void FKzComboNode_Entry::Validate(TArray<FKzValidationIssue>& OutIssues) const
+{
+	TSet<FName> Listed;
+	for (const FKzComboOpener& Opener : Openers)
+	{
+		bool bListed = false;
+		Listed.Add(Opener.GetOutputName(Input), &bListed);
+		if (Opener.RequiredTags.IsEmpty())
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Warning, LOCTEXT("OpenerNoTags", "An opener requires no tags, so it always wins over the input's own output."), NAME_None));
+		}
+		else if (bListed)
+		{
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("DuplicateOpener", "Two openers require the same tags."), NAME_None));
+		}
 	}
 }
 

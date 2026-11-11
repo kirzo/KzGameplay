@@ -37,9 +37,29 @@ const UScriptStruct* UKzComboGraph::GetNodeStruct() const
 	return FKzComboNode::StaticStruct();
 }
 
-void UKzComboGraph::GetDefaultNodes(TArray<const UScriptStruct*>& OutNodes) const
+bool UKzComboGraph::GetRequiredEntries(TArray<FName>& OutEntries) const
 {
-	OutNodes.Add(FKzComboNode_Entry::StaticStruct());
+	for (const FGameplayTag Input : Inputs)
+	{
+		if (Input.IsValid())
+		{
+			OutEntries.AddUnique(Input.GetTagName());
+		}
+	}
+	return true;
+}
+
+const UScriptStruct* UKzComboGraph::GetRequiredEntryStruct() const
+{
+	return FKzComboNode_Entry::StaticStruct();
+}
+
+void UKzComboGraph::SetRequiredEntry(FStructView Node, FName Entry) const
+{
+	if (FKzComboNode_Entry* EntryNode = Node.GetPtr<FKzComboNode_Entry>())
+	{
+		EntryNode->Input = FGameplayTag::RequestGameplayTag(Entry, false);
+	}
 }
 
 void UKzComboGraph::ValidateGraph(const FKzGraphData& InData, TArray<FKzValidationIssue>& OutIssues) const
@@ -62,37 +82,9 @@ void UKzComboGraph::ValidateGraph(const FKzGraphData& InData, TArray<FKzValidati
 		{
 			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateInput", "{0} is listed twice."), FText::FromName(Input.GetTagName())), NAME_None));
 		}
-	}
-
-	const int32 Entry = InData.FindEntry(FKzComboNode_Entry::EntryName);
-	if (Entry == INDEX_NONE)
-	{
-		OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, LOCTEXT("NoEntry", "The combo has no Entry."), NAME_None));
-		return;
-	}
-
-	const FKzComboNode_Entry* EntryNode = InData.GetNode<FKzComboNode_Entry>(Entry);
-	if (!EntryNode)
-	{
-		return;
-	}
-
-	TSet<FName> Openers;
-	for (const FKzComboOpener& Opener : EntryNode->Openers)
-	{
-		bool bListed = false;
-		Openers.Add(Opener.GetOutputName(), &bListed);
-		if (!Inputs.Contains(Opener.Input))
+		else if (InData.FindEntry(Input.GetTagName()) == INDEX_NONE)
 		{
-			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("OpenerInput", "An opener uses {0}, which is not one of the combo's inputs."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
-		}
-		else if (Opener.RequiredTags.IsEmpty())
-		{
-			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Warning, FText::Format(LOCTEXT("OpenerNoTags", "An opener of {0} requires no tags, so it always wins over the input's own output."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
-		}
-		else if (bListed)
-		{
-			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("DuplicateOpener", "Two openers of {0} require the same tags."), FText::FromName(Opener.Input.GetTagName())), NAME_None));
+			OutIssues.Add(FKzValidationIssue(EKzValidationSeverity::Error, FText::Format(LOCTEXT("NoEntry", "{0} has no Entry."), FText::FromName(Input.GetTagName())), NAME_None));
 		}
 	}
 }

@@ -26,38 +26,38 @@ struct KZGAMEPLAY_API FKzComboOpener
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = "Opener", meta = (Categories = "Input"))
-	FGameplayTag Input;
-
 	/** What the attacker must have, such as State.Blocking. */
 	UPROPERTY(EditAnywhere, Category = "Opener")
 	FGameplayTagContainer RequiredTags;
 
-	FName GetOutputName() const;
+	FName GetOutputName(FGameplayTag Input) const;
 };
 
-/** Where a combo starts: one output per input, followed by the input that started it, and one per opener. */
+/** Where a combo starts for one of its inputs: one output, followed when that input starts it, and one per opener. The combo keeps one per input. */
 USTRUCT(meta = (DisplayName = "Entry", Hidden))
 struct KZGAMEPLAY_API FKzComboNode_Entry : public FKzComboNode
 {
 	GENERATED_BODY()
 
-	static const FName EntryName;
+	/** The input that starts the combo here, set by the combo from its Inputs. */
+	UPROPERTY(VisibleAnywhere, Category = "Entry", meta = (Categories = "Input"))
+	FGameplayTag Input;
 
-	/** Outputs taken instead of an input's own while the attacker has their tags; the first that matches wins. */
-	UPROPERTY(EditAnywhere, Category = "Entry", meta = (TitleProperty = "Input"))
+	/** Outputs taken instead of the input's own while the attacker has their tags; the first that matches wins. */
+	UPROPERTY(EditAnywhere, Category = "Entry", meta = (TitleProperty = "RequiredTags"))
 	TArray<FKzComboOpener> Openers;
 
-	virtual FName GetEntryName() const override { return EntryName; }
+	virtual FName GetEntryName() const override { return Input.GetTagName(); }
 
-	/** The output an input starts through, given the attacker's tags. */
-	FName GetOutputName(FGameplayTag Input, const FGameplayTagContainer& AttackerTags) const;
+	/** The output the combo starts through, given the attacker's tags. */
+	FName GetOutputName(const FGameplayTagContainer& AttackerTags) const;
 
 #if WITH_EDITOR
 	virtual void GetInputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override {}
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual FLinearColor GetColor() const override;
 	virtual FSlateIcon GetIcon() const override;
+	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 	virtual bool CanUserDelete() const override { return false; }
 	virtual bool CanDuplicate() const override { return false; }
 #endif

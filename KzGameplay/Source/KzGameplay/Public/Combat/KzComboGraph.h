@@ -20,7 +20,7 @@ class KZGAMEPLAY_API UKzComboGraph : public UKzGraph
 	GENERATED_BODY()
 
 public:
-	/** The inputs that start and chain attacks, such as Input.Attack, or Input.Attack.Light and Input.Attack.Heavy. Each gives the Entry an output, and each attack one per result. */
+	/** The inputs that start and chain attacks, such as Input.Attack, or Input.Attack.Light and Input.Attack.Heavy. Each has its own Entry, and gives each attack an output per result. */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (Categories = "Input"))
 	TArray<FGameplayTag> Inputs;
 
@@ -60,7 +60,9 @@ public:
 #if WITH_EDITOR
 	virtual const UScriptStruct* GetNodeStruct() const override;
 	virtual int32 GetMaxLinksPerOutput() const override { return 1; }
-	virtual void GetDefaultNodes(TArray<const UScriptStruct*>& OutNodes) const override;
+	virtual bool GetRequiredEntries(TArray<FName>& OutEntries) const override;
+	virtual const UScriptStruct* GetRequiredEntryStruct() const override;
+	virtual void SetRequiredEntry(FStructView Node, FName Entry) const override;
 	virtual void ValidateGraph(const FKzGraphData& InData, TArray<FKzValidationIssue>& OutIssues) const override;
 
 	/** An animation asset dropped on the graph, such as a montage, makes an attack that plays it. */

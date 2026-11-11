@@ -73,17 +73,24 @@ namespace
 		return Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_ComboWindow>();
 	}
 
-	UKzEdGraphNode* FindEntry(const UEdGraph& Graph)
+	/** The Entry of each of the combo's inputs, in their order. */
+	TArray<UKzEdGraphNode*> FindEntries(const UEdGraph& Graph, const UKzComboGraph& Combo)
 	{
-		for (UEdGraphNode* Each : Graph.Nodes)
+		TArray<UKzEdGraphNode*> Entries;
+		for (const FGameplayTag Input : Combo.Inputs)
 		{
-			UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
-			if (Node && Node->Node.GetPtr<FKzComboNode_Entry>())
+			for (UEdGraphNode* Each : Graph.Nodes)
 			{
-				return Node;
+				UKzEdGraphNode* Node = Cast<UKzEdGraphNode>(Each);
+				const FKzComboNode_Entry* Entry = Node ? Node->Node.GetPtr<FKzComboNode_Entry>() : nullptr;
+				if (Entry && Entry->Input == Input)
+				{
+					Entries.AddUnique(Node);
+					break;
+				}
 			}
 		}
-		return nullptr;
+		return Entries;
 	}
 
 	// The attacks one after another, each with its windows as bands in their notify's color, and the playhead; dragging scrubs.
@@ -364,7 +371,7 @@ void FKzComboPreview::DrawCanvas(FViewport& Viewport, FSceneView& View, FCanvas&
 	}
 	if (bComboMode && Paths.IsEmpty())
 	{
-		Warnings.Add(LOCTEXT("NoPath", "Nothing leads to this attack from the Entry, so it plays alone."));
+		Warnings.Add(LOCTEXT("NoPath", "Nothing leads to this attack from an Entry, so it plays alone."));
 	}
 	for (const FStep& Step : Steps)
 	{
@@ -488,7 +495,7 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 		[
 			SNew(SCheckBox)
 			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
-			.ToolTipText(LOCTEXT("ComboTooltip", "Play the attacks from the Entry up to the selected one, chained at the combo's Preview Chain Timing; off, the selected attack alone."))
+			.ToolTipText(LOCTEXT("ComboTooltip", "Play the attacks from an Entry up to the selected one, chained at the combo's Preview Chain Timing; off, the selected attack alone."))
 			.IsChecked_Lambda([Weak]()
 			{
 				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
@@ -724,8 +731,7 @@ void FKzComboPreview::FindPaths()
 	UKzEdGraphNode* Target = SelectedNode.Get();
 	const UKzComboGraph* Asset = Combo.Get();
 	const UEdGraph* Graph = Target ? Target->GetGraph() : nullptr;
-	UKzEdGraphNode* Entry = Graph ? FindEntry(*Graph) : nullptr;
-	if (!Entry || !Asset)
+	if (!Graph || !Asset)
 	{
 		return;
 	}
@@ -769,7 +775,10 @@ void FKzComboPreview::FindPaths()
 			}
 		}
 	};
-	Walk(*Entry);
+	for (UKzEdGraphNode* Entry : FindEntries(*Graph, *Asset))
+	{
+		Walk(*Entry);
+	}
 
 	Paths.StableSort([](const FPath& A, const FPath& B) { return A.Nodes.Num() < B.Nodes.Num(); });
 }
@@ -777,27 +786,29 @@ void FKzComboPreview::FindPaths()
 UKzEdGraphNode* FKzComboPreview::FindFirstAttack() const
 {
 	const UKzComboGraph* Asset = Combo.Get();
-	UKzEdGraphNode* Entry = Asset && Asset->EdGraph ? FindEntry(*Asset->EdGraph) : nullptr;
-	if (!Entry)
+	if (!Asset || !Asset->EdGraph)
 	{
 		return nullptr;
 	}
 
-	for (UEdGraphPin* Output : Entry->Pins)
+	for (UKzEdGraphNode* Entry : FindEntries(*Asset->EdGraph, *Asset))
 	{
-		if (Output->Direction != EGPD_Output)
+		for (UEdGraphPin* Output : Entry->Pins)
 		{
-			continue;
-		}
-
-		TArray<UEdGraphPin*> Targets;
-		KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
-		for (UEdGraphPin* Input : Targets)
-		{
-			UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
-			if (Next && Next->Node.GetPtr<FKzComboNode_Attack>())
+			if (Output->Direction != EGPD_Output)
 			{
-				return Next;
+				continue;
+			}
+
+			TArray<UEdGraphPin*> Targets;
+			KzGraphEditor::GatherTargets(*Output, Asset->GetFlow(), Targets);
+			for (UEdGraphPin* Input : Targets)
+			{
+				UKzEdGraphNode* Next = Cast<UKzEdGraphNode>(Input->GetOwningNode());
+				if (Next && Next->Node.GetPtr<FKzComboNode_Attack>())
+				{
+					return Next;
+				}
 			}
 		}
 	}

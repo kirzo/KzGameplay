@@ -47,7 +47,7 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	}
 
 	const FKzGraphData& Data = Combo->GetData();
-	const int32 Entry = Data.FindEntry(FKzComboNode_Entry::EntryName);
+	const int32 Entry = Data.FindEntry(Input.GetTagName());
 	const FKzComboNode_Entry* EntryNode = Entry != INDEX_NONE ? Data.GetNode<FKzComboNode_Entry>(Entry) : nullptr;
 	if (!EntryNode)
 	{
@@ -55,7 +55,7 @@ UKzComboInstance* UKzComboInstance::StartCombo(UKzComboGraph* Combo, const FKzCo
 	}
 
 	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User);
-	const int32 Opener = Data.FindOutput(Entry, EntryNode->GetOutputName(Input, ASC ? ASC->GetOwnedGameplayTags() : FGameplayTagContainer()));
+	const int32 Opener = Data.FindOutput(Entry, EntryNode->GetOutputName(ASC ? ASC->GetOwnedGameplayTags() : FGameplayTagContainer()));
 	const int32 Plain = Data.FindOutput(Entry, Input.GetTagName());
 
 	// An opener left unlinked starts as the input does.
