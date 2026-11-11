@@ -7,7 +7,7 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Invulnerable, "State.Invulnerable", "Combo hits go through, unless they are Attack.Undodgeable.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Parrying, "State.Parrying", "Combo hits within an equipped Defense item's parry angle are parried: the attacker reacts with Reaction.Parried.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Blocking, "State.Blocking", "Combo hits within an equipped Defense item's block angle are blocked, unless they are Attack.Unblockable.");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_HyperArmor, "State.HyperArmor", "Takes damage without reacting.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_SuperArmor, "State.SuperArmor", "Takes combo hits without reacting, so its action goes on: the damage and the hit stop land, but the mesh does not shake.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Dead, until whoever handles death says otherwise.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Playing a combo, from its first attack until it ends.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_ComboWindow, "State.ComboWindow", "A Combo Window of the attack playing is open: a press of the combo's inputs chains now.");

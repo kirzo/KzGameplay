@@ -13,7 +13,7 @@ class UKzAnimationSource;
 /**
  * How the avatar takes a hit, triggered by the Reaction events combo hits send. Its animation, normally By Query, has the reaction, the hit's
  * attack tags (Attack.GuardBreak…) and the side it came from (Direction.Front, Back, Left or Right) in its context. A new hit restarts it;
- * State.HyperArmor and State.Dead block it.
+ * State.SuperArmor and State.Dead block it.
  */
 UCLASS()
 class KZGAMEPLAY_API UKzGameplayAbility_HitReaction : public UKzGameplayAbility

@@ -130,6 +130,40 @@ FString UKzAnimNotifyState_MoveWindow::GetNotifyName_Implementation() const
 	return FString::Printf(TEXT("Move %.0f"), Distance);
 }
 
+UKzAnimNotifyState_RotationWindow::UKzAnimNotifyState_RotationWindow()
+{
+#if WITH_EDITORONLY_DATA
+	NotifyColor = FColor(220, 110, 170);
+#endif
+}
+
+void UKzAnimNotifyState_RotationWindow::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+
+	AActor* Owner = MeshComp ? MeshComp->GetOwner() : nullptr;
+	const UKzInputHandlerComponent* InputHandler = FindInputHandler(MeshComp);
+	if (!Owner || !InputHandler || !Owner->GetWorld() || !Owner->GetWorld()->IsGameWorld())
+	{
+		return;
+	}
+
+	const FVector Direction = InputHandler->GetIntendedInput(KzTags::Input::Move).GetSafeNormal2D();
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	// In animation time, like the Move Window
+	const FRotator Current = Owner->GetActorRotation();
+	Owner->SetActorRotation(FRotator(Current.Pitch, FMath::FixedTurn(Current.Yaw, Direction.Rotation().Yaw, TurnRate * FrameDeltaTime), Current.Roll));
+}
+
+FString UKzAnimNotifyState_RotationWindow::GetNotifyName_Implementation() const
+{
+	return FString::Printf(TEXT("Rotate %.0f"), TurnRate);
+}
+
 UKzAnimNotifyState_InputBlockWindow::UKzAnimNotifyState_InputBlockWindow()
 {
 	Inputs.AddTag(KzTags::Input::Move);

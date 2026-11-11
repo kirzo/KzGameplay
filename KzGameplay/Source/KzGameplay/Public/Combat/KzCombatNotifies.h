@@ -117,6 +117,25 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
+/**
+ * While it lasts, the mesh's owner turns towards where its move input points, even while Input.Move is blocked, such as to steer a dodge near its
+ * end. The action's own facing comes before it; this only lets the animation hand some turning back. Works in any animation.
+ */
+UCLASS(meta = (DisplayName = "Rotation Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_RotationWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_RotationWindow();
+
+	UPROPERTY(EditAnywhere, Category = "Rotation Window", meta = (ClampMin = "0", Units = "DegreesPerSecond"))
+	float TurnRate = 180.0f;
+
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+};
+
 /** While it lasts, the mesh's owner ignores these inputs, such as Input.Move so an attack neither steers nor turns. Facing a target and warping still move it. */
 UCLASS(meta = (DisplayName = "Input Block Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_InputBlockWindow : public UKzAnimationNotifyState

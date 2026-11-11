@@ -361,7 +361,10 @@ void UKzComboInstance::SweepHitboxes()
 				HitActors.Add(HitActor);
 				bHit = true;
 				DilateTime(ComboHit, *HitActor);
-				if (ComboHit.Result == EKzHitResult::Hit && Context.User)
+				// Super armor keeps the hit stop but not the shake, so the body holds steady through its action.
+				const UAbilitySystemComponent* HitASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
+				const bool bSuperArmor = HitASC && HitASC->HasMatchingGameplayTag(KzTags::Combat::State_SuperArmor);
+				if (ComboHit.Result == EKzHitResult::Hit && Context.User && !bSuperArmor)
 				{
 					UKzMeshShakeSubsystem::ShakeMesh(HitActor, Flatten(HitActor->GetActorLocation() - Context.User->GetActorLocation()), Attack->HitShake, Attack->HitStop);
 				}

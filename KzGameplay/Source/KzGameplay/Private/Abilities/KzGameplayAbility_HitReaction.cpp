@@ -10,7 +10,7 @@ UKzGameplayAbility_HitReaction::UKzGameplayAbility_HitReaction()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	bRetriggerInstancedAbility = true;
-	ActivationBlockedTags.AddTag(KzTags::Combat::State_HyperArmor);
+	ActivationBlockedTags.AddTag(KzTags::Combat::State_SuperArmor);
 	ActivationBlockedTags.AddTag(KzTags::Combat::State_Dead);
 
 	FAbilityTriggerData Trigger;
