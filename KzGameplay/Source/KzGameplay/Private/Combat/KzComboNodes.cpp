@@ -5,6 +5,7 @@
 #include "Combat/KzComboGraph.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Actor.h"
+#include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "KzComboNodes"
 
@@ -124,6 +125,11 @@ FLinearColor FKzComboNode_Entry::GetColor() const
 	return FLinearColor(0.4f, 0.06f, 0.06f);
 }
 
+FSlateIcon FKzComboNode_Branch::GetIcon() const
+{
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.Switch_16x"));
+}
+
 FLinearColor FKzComboNode_SwitchOnWindow::GetColor() const
 {
 	return FLinearColor(0.04f, 0.26f, 0.3f);
@@ -162,6 +168,11 @@ void FKzComboNode_SwitchOnWindow::Validate(TArray<FKzValidationIssue>& OutIssues
 FLinearColor FKzComboNode_BranchOnHit::GetColor() const
 {
 	return FLinearColor(0.26f, 0.07f, 0.32f);
+}
+
+FSlateIcon FKzComboNode_BranchOnHit::GetIcon() const
+{
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("GraphEditor.Branch_16x"));
 }
 
 void FKzComboNode_BranchOnHit::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const

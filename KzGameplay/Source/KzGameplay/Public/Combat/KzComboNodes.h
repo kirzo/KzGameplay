@@ -64,6 +64,11 @@ struct KZGAMEPLAY_API FKzComboNode_Branch : public FKzComboNode
 
 	/** The output to take, and the one to take instead when that leads nowhere, or none. */
 	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const { OutFallback = NAME_None; return NAME_None; }
+
+#if WITH_EDITOR
+	/** The engine's Switch icon. */
+	virtual FSlateIcon GetIcon() const override;
+#endif
 };
 
 /** Leads a press by the Combo Window it came in: one output per window named here, and Default for the rest, or for a named one left unlinked. */
@@ -97,6 +102,7 @@ struct KZGAMEPLAY_API FKzComboNode_BranchOnHit : public FKzComboNode_Branch
 
 #if WITH_EDITOR
 	virtual FLinearColor GetColor() const override;
+	virtual FSlateIcon GetIcon() const override;
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 #endif
 };
