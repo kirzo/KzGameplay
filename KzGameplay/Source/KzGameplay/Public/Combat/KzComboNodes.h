@@ -64,14 +64,10 @@ struct KZGAMEPLAY_API FKzComboNode_Branch : public FKzComboNode
 
 	/** The output to take, and the one to take instead when that leads nowhere, or none. */
 	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const { OutFallback = NAME_None; return NAME_None; }
-
-#if WITH_EDITOR
-	virtual FLinearColor GetColor() const override;
-#endif
 };
 
 /** Leads a press by the Combo Window it came in: one output per window named here, and Default for the rest, or for a named one left unlinked. */
-USTRUCT(meta = (DisplayName = "Switch on Window"))
+USTRUCT(meta = (DisplayName = "Switch on Window", Category = "Flow Control"))
 struct KZGAMEPLAY_API FKzComboNode_SwitchOnWindow : public FKzComboNode_Branch
 {
 	GENERATED_BODY()
@@ -82,13 +78,14 @@ struct KZGAMEPLAY_API FKzComboNode_SwitchOnWindow : public FKzComboNode_Branch
 	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
 
 #if WITH_EDITOR
+	virtual FLinearColor GetColor() const override;
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 #endif
 };
 
 /** Leads one way when the attack playing hit something and another when it missed. */
-USTRUCT(meta = (DisplayName = "Branch on Hit", Shortcut = "B"))
+USTRUCT(meta = (DisplayName = "Branch on Hit", Category = "Flow Control", Shortcut = "B"))
 struct KZGAMEPLAY_API FKzComboNode_BranchOnHit : public FKzComboNode_Branch
 {
 	GENERATED_BODY()
@@ -99,6 +96,7 @@ struct KZGAMEPLAY_API FKzComboNode_BranchOnHit : public FKzComboNode_Branch
 	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
 
 #if WITH_EDITOR
+	virtual FLinearColor GetColor() const override;
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 #endif
 };
@@ -116,7 +114,7 @@ struct KZGAMEPLAY_API FKzComboTagCase
 };
 
 /** Leads by what the attacker has: the first case whose tags it has, and Default for the rest, or for a case left unlinked. */
-USTRUCT(meta = (DisplayName = "Switch on Tags"))
+USTRUCT(meta = (DisplayName = "Switch on Tags", Category = "Flow Control"))
 struct KZGAMEPLAY_API FKzComboNode_SwitchOnTags : public FKzComboNode_Branch
 {
 	GENERATED_BODY()
@@ -127,6 +125,7 @@ struct KZGAMEPLAY_API FKzComboNode_SwitchOnTags : public FKzComboNode_Branch
 	virtual FName PickOutput(const FKzComboBranchContext& Context, FName& OutFallback) const override;
 
 #if WITH_EDITOR
+	virtual FLinearColor GetColor() const override;
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;
 	virtual void Validate(TArray<FKzValidationIssue>& OutIssues) const override;
 #endif
@@ -179,7 +178,7 @@ struct KZGAMEPLAY_API FKzComboHitbox
 };
 
 /** One attack: how it is animated, its damage and the hitboxes its Hit Windows sweep. It has an output per input, named after it, for where a press in a Combo Window leads. */
-USTRUCT(meta = (DisplayName = "Attack", Shortcut = "A"))
+USTRUCT(meta = (DisplayName = "Attack", Category = "Combat", Shortcut = "A"))
 struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 {
 	GENERATED_BODY()

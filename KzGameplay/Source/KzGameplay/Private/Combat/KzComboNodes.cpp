@@ -124,9 +124,9 @@ FLinearColor FKzComboNode_Entry::GetColor() const
 	return FLinearColor(0.4f, 0.06f, 0.06f);
 }
 
-FLinearColor FKzComboNode_Branch::GetColor() const
+FLinearColor FKzComboNode_SwitchOnWindow::GetColor() const
 {
-	return FLinearColor(0.12f, 0.12f, 0.12f);
+	return FLinearColor(0.04f, 0.26f, 0.3f);
 }
 
 void FKzComboNode_SwitchOnWindow::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
@@ -159,10 +159,20 @@ void FKzComboNode_SwitchOnWindow::Validate(TArray<FKzValidationIssue>& OutIssues
 	}
 }
 
+FLinearColor FKzComboNode_BranchOnHit::GetColor() const
+{
+	return FLinearColor(0.26f, 0.07f, 0.32f);
+}
+
 void FKzComboNode_BranchOnHit::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
 {
 	OutPins.Add({ HitName, LOCTEXT("Hit", "Hit"), NAME_None, LOCTEXT("HitTooltip", "Where it leads once the attack playing hit something.") });
 	OutPins.Add({ MissName, LOCTEXT("Miss", "Miss"), NAME_None, LOCTEXT("MissTooltip", "Where it leads while the attack playing hit nothing.") });
+}
+
+FLinearColor FKzComboNode_SwitchOnTags::GetColor() const
+{
+	return FLinearColor(0.08f, 0.26f, 0.08f);
 }
 
 void FKzComboNode_SwitchOnTags::GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const
