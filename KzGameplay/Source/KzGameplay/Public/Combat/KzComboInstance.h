@@ -134,6 +134,9 @@ private:
 	/** Closes in on the target while a Warp Window is open. */
 	void UpdateWarp(float DeltaTime);
 
+	/** Opens a Warp Window, or closes the open one with null: one with a Height takes the attacker off the ground, and closing it lands it. */
+	void SetWarp(const UKzAnimationNotifyState* Notify, float Duration);
+
 	/** Freezes attacker and target for the hit's Hit Stop, the attack's or the defending item's, and slows a parried attacker. */
 	void DilateTime(const FKzComboHit& Hit, AActor& HitActor);
 
@@ -185,10 +188,12 @@ private:
 	/** Where the attack playing turns to without a target. */
 	FVector FacingDirection = FVector::ZeroVector;
 
-	/** The Warp Window open, if any, how long it has left and how far it moved. */
+	/** The Warp Window open, if any, how long it lasts, how long it has left and how far it moved, and whether its arc has the attacker in the air. */
 	TWeakObjectPtr<const UKzAnimationNotifyState> Warp;
+	float WarpDuration = 0.0f;
 	float WarpTimeLeft = 0.0f;
 	float WarpMoved = 0.0f;
+	bool bWarpAirborne = false;
 
 	/** Per hitbox, where what it hangs from was on the last sweep. */
 	TArray<TOptional<FTransform>> PreviousParents;

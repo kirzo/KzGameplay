@@ -13,7 +13,11 @@
 #include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/IConsoleManager.h"
+#include "Input/KzInputHandlerComponent.h"
+#include "Input/KzInputTags.h"
 #include "Items/Fragments/KzItemFragment_Defense.h"
 #include "Items/KzItemDefinition.h"
 #include "KzDrawDebugHelpers.h"
@@ -147,7 +151,7 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 	bOpenedHitWindow = false;
 	Reaction = FGameplayTag();
 	KeptInput = FGameplayTag();
-	Warp.Reset();
+	SetWarp(nullptr, 0.0f);
 	HitActors.Reset();
 	PreviousParents.Init(TOptional<FTransform>(), Attack->Hitboxes.Num());
 	SetCancelWindows(0);
@@ -218,13 +222,11 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 	{
 		if (bBegin)
 		{
-			Warp = Notify;
-			WarpTimeLeft = Duration;
-			WarpMoved = 0.0f;
+			SetWarp(Notify, Duration);
 		}
 		else if (Warp == Notify)
 		{
-			Warp.Reset();
+			SetWarp(nullptr, 0.0f);
 		}
 	}
 }
@@ -437,15 +439,71 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 
 	const float TimeLeft = WarpTimeLeft;
 	WarpTimeLeft -= DeltaTime;
-	if (Allowed <= 0.0f)
+
+	FVector Delta = FVector::ZeroVector;
+	if (Allowed > 0.0f)
+	{
+		// What is left spreads over what is left of the window, so a moving target is followed.
+		const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(TimeLeft, DeltaTime));
+		WarpMoved += Step;
+		Delta = Direction * Step;
+	}
+
+	// Height over the window is 4·H·t·(1−t): the peak halfway, back down at the end.
+	if (bWarpAirborne)
+	{
+		auto ArcHeight = [this, Window](float Left)
+		{
+			const float T = FMath::Clamp(1.0f - Left / WarpDuration, 0.0f, 1.0f);
+			return 4.0f * Window->Height * T * (1.0f - T);
+		};
+		Delta.Z = ArcHeight(WarpTimeLeft) - ArcHeight(TimeLeft);
+	}
+
+	if (!Delta.IsNearlyZero())
+	{
+		UKzCombatLibrary::MoveBy(*User, Delta);
+	}
+}
+
+void UKzComboInstance::SetWarp(const UKzAnimationNotifyState* Notify, float Duration)
+{
+	Warp = Notify;
+	WarpDuration = Duration;
+	WarpTimeLeft = Duration;
+	WarpMoved = 0.0f;
+
+	const UKzAnimNotifyState_WarpWindow* Window = Cast<UKzAnimNotifyState_WarpWindow>(Notify);
+	const bool bAirborne = Window && Window->Height > 0.0f && Duration > 0.0f;
+	if (bAirborne == bWarpAirborne)
 	{
 		return;
 	}
+	bWarpAirborne = bAirborne;
 
-	// What is left spreads over what is left of the window, so a moving target is followed.
-	const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(TimeLeft, DeltaTime));
-	WarpMoved += Step;
-	UKzCombatLibrary::MoveBy(*User, Direction * Step);
+	// Flying, neither gravity nor the floor pulls it down mid-arc; falling afterwards lands it wherever the ground is.
+	const ACharacter* Character = Cast<ACharacter>(Context.User);
+	if (UCharacterMovementComponent* Movement = Character ? Character->GetCharacterMovement() : nullptr)
+	{
+		if (bAirborne ? Movement->MovementMode != MOVE_None : Movement->MovementMode == MOVE_Flying)
+		{
+			Movement->StopMovementImmediately();
+			Movement->SetMovementMode(bAirborne ? MOVE_Flying : MOVE_Falling);
+		}
+	}
+
+	// Flying, the move input would steer it through the air.
+	if (UKzInputHandlerComponent* InputHandler = Context.User ? Context.User->FindComponentByClass<UKzInputHandlerComponent>() : nullptr)
+	{
+		if (bAirborne)
+		{
+			InputHandler->PushInputIgnore(KzTags::Input::Move, GetFName(), true, 0);
+		}
+		else
+		{
+			InputHandler->RemoveInputIgnore(KzTags::Input::Move, GetFName());
+		}
+	}
 }
 
 void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)
@@ -507,7 +565,7 @@ void UKzComboInstance::End(bool bInterrupted)
 	HitWindows = 0;
 	CancelWindows = 0;
 	SetComboWindow(false);
-	Warp.Reset();
+	SetWarp(nullptr, 0.0f);
 	OnEnded.Broadcast(bInterrupted);
 }
 

@@ -41,7 +41,7 @@ public:
 	UKzAnimNotifyState_CancelWindow();
 };
 
-/** While it lasts, the attacker closes in on its target, or steps forward without one. */
+/** While it lasts, the attacker closes in on its target, or steps forward without one, along an arc if it has a Height. */
 UCLASS(meta = (DisplayName = "Warp Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_WarpWindow : public UKzAnimationNotifyState
 {
@@ -61,6 +61,10 @@ public:
 	/** How far the window moves the attacker forward when there is no target. */
 	UPROPERTY(EditAnywhere, Category = "Warp Window", meta = (ClampMin = "0", Units = "Centimeters"))
 	float FallbackDistance = 100.0f;
+
+	/** The peak of a leap: the attacker rises to it halfway through the window and comes back down by its end. Zero stays on the ground. */
+	UPROPERTY(EditAnywhere, Category = "Warp Window", meta = (ClampMin = "0", Units = "Centimeters"))
+	float Height = 0.0f;
 };
 
 /** While it lasts, the mesh's owner has these tags, such as State.Invulnerable on a dodge. Works in any animation, with or without an animation source. */
