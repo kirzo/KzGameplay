@@ -83,7 +83,10 @@ public:
 	float Height = 0.0f;
 };
 
-/** While it lasts, the mesh's owner has these tags, such as State.Invulnerable on a dodge. Works in any animation, with or without an animation source. */
+/**
+ * While it lasts, the mesh's owner has these tags, such as State.Invulnerable on a dodge, or with Remove, does not. Works in any animation, with or without an
+ * animation source.
+ */
 UCLASS(meta = (DisplayName = "Tag Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_TagWindow : public UKzAnimationNotifyState
 {
@@ -94,6 +97,13 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Tag Window")
 	FGameplayTagContainer Tags;
+
+	/**
+	 * Takes the tags away while it lasts instead, wherever they came from, and gives back what it took once the last such window on the owner closes, such as
+	 * State.SuperArmor off during an animation of a character that has it otherwise.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Tag Window")
+	bool bRemove = false;
 
 	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;

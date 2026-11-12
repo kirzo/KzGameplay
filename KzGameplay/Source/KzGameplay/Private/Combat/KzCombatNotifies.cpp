@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "Input/KzInputHandlerComponent.h"
 #include "Input/KzInputTags.h"
+#include "UObject/ObjectKey.h"
 
 namespace
 {
@@ -22,6 +23,14 @@ namespace
 		FString Leaf;
 		return Tag.ToString().Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd) ? Leaf : Tag.ToString();
 	}
+
+	/** Per owner and tag, the removing Tag Windows open on it, and how much of the tag's count the first took, so overlapping ones give it back only once the last closes. */
+	struct FKzTagRemoval
+	{
+		int32 Windows = 0;
+		int32 Taken = 0;
+	};
+	TMap<TObjectKey<UAbilitySystemComponent>, TMap<FGameplayTag, FKzTagRemoval>> TagRemovals;
 }
 
 UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
@@ -81,24 +90,76 @@ UKzAnimNotifyState_TagWindow::UKzAnimNotifyState_TagWindow()
 void UKzAnimNotifyState_TagWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
-	if (UAbilitySystemComponent* ASC = MeshComp ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(MeshComp->GetOwner()) : nullptr)
+	UAbilitySystemComponent* ASC = MeshComp ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(MeshComp->GetOwner()) : nullptr;
+	if (!ASC)
+	{
+		return;
+	}
+	if (!bRemove)
 	{
 		ASC->AddLooseGameplayTags(Tags);
+		return;
+	}
+
+	// The whole count goes, from loose tags and effects alike, one at a time so a child tag's count stays.
+	TMap<FGameplayTag, FKzTagRemoval>& Removals = TagRemovals.FindOrAdd(TObjectKey<UAbilitySystemComponent>(ASC));
+	for (const FGameplayTag& Tag : Tags)
+	{
+		FKzTagRemoval& Removal = Removals.FindOrAdd(Tag);
+		if (Removal.Windows++ > 0)
+		{
+			continue;
+		}
+		while (ASC->GetOwnedGameplayTags().HasTagExact(Tag))
+		{
+			ASC->RemoveLooseGameplayTag(Tag);
+			Removal.Taken++;
+		}
 	}
 }
 
 void UKzAnimNotifyState_TagWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
-	if (UAbilitySystemComponent* ASC = MeshComp ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(MeshComp->GetOwner()) : nullptr)
+	UAbilitySystemComponent* ASC = MeshComp ? UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(MeshComp->GetOwner()) : nullptr;
+	if (!ASC)
+	{
+		return;
+	}
+	if (!bRemove)
 	{
 		ASC->RemoveLooseGameplayTags(Tags);
+		return;
+	}
+
+	const TObjectKey<UAbilitySystemComponent> Key(ASC);
+	TMap<FGameplayTag, FKzTagRemoval>* Removals = TagRemovals.Find(Key);
+	for (const FGameplayTag& Tag : Tags)
+	{
+		FKzTagRemoval* Removal = Removals ? Removals->Find(Tag) : nullptr;
+		if (!Removal || --Removal->Windows > 0)
+		{
+			continue;
+		}
+		if (Removal->Taken > 0)
+		{
+			ASC->AddLooseGameplayTag(Tag, Removal->Taken);
+		}
+		Removals->Remove(Tag);
+	}
+	if (Removals && Removals->IsEmpty())
+	{
+		TagRemovals.Remove(Key);
 	}
 }
 
 FString UKzAnimNotifyState_TagWindow::GetNotifyName_Implementation() const
 {
-	return Tags.IsEmpty() ? Super::GetNotifyName_Implementation() : Tags.ToStringSimple();
+	if (Tags.IsEmpty())
+	{
+		return Super::GetNotifyName_Implementation();
+	}
+	return bRemove ? TEXT("Remove ") + Tags.ToStringSimple() : Tags.ToStringSimple();
 }
 
 UKzAnimNotifyState_MoveWindow::UKzAnimNotifyState_MoveWindow()
