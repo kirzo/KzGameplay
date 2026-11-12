@@ -12,6 +12,9 @@
 namespace
 {
 	constexpr float DebugThickness = 1.5f;
+
+	/** How close to a face of the dead zone's box the target counts as up against it. */
+	constexpr double FaceTolerance = 1.0;
 }
 
 UKzCameraModule_DeadZone::UKzCameraModule_DeadZone()
@@ -164,17 +167,17 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 
 	const bool bIdle = Velocity.IsNearlyZero(1.0);
 	IdleTime = bIdle ? IdleTime + Context.DeltaTime : 0.0f;
-	if (!bIdle)
+
+	if (!bInitialized || Context.bTeleport)
 	{
-		LeadDirection = Velocity.GetSafeNormal();
+		DesiredLead = FVector::ZeroVector;
 	}
 
 	// Standing still keeps the last lead for a while, or for good when held, so the camera keeps showing where the target was heading.
-	// Without one, the lead goes back to the edge of the dead zone, which is where the target stopped pushing it.
 	const bool bKeepLead = bIdle && (bHoldWhenIdle || IdleTime < ReturnDelay);
-	if (!bKeepLead || !bInitialized || Context.bTeleport)
+	if (!bKeepLead)
 	{
-		DesiredLead = MaxLead > 0.0f ? GetSlackEdge(Pose) + (Velocity * LeadTime).GetClampedToMaxSize(MaxLead) : FVector::ZeroVector;
+		DesiredLead = MaxLead > 0.0f ? GetDesiredLead(Context, Pose, Velocity) : FVector::ZeroVector;
 	}
 
 	if (!bInitialized || Context.bTeleport)
@@ -195,21 +198,36 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	return Result;
 }
 
-FVector UKzCameraModule_LookAhead::GetSlackEdge(const FKzCameraPose& Pose) const
+FVector UKzCameraModule_LookAhead::GetDesiredLead(const FKzCameraContext& Context, const FKzCameraPose& Pose, const FVector& Velocity) const
 {
-	// Where the lead's direction leaves the dead zone's box: the lead counts from there, so it isn't spent inside the box.
-	const FVector Local = Pose.FocusSlackRotation.Quaternion().UnrotateVector(LeadDirection);
+	const FQuat Axes = Pose.FocusSlackRotation.Quaternion();
+	const FVector Offset = Axes.UnrotateVector(Context.TargetLocation - Pose.Focus);
+	const FVector Heading = Axes.UnrotateVector(Velocity);
+	const FVector Ahead = Axes.UnrotateVector((Velocity * LeadTime).GetClampedToMaxSize(MaxLead));
+	FVector Desired = Axes.UnrotateVector(DesiredLead);
 
-	double Scale = TNumericLimits<double>::Max();
+	// Moving inside the box leaves the camera be. Pushing a face, the lead counts from the target, so it isn't spent inside the box; heading for
+	// a face, or past one the box slid on from, it holds; heading back, it lets go to where the target stands against the face, or to the centre.
+	// An axis without slack is always pushed.
 	for (int32 Axis = 0; Axis < 3; ++Axis)
 	{
-		if (FMath::Abs(Local[Axis]) > UE_KINDA_SMALL_NUMBER)
+		const bool bSlack = Pose.FocusSlack[Axis] > FaceTolerance;
+		const bool bAtFace = !bSlack || FMath::Abs(Offset[Axis]) >= Pose.FocusSlack[Axis] - FaceTolerance;
+		const bool bHeadingOut = (bSlack ? Heading[Axis] * FMath::Sign(Offset[Axis]) : FMath::Abs(Heading[Axis])) > UE_KINDA_SMALL_NUMBER;
+
+		if (bHeadingOut && bAtFace)
 		{
-			Scale = FMath::Min(Scale, Pose.FocusSlack[Axis] / FMath::Abs(Local[Axis]));
+			Desired[Axis] = Offset[Axis] + Ahead[Axis];
+		}
+		else if (!bHeadingOut)
+		{
+			// Letting go never leads further than it did: a lead short of the face, or none, isn't pushed out to it.
+			const bool bPastTarget = bAtFace && Desired[Axis] * Offset[Axis] > 0.0;
+			Desired[Axis] = bPastTarget ? FMath::Sign(Offset[Axis]) * FMath::Min(FMath::Abs(Offset[Axis]), FMath::Abs(Desired[Axis])) : 0.0;
 		}
 	}
 
-	return Scale < TNumericLimits<double>::Max() ? LeadDirection * Scale : FVector::ZeroVector;
+	return Axes.RotateVector(Desired);
 }
 
 void UKzCameraModule_LookAhead::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const

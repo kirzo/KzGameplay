@@ -143,7 +143,7 @@ private:
 	FQuat GetAxes(const FKzCameraContext& Context) const;
 };
 
-/** Moves the focus ahead of the target as it moves, to show more of where it is going. */
+/** Moves the focus ahead of the target as it moves, to show more of where it is going. With a dead zone, only while the target pushes it. */
 UCLASS(meta = (DisplayName = "Look Ahead"))
 class KZGAMEPLAY_API UKzCameraModule_LookAhead : public UKzCameraModule
 {
@@ -190,15 +190,14 @@ protected:
 
 private:
 	float IdleTime = 0.0f;
-	FVector LeadDirection = FVector::ZeroVector;
 	FVector LeadOrigin = FVector::ZeroVector;
 	FVector DesiredLead = FVector::ZeroVector;
 	FVector Lead = FVector::ZeroVector;
 	FVector Rate = FVector::ZeroVector;
 	bool bInitialized = false;
 
-	/** Where the lead's direction leaves the dead zone's box, from its centre. Zero without a dead zone. */
-	FVector GetSlackEdge(const FKzCameraPose& Pose) const;
+	/** DesiredLead moved on for the source's velocity, along each axis of the dead zone's box. */
+	FVector GetDesiredLead(const FKzCameraContext& Context, const FKzCameraPose& Pose, const FVector& Velocity) const;
 };
 
 /** Makes the focus trail the target, with optional caps so sudden moves don't drag the camera along at their speed. */
