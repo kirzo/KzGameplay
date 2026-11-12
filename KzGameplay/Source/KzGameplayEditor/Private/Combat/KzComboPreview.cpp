@@ -195,13 +195,19 @@ namespace
 				return LayerId;
 			}
 
-			// One lane per kind of window, so overlapping ones stay readable.
+			// One lane per kind of window, so overlapping ones stay readable, in the color of its first window.
 			TArray<const UClass*> Lanes;
+			TArray<FLinearColor> LaneColors;
 			for (const FKzComboPreview::FStep& Step : Pinned->GetSteps())
 			{
 				for (const FKzAnimationNotifySpan& Span : Step.Notifies)
 				{
-					Lanes.AddUnique(Span.Notify ? Span.Notify->GetClass() : nullptr);
+					const UClass* Lane = Span.Notify ? Span.Notify->GetClass() : nullptr;
+					if (!Lanes.Contains(Lane))
+					{
+						Lanes.Add(Lane);
+						LaneColors.Add(Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray);
+					}
 				}
 			}
 
@@ -213,29 +219,43 @@ namespace
 			{
 				LabelWidth = FMath::Max(LabelWidth, static_cast<float>(Measure->Measure(LaneName(Lane), Font).X));
 			}
-			LabelWidth += 2.0f * TextPadding;
+			LabelWidth += 2.0f * TextPadding + SwatchWidth + TextPadding;
 
 			const float TextHeight = Measure->GetMaxCharacterHeight(Font);
 			const float RulerHeight = TextHeight + 2.0f;
 			const float LaneHeight = (Size.Y - RulerHeight - 2.0f) / FMath::Max(Lanes.Num(), 1);
+			const float BandInset = LaneHeight > 12.0f ? 2.0f : 0.0f;
 			auto ToX = [this, &Size, Length](float Time) { return LabelWidth + (Size.X - LabelWidth) * FMath::Clamp(Time / Length, 0.0f, 1.0f); };
+			auto Box = [&](float X, float Y, float Width, float Height, const FLinearColor& Color, int32 Layer)
+			{
+				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + Layer, AllottedGeometry.ToPaintGeometry(FVector2f(Width, Height), FSlateLayoutTransform(FVector2f(X, Y))), White, ESlateDrawEffect::None, Color);
+			};
 			auto Band = [&](float From, float To, float Top, const FLinearColor& Color)
 			{
-				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(To - From, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(From, Top))), White, ESlateDrawEffect::None, Color);
+				Box(From, Top + BandInset, FMath::Max(To - From, 2.0f), FMath::Max(LaneHeight - 2.0f * BandInset, 1.0f), Color, 1);
 			};
 			auto Line = [&](float X, float Top, float Bottom, const FLinearColor& Color, float Thickness, int32 Layer)
 			{
 				FSlateDrawElement::MakeLines(OutDrawElements, LayerId + Layer, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(X, Top), FVector2f(X, Bottom) }, ESlateDrawEffect::None, Color, true, Thickness);
 			};
-			auto Text = [&](const FString& String, float X, float Y)
+			auto Text = [&](const FString& String, float X, float Y, const FLinearColor& Color)
 			{
-				FSlateDrawElement::MakeText(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(FVector2f(LabelWidth, TextHeight), FSlateLayoutTransform(FVector2f(X, Y))), String, Font, ESlateDrawEffect::None, FLinearColor(0.65f, 0.65f, 0.65f));
+				FSlateDrawElement::MakeText(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(FVector2f(LabelWidth, TextHeight), FSlateLayoutTransform(FVector2f(X, Y))), String, Font, ESlateDrawEffect::None, Color);
 			};
 
-			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(FVector2f(LabelWidth, Size.Y), FSlateLayoutTransform()), White, ESlateDrawEffect::None, FLinearColor(0.03f, 0.03f, 0.03f));
+			// The ruler as a header, and each lane a row across the names and the timeline, every other one lighter; a swatch of its color ties each name to its bands.
+			Box(0.0f, 0.0f, Size.X, RulerHeight, FLinearColor(0.035f, 0.035f, 0.035f), 0);
+			Box(0.0f, RulerHeight - 1.0f, Size.X, 1.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.06f), 0);
+			Box(LabelWidth - 1.0f, 0.0f, 1.0f, Size.Y, FLinearColor(1.0f, 1.0f, 1.0f, 0.06f), 0);
 			for (int32 Lane = 0; Lane < Lanes.Num(); ++Lane)
 			{
-				Text(LaneName(Lanes[Lane]), TextPadding, RulerHeight + LaneHeight * Lane + (LaneHeight - TextHeight) * 0.5f);
+				const float Top = RulerHeight + LaneHeight * Lane;
+				if (Lane % 2 == 1)
+				{
+					Box(0.0f, Top, Size.X, LaneHeight, FLinearColor(1.0f, 1.0f, 1.0f, 0.02f), 0);
+				}
+				Box(TextPadding, Top + BandInset + 1.0f, SwatchWidth, FMath::Max(LaneHeight - 2.0f * BandInset - 2.0f, 2.0f), LaneColors[Lane], 1);
+				Text(LaneName(Lanes[Lane]), 2.0f * TextPadding + SwatchWidth, Top + (LaneHeight - TextHeight) * 0.5f, FLinearColor(0.8f, 0.8f, 0.8f));
 			}
 
 			// Marks a readable distance apart, at 1, 2 or 5 times a power of ten seconds or frames, carried faintly down the lanes.
@@ -254,7 +274,7 @@ namespace
 				const float X = ToX(Time);
 				Line(X, 0.0f, RulerHeight, FLinearColor(1.0f, 1.0f, 1.0f, 0.3f), 1.0f, 1);
 				Line(X, RulerHeight, Size.Y, FLinearColor(1.0f, 1.0f, 1.0f, 0.05f), 1.0f, 1);
-				Text(Pinned->FormatTime(Time, Decimals).ToString(), X + 3.0f, 0.0f);
+				Text(Pinned->FormatTime(Time, Decimals).ToString(), X + 3.0f, 0.0f, FLinearColor(0.55f, 0.55f, 0.55f));
 			}
 
 			const TArray<FKzComboPreview::FStep>& Steps = Pinned->GetSteps();
@@ -331,6 +351,7 @@ namespace
 		}
 
 		static constexpr float TextPadding = 6.0f;
+		static constexpr float SwatchWidth = 3.0f;
 		static constexpr float MinMarkSpacing = 50.0f;
 
 		/** How wide the lane names are, as last painted, where the timeline starts. */
