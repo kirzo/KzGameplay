@@ -19,12 +19,6 @@ namespace
 		return Owner ? Owner->FindComponentByClass<UKzInputHandlerComponent>() : nullptr;
 	}
 
-	FString GetLeaf(const FGameplayTag& Tag)
-	{
-		FString Leaf;
-		return Tag.ToString().Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd) ? Leaf : Tag.ToString();
-	}
-
 	/** Per owner and tag, the removing Tag Windows open on it, and how much of the tag's count the first took, so overlapping ones give it back only once the last closes. */
 	struct FKzTagRemoval
 	{
@@ -58,7 +52,7 @@ FString UKzAnimNotifyState_HitWindow::GetNotifyName_Implementation() const
 	}
 	for (const FGameplayTag& Tag : AttackTags)
 	{
-		Parts.Add(GetLeaf(Tag));
+		Parts.Add(Tag.GetTagLeafName().ToString());
 	}
 	return Parts.IsEmpty() ? Super::GetNotifyName_Implementation() : TEXT("Hit Window ") + FString::Join(Parts, TEXT(" "));
 }
@@ -72,7 +66,7 @@ UKzAnimNotifyState_ComboWindow::UKzAnimNotifyState_ComboWindow()
 
 FString UKzAnimNotifyState_ComboWindow::GetNotifyName_Implementation() const
 {
-	return Window.IsValid() ? TEXT("Combo Window: ") + GetLeaf(Window) : Super::GetNotifyName_Implementation();
+	return Window.IsValid() ? TEXT("Combo Window: ") + Window.GetTagLeafName().ToString() : Super::GetNotifyName_Implementation();
 }
 
 UKzAnimNotifyState_CancelWindow::UKzAnimNotifyState_CancelWindow()

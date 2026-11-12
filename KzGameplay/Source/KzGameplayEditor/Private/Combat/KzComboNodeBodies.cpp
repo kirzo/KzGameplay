@@ -204,13 +204,6 @@ namespace
 			];
 	}
 
-	FText GetLeaf(FGameplayTag Tag)
-	{
-		const FString Path = Tag.ToString();
-		FString Leaf = Path;
-		Path.Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		return FText::FromString(Leaf);
-	}
 
 	/** The animation's thumbnail, its windows, and chips for what the attack does. */
 	TSharedPtr<SWidget> MakeAttackBody(const UKzEdGraphNode& Node)
@@ -265,7 +258,7 @@ namespace
 		}
 		for (const FGameplayTag Tag : Attack->AttackTags)
 		{
-			AddChip(GetLeaf(Tag));
+			AddChip(FText::FromName(Tag.GetTagLeafName()));
 		}
 		if (Attack->HitStop > 0.0f)
 		{

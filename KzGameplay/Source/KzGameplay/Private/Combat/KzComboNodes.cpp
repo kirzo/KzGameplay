@@ -77,14 +77,6 @@ FName FKzComboNode_SwitchOnTags::PickOutput(const FKzComboBranchContext& Context
 #if WITH_EDITOR
 namespace
 {
-	FString GetLeaf(FGameplayTag Tag)
-	{
-		const FString Path = Tag.ToString();
-		FString Leaf = Path;
-		Path.Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		return Leaf;
-	}
-
 	FSlateIcon NodeIcon(const TCHAR* Node)
 	{
 		return FSlateIcon(TEXT("KzGameplayEditorStyle"), *FString::Printf(TEXT("KzGameplay.Combo.Node.%s"), Node));
@@ -92,7 +84,7 @@ namespace
 
 	FText GetInputLabel(FGameplayTag Input)
 	{
-		return FText::FromString(GetLeaf(Input));
+		return FText::FromName(Input.GetTagLeafName());
 	}
 
 	/** Adds a pin unless one of that name is there, as a case or window listed twice would make. */
@@ -141,7 +133,7 @@ void FKzComboNode_SwitchOnWindow::GetOutputPins(const UKzGraph& Graph, TArray<FK
 	{
 		if (Window.IsValid())
 		{
-			AddPin(OutPins, { Window.GetTagName(), FText::FromString(GetLeaf(Window)), NAME_None, LOCTEXT("WindowTooltip", "Where a press in this Combo Window leads.") });
+			AddPin(OutPins, { Window.GetTagName(), FText::FromName(Window.GetTagLeafName()), NAME_None, LOCTEXT("WindowTooltip", "Where a press in this Combo Window leads.") });
 		}
 	}
 	OutPins.Add({ DefaultName, LOCTEXT("Default", "Default"), NAME_None, LOCTEXT("WindowDefaultTooltip", "Where a press in any other Combo Window leads, or in one above left unlinked.") });
@@ -198,7 +190,7 @@ void FKzComboNode_SwitchOnTags::GetOutputPins(const UKzGraph& Graph, TArray<FKzG
 		TArray<FString> Leaves;
 		for (const FGameplayTag Tag : Case.RequiredTags)
 		{
-			Leaves.Add(GetLeaf(Tag));
+			Leaves.Add(Tag.GetTagLeafName().ToString());
 		}
 		AddPin(OutPins, { Case.GetOutputName(), FText::FromString(FString::Join(Leaves, TEXT(", "))), NAME_None, FText::Format(LOCTEXT("CaseTooltip", "Where it leads while the attacker has {0}."), FText::FromString(Case.RequiredTags.ToStringSimple())) });
 	}
