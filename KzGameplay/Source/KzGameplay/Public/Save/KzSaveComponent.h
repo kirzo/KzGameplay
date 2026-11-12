@@ -72,5 +72,6 @@ public:
 #if WITH_EDITOR
 	virtual void OnComponentCreated() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostEditImport() override;
 #endif
 };

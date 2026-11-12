@@ -72,4 +72,12 @@ void UKzSaveComponent::PostDuplicate(bool bDuplicateForPIE)
 		UniqueSaveID = FGuid::NewGuid();
 	}
 }
+
+void UKzSaveComponent::PostEditImport()
+{
+	Super::PostEditImport();
+
+	// Pasting imports the copied ID along with everything else.
+	UniqueSaveID = FGuid::NewGuid();
+}
 #endif
