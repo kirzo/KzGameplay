@@ -22,9 +22,11 @@ UKzCameraModule_DeadZone::UKzCameraModule_DeadZone()
 
 FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context) const
 {
+	const bool bLevel = Alignment == EKzCameraDeadZoneAlignment::Level;
+
 	if (Units == EKzCameraDeadZoneUnits::Centimeters)
 	{
-		return FVector(Depth, Horizontal, Vertical);
+		return bLevel ? FVector(Vertical, Horizontal, Height) : FVector(Depth, Horizontal, Vertical);
 	}
 
 	// Half the view, at the depth of the focus.
@@ -32,12 +34,27 @@ FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context) c
 	const double FocusDepth = FMath::Max(FVector::DotProduct(Center - View.Location, View.Rotation.Vector()), 1.0);
 	const double HalfWidth = FocusDepth * FMath::Tan(FMath::DegreesToRadians(View.FOV * 0.5));
 	const double HalfHeight = HalfWidth / FMath::Max(View.AspectRatio, 0.01f);
-	return FVector(Depth, HalfWidth * Horizontal, HalfHeight * Vertical);
+
+	if (!bLevel)
+	{
+		return FVector(0.0, HalfWidth * Horizontal, HalfHeight * Vertical);
+	}
+
+	// Seen from above at some pitch, ground along the view takes up only the sine of it in screen. Perspective would widen the far side
+	// a little, by the box's depth over the focus's: a few percent for a box well inside the screen, so it stays a box.
+	const double LookDown = FMath::Max(FMath::Sin(FMath::DegreesToRadians(-View.Rotation.Pitch)), 0.1);
+	return FVector(HalfHeight * Vertical / LookDown, HalfWidth * Horizontal, Height);
+}
+
+FQuat UKzCameraModule_DeadZone::GetAxes(const FKzCameraContext& Context) const
+{
+	return Alignment == EKzCameraDeadZoneAlignment::Level ? FRotator(0.0, Context.Rest.Yaw, 0.0).Quaternion() : Context.Rest.Quaternion();
 }
 
 FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
 {
 	HalfSize = GetHalfSize(Context);
+	const FQuat Axes = GetAxes(Context);
 
 	const float DeltaTime = Context.DeltaTime;
 
@@ -61,8 +78,7 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 			Velocity *= NewSpeed / Speed;
 		}
 
-		// Along each view axis, whatever sticks out of the box drags it.
-		const FQuat Axes = Context.Rest.Quaternion();
+		// Along each of the box's axes, whatever sticks out of it drags it.
 		const FVector Offset = Axes.UnrotateVector(Pose.Focus - Center);
 
 		FVector Drag = FVector::ZeroVector;
@@ -92,12 +108,13 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 	FKzCameraPose Result = Pose;
 	Result.Focus = Center;
 	Result.FocusSlack = HalfSize;
+	Result.FocusSlackRotation = Axes.Rotator();
 	return Result;
 }
 
 void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
 {
-	DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), Context.Rest.Quaternion(), FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+	DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), GetAxes(Context), FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
 }
 
 UKzCameraModule_LookAhead::UKzCameraModule_LookAhead()
@@ -141,7 +158,7 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	const bool bKeepLead = bIdle && (bHoldWhenIdle || IdleTime < ReturnDelay);
 	if (!bKeepLead || !bInitialized || Context.bTeleport)
 	{
-		DesiredLead = MaxLead > 0.0f ? GetSlackEdge(Context, Pose) + (Velocity * LeadTime).GetClampedToMaxSize(MaxLead) : FVector::ZeroVector;
+		DesiredLead = MaxLead > 0.0f ? GetSlackEdge(Pose) + (Velocity * LeadTime).GetClampedToMaxSize(MaxLead) : FVector::ZeroVector;
 	}
 
 	if (!bInitialized || Context.bTeleport)
@@ -162,10 +179,10 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	return Result;
 }
 
-FVector UKzCameraModule_LookAhead::GetSlackEdge(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+FVector UKzCameraModule_LookAhead::GetSlackEdge(const FKzCameraPose& Pose) const
 {
 	// Where the lead's direction leaves the dead zone's box: the lead counts from there, so it isn't spent inside the box.
-	const FVector Local = Context.Rest.Quaternion().UnrotateVector(LeadDirection);
+	const FVector Local = Pose.FocusSlackRotation.Quaternion().UnrotateVector(LeadDirection);
 
 	double Scale = TNumericLimits<double>::Max();
 	for (int32 Axis = 0; Axis < 3; ++Axis)

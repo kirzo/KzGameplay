@@ -14,8 +14,21 @@ enum class EKzCameraDeadZoneUnits : uint8
 {
 	Centimeters,
 
-	/** Fractions of half the screen, at the focus's depth. Depth stays in centimetres. */
+	/** Fractions of half the screen, at the focus's depth. Along the view the camera keeps its distance; a level box's height stays in centimetres. */
 	Screen
+};
+
+UENUM(BlueprintType)
+enum class EKzCameraDeadZoneAlignment : uint8
+{
+	/** The box turns with the view: its depth runs along it. */
+	View,
+
+	/**
+	 * The box lies level, turned only with the view's yaw, for a target that walks the ground under a camera looking down on it.
+	 * Vertical runs along the ground, up and down the screen, and Height up and down in the world.
+	 */
+	Level
 };
 
 UENUM(BlueprintType)
@@ -63,7 +76,7 @@ enum class EKzCameraFocus : uint8
 	Target
 };
 
-/** Lets the target move inside a box around the focus without moving it; leaving the box drags the focus along. Axes follow the view. */
+/** Lets the target move inside a box around the focus without moving it; leaving the box drags the focus along. Axes follow the view, or lie level under it. */
 UCLASS(meta = (DisplayName = "Dead Zone"))
 class KZGAMEPLAY_API UKzCameraModule_DeadZone : public UKzCameraModule
 {
@@ -75,17 +88,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone")
 	EKzCameraDeadZoneUnits Units = EKzCameraDeadZoneUnits::Centimeters;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone")
+	EKzCameraDeadZoneAlignment Alignment = EKzCameraDeadZoneAlignment::View;
+
 	/** Half width, across the screen. 0 means no dead zone on that axis. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0"))
 	float Horizontal = 100.0f;
 
-	/** Half height, up and down the screen. */
+	/** Half height, up and down the screen. Level, it runs along the ground: in Screen units, as much ground as takes up that much screen. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0"))
 	float Vertical = 50.0f;
 
-	/** Half depth, towards and away from the camera. Always in centimetres. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Centimeters"))
+	/** Half depth, towards and away from the camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Centimeters", EditCondition = "Units == EKzCameraDeadZoneUnits::Centimeters && Alignment == EKzCameraDeadZoneAlignment::View", EditConditionHides))
 	float Depth = 0.0f;
+
+	/** Half height of a level box, up and down in the world, so a jump stays inside it. Always in centimetres. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Centimeters", EditCondition = "Alignment == EKzCameraDeadZoneAlignment::Level", EditConditionHides))
+	float Height = 0.0f;
 
 	/** Time the box takes to come to a full stop once the target stops pushing it, braking evenly from the speed it was pushed at. 0 stops it dead. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Seconds"))
@@ -106,8 +126,10 @@ private:
 	FVector HalfSize = FVector::ZeroVector;
 	bool bInitialized = false;
 
-	/** Depth, horizontal and vertical half sizes in centimetres, along the view's X, Y and Z. */
+	/** Half sizes in centimetres along the box's X, Y and Z: depth or ground, horizontal, and vertical or height. */
 	FVector GetHalfSize(const FKzCameraContext& Context) const;
+
+	FQuat GetAxes(const FKzCameraContext& Context) const;
 };
 
 /** Moves the focus ahead of the target as it moves, to show more of where it is going. */
@@ -165,7 +187,7 @@ private:
 	bool bInitialized = false;
 
 	/** Where the lead's direction leaves the dead zone's box, from its centre. Zero without a dead zone. */
-	FVector GetSlackEdge(const FKzCameraContext& Context, const FKzCameraPose& Pose) const;
+	FVector GetSlackEdge(const FKzCameraPose& Pose) const;
 };
 
 /** Makes the focus trail the target, with optional caps so sudden moves don't drag the camera along at their speed. */
