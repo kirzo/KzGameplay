@@ -90,6 +90,20 @@ namespace
 		return Unnamed ? Unnamed : Spans.FindByPredicate(&IsComboWindow);
 	}
 
+	/** From when a press is kept for a Combo Window, as the game keeps it: InputBuffer before it opens, but not before the Hit Windows ahead of it close. */
+	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow, float InputBuffer)
+	{
+		float Start = FMath::Max(ComboWindow.Start - InputBuffer, 0.0f);
+		for (const FKzAnimationNotifySpan& Span : Spans)
+		{
+			if (Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && Span.Start < ComboWindow.Start)
+			{
+				Start = FMath::Max(Start, Span.End);
+			}
+		}
+		return Start;
+	}
+
 	/** The first attack an output leads to, through branches by their outputs in order. */
 	UKzEdGraphNode* FindAttackFrom(UEdGraphPin& Output, EKzGraphFlow Flow, int32 Depth = 0)
 	{
@@ -183,6 +197,10 @@ namespace
 			}
 			const float LaneHeight = (Size.Y - 4.0f) / FMath::Max(Lanes.Num(), 1);
 			auto ToX = [&Size, Length](float Time) { return Size.X * FMath::Clamp(Time / Length, 0.0f, 1.0f); };
+			auto Band = [&](float From, float To, float Top, const FLinearColor& Color)
+			{
+				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(To - From, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(From, Top))), White, ESlateDrawEffect::None, Color);
+			};
 
 			const TArray<FKzComboPreview::FStep>& Steps = Pinned->GetSteps();
 			for (int32 Index = 0; Index < Steps.Num(); ++Index)
@@ -199,7 +217,14 @@ namespace
 					}
 					const float Top = 2.0f + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
 					const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
-					FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(End - Start, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(Start, Top))), White, ESlateDrawEffect::None, Color.CopyWithNewOpacity(0.7f));
+					Band(Start, End, Top, Color.CopyWithNewOpacity(0.7f));
+
+					// The input buffer leads into a Combo Window, fainter.
+					const float BufferStart = IsComboWindow(Span) ? ToX(Step.Start + GetBufferStart(Step.Notifies, Span, Pinned->GetInputBuffer())) : Start;
+					if (BufferStart < Start)
+					{
+						Band(BufferStart, Start, Top, Color.CopyWithNewOpacity(0.25f));
+					}
 				}
 
 				if (Index > 0)
@@ -684,6 +709,12 @@ void FKzComboPreview::AddReferencedObjects(FReferenceCollector& Collector)
 float FKzComboPreview::GetLength() const
 {
 	return Steps.IsEmpty() ? 0.0f : Steps.Last().End;
+}
+
+float FKzComboPreview::GetInputBuffer() const
+{
+	const UKzComboGraph* Asset = Combo.Get();
+	return Asset ? Asset->InputBuffer : 0.0f;
 }
 
 void FKzComboPreview::TogglePlay()

@@ -24,7 +24,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (Categories = "Input"))
 	TArray<FGameplayTag> Inputs;
 
-	/** How long before a combo window opens a press is kept, to chain as soon as it opens. Zero takes only presses inside the window. */
+	/**
+	 * How long before a combo window opens a press is kept, to chain as soon as it opens, starting no earlier than the end of the Hit Windows before it.
+	 * Zero takes only presses inside the window.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (ClampMin = "0", Units = "Seconds"))
 	float InputBuffer = 0.15f;
 
