@@ -25,8 +25,8 @@ enum class EKzCameraDeadZoneAlignment : uint8
 	View,
 
 	/**
-	 * The box lies level, turned only with the view's yaw, for a target that walks the ground under a camera looking down on it.
-	 * Vertical runs along the ground, up and down the screen, and Height up and down in the world.
+	 * The box lies level, for a target that walks the ground under a camera looking down on it. Space and Yaw turn it about the vertical;
+	 * Vertical runs along its forward on the ground, and Height up and down in the world.
 	 */
 	Level
 };
@@ -91,6 +91,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone")
 	EKzCameraDeadZoneAlignment Alignment = EKzCameraDeadZoneAlignment::View;
 
+	/** What a level box turns from: the view (Camera), the point the camera hangs from (Reference) or the world. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (EditCondition = "Alignment == EKzCameraDeadZoneAlignment::Level", EditConditionHides))
+	EKzCameraSpace Space = EKzCameraSpace::Camera;
+
+	/**
+	 * Turns a level box about the vertical from its space's forward, e.g. to line it up with the level instead of the screen.
+	 * In Screen units each side reaches as far as the target goes along it before it leaves Horizontal and Vertical of the screen.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (Units = "Degrees", EditCondition = "Alignment == EKzCameraDeadZoneAlignment::Level", EditConditionHides))
+	float Yaw = 0.0f;
+
 	/** Half width, across the screen. 0 means no dead zone on that axis. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0"))
 	float Horizontal = 100.0f;
@@ -127,7 +138,7 @@ private:
 	bool bInitialized = false;
 
 	/** Half sizes in centimetres along the box's X, Y and Z: depth or ground, horizontal, and vertical or height. */
-	FVector GetHalfSize(const FKzCameraContext& Context) const;
+	FVector GetHalfSize(const FKzCameraContext& Context, const FQuat& Axes) const;
 
 	FQuat GetAxes(const FKzCameraContext& Context) const;
 };

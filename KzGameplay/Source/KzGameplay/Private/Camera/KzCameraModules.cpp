@@ -20,7 +20,7 @@ UKzCameraModule_DeadZone::UKzCameraModule_DeadZone()
 	bHasState = true;
 }
 
-FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context) const
+FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context, const FQuat& Axes) const
 {
 	const bool bLevel = Alignment == EKzCameraDeadZoneAlignment::Level;
 
@@ -40,21 +40,37 @@ FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context) c
 		return FVector(0.0, HalfWidth * Horizontal, HalfHeight * Vertical);
 	}
 
-	// Seen from above at some pitch, ground along the view takes up only the sine of it in screen. Perspective would widen the far side
-	// a little, by the box's depth over the focus's: a few percent for a box well inside the screen, so it stays a box.
+	// Each side reaches as far as the target goes along it before it leaves that much of the screen. Seen from above at some pitch, ground
+	// along the view takes up only the sine of it in screen. Perspective would widen the far side a little, by the box's depth over the
+	// focus's: a few percent for a box well inside the screen, so it stays a box.
+	const FQuat ViewYaw = FRotator(0.0, View.Rotation.Yaw, 0.0).Quaternion();
 	const double LookDown = FMath::Max(FMath::Sin(FMath::DegreesToRadians(-View.Rotation.Pitch)), 0.1);
-	return FVector(HalfHeight * Vertical / LookDown, HalfWidth * Horizontal, Height);
+	const auto Reach = [&](const FVector& Side)
+	{
+		const FVector OnView = ViewYaw.UnrotateVector(Side);
+		const double Across = FMath::Abs(OnView.Y);
+		const double Along = FMath::Abs(OnView.X) * LookDown;
+		return FMath::Min(Across > UE_KINDA_SMALL_NUMBER ? HalfWidth * Horizontal / Across : TNumericLimits<double>::Max(), Along > UE_KINDA_SMALL_NUMBER ? HalfHeight * Vertical / Along : TNumericLimits<double>::Max());
+	};
+
+	return FVector(Reach(Axes.GetForwardVector()), Reach(Axes.GetRightVector()), Height);
 }
 
 FQuat UKzCameraModule_DeadZone::GetAxes(const FKzCameraContext& Context) const
 {
-	return Alignment == EKzCameraDeadZoneAlignment::Level ? FRotator(0.0, Context.Rest.Yaw, 0.0).Quaternion() : Context.Rest.Quaternion();
+	if (Alignment == EKzCameraDeadZoneAlignment::View)
+	{
+		return Context.Rest.Quaternion();
+	}
+
+	const double BaseYaw = Space == EKzCameraSpace::World ? 0.0 : Space == EKzCameraSpace::Reference ? Context.Reference.Rotator().Yaw : Context.Rest.Yaw;
+	return FRotator(0.0, BaseYaw + Yaw, 0.0).Quaternion();
 }
 
 FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
 {
-	HalfSize = GetHalfSize(Context);
 	const FQuat Axes = GetAxes(Context);
+	HalfSize = GetHalfSize(Context, Axes);
 
 	const float DeltaTime = Context.DeltaTime;
 
