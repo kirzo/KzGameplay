@@ -1,7 +1,6 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzCombatLibrary.h"
-#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/KzCombatTags.h"
@@ -50,13 +49,19 @@ namespace
 		return true;
 	}
 
-	void SendReaction(AActor* Reactor, AActor* Instigator, FGameplayTag Reaction, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
+	/** Direction is the blow's for its target; zero for the attacker's own reactions, which come from the defender. */
+	void SendReaction(AActor* Reactor, AActor* Instigator, FGameplayTag Reaction, const FKzComboHit& Hit, const FVector& Direction, float Damage, const UObject* SourceObject)
 	{
 		UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Reactor);
 		if (!ASC)
 		{
 			return;
 		}
+
+		FKzHitReactionTargetData* Data = new FKzHitReactionTargetData();
+		Data->HitResult = Hit.Hit;
+		Data->Direction = Direction;
+		Data->Knockback = Hit.Knockback;
 
 		FGameplayEventData Payload;
 		Payload.EventTag = Reaction;
@@ -65,7 +70,7 @@ namespace
 		Payload.OptionalObject = SourceObject;
 		Payload.InstigatorTags = Hit.AttackTags;
 		Payload.EventMagnitude = Damage;
-		Payload.TargetData = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromHitResult(Hit.Hit);
+		Payload.TargetData = FGameplayAbilityTargetDataHandle(Data);
 
 		FScopedPredictionWindow PredictionWindow(ASC, true);
 		ASC->HandleGameplayEvent(Reaction, &Payload);
@@ -168,24 +173,24 @@ void UKzCombatLibrary::ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, T
 				AttackerASC->ApplyGameplayEffectSpecToTarget(*Spec.Data, TargetASC);
 			}
 		}
-		SendReaction(Target, Attacker, Hit.Reaction.IsValid() ? Hit.Reaction : Reaction_Hit.GetTag(), Hit, Damage, SourceObject);
+		SendReaction(Target, Attacker, Hit.Reaction.IsValid() ? Hit.Reaction : Reaction_Hit.GetTag(), Hit, Hit.Direction, Damage, SourceObject);
 		// Targets without an ability system still show the impact, through the attacker's.
 		ExecuteImpactCue(TargetASC ? TargetASC : AttackerASC, Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::Blocked:
-		SendReaction(Target, Attacker, Reaction_Block, Hit, Damage, SourceObject);
-		SendReaction(Attacker, Target, Reaction_Blocked, Hit, Damage, SourceObject);
+		SendReaction(Target, Attacker, Reaction_Block, Hit, Hit.Direction, Damage, SourceObject);
+		SendReaction(Attacker, Target, Reaction_Blocked, Hit, FVector::ZeroVector, Damage, SourceObject);
 		ExecuteDefenseCue(TargetASC, Defense ? Defense->BlockCue : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::GuardBroken:
-		SendReaction(Target, Attacker, Reaction_GuardBreak, Hit, Damage, SourceObject);
+		SendReaction(Target, Attacker, Reaction_GuardBreak, Hit, Hit.Direction, Damage, SourceObject);
 		ExecuteDefenseCue(TargetASC, Defense ? (Defense->GuardBreakCue.IsValid() ? Defense->GuardBreakCue : Defense->BlockCue) : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::Parried:
-		SendReaction(Attacker, Target, Reaction_Parried, Hit, Damage, SourceObject);
+		SendReaction(Attacker, Target, Reaction_Parried, Hit, FVector::ZeroVector, Damage, SourceObject);
 		ExecuteDefenseCue(TargetASC, Defense ? Defense->ParryCue : FGameplayTag(), Attacker, Hit, Damage, SourceObject);
 		break;
 

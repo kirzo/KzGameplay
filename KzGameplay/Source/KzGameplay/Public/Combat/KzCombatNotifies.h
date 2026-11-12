@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationNotifyState.h"
+#include "Combat/KzCombatTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzCombatNotifies.generated.h"
 
@@ -16,9 +17,17 @@ class KZGAMEPLAY_API UKzAnimNotifyState_HitWindow : public UKzAnimationNotifySta
 public:
 	UKzAnimNotifyState_HitWindow();
 
-	/** How the target reacts, which follows the swing: a slash from the right staggers to the left. None is Reaction.Hit. */
+	/** How the target reacts, such as a stronger stagger for a heavy blow. None is Reaction.Hit. */
 	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (Categories = "Reaction"))
 	FGameplayTag Reaction;
+
+	/** Which way the blow travels, which the target's reaction follows: the side it staggers from, how it turns, and where it is pushed. */
+	UPROPERTY(EditAnywhere, Category = "Hit Window")
+	FKzHitDirection Direction;
+
+	/** How hard it pushes, as a multiplier on the Knockback Window of the target's reaction, such as 2 for a heavy blow. */
+	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (ClampMin = "0"))
+	float Knockback = 1.0f;
 
 	/** This hit's share of the attack, as a multiplier on top of the attack's own, such as 0.3 for each of two quick cuts and 1 for the slash that ends them. */
 	UPROPERTY(EditAnywhere, Category = "Hit Window", meta = (ClampMin = "0"))
@@ -107,6 +116,26 @@ public:
 
 	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+};
+
+/**
+ * While it lasts, the mesh's owner is pushed along the ground the way the blow it reacts to travels, Distance times that hit's Knockback, spread over the
+ * window. Outside a reaction it is pushed straight back. Walls stop it.
+ */
+UCLASS(meta = (DisplayName = "Knockback Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_KnockbackWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_KnockbackWindow();
+
+	/** How far a hit with Knockback 1 pushes over the whole window. */
+	UPROPERTY(EditAnywhere, Category = "Knockback Window", meta = (ClampMin = "0", Units = "Centimeters"))
+	float Distance = 50.0f;
+
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 	virtual FString GetNotifyName_Implementation() const override;
 };
 

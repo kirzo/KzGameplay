@@ -312,6 +312,8 @@ void UKzComboInstance::SweepHitboxes()
 		Template.AttackTags.AppendTags(Window->AttackTags);
 	}
 	Template.ImpactCue = Attack->ImpactCue;
+	Template.Knockback = Window ? Window->Knockback : 1.0f;
+	const FKzHitDirection Direction = Window ? Window->Direction : FKzHitDirection();
 
 	const int32 Playing = Node;
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num() && PreviousParents.IsValidIndex(Index); ++Index)
@@ -355,6 +357,7 @@ void UKzComboInstance::SweepHitboxes()
 
 				FKzComboHit ComboHit = Template;
 				ComboHit.Hit = Hit;
+				ComboHit.Direction = Direction.ToWorld(Context.User ? Context.User->GetActorLocation() : Previous.GetLocation(), HitActor->GetActorLocation(), Current.GetLocation() - Previous.GetLocation());
 				ComboHit.Result = UKzCombatLibrary::ResolveHit(Context.User, HitActor, ComboHit.AttackTags, ComboHit.Defense);
 
 				// Ignored targets can still be hit if they stop being invulnerable while the window lasts.
@@ -369,9 +372,9 @@ void UKzComboInstance::SweepHitboxes()
 				// Super armor keeps the hit stop but not the shake, so the body holds steady through its action.
 				const UAbilitySystemComponent* HitASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
 				const bool bSuperArmor = HitASC && HitASC->HasMatchingGameplayTag(KzTags::Combat::State_SuperArmor);
-				if (ComboHit.Result == EKzHitResult::Hit && Context.User && !bSuperArmor)
+				if (ComboHit.Result == EKzHitResult::Hit && !bSuperArmor)
 				{
-					UKzMeshShakeSubsystem::ShakeMesh(HitActor, Flatten(HitActor->GetActorLocation() - Context.User->GetActorLocation()), Attack->HitShake, Attack->HitStop);
+					UKzMeshShakeSubsystem::ShakeMesh(HitActor, ComboHit.Direction, Attack->HitShake, Attack->HitStop);
 				}
 				OnHit.Broadcast(ComboHit);
 

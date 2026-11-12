@@ -8,6 +8,8 @@
 #include "Customizations/KzInputProfileRowCustomizer.h"
 #include "Customizations/KzCapabilitySetRowCustomizer.h"
 #include "Customizations/KzFactionSettingsCustomization.h"
+#include "Customizations/KzHitDirectionCustomization.h"
+#include "Combat/KzCombatTypes.h"
 
 #include "Items/KzItemDefinition.h"
 #include "Equipment/KzEquipmentLayout.h"
@@ -169,6 +171,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 	KzComboNodeBodies::Register();
 
 	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
+	RegisterPropertyLayout<FKzHitDirection, FKzHitDirectionCustomization>();
 
 	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
 }

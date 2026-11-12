@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzCombatNotifies.h"
+#include "Abilities/KzGameplayAbility_HitReaction.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/KzCombatLibrary.h"
@@ -43,9 +44,17 @@ UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
 FString UKzAnimNotifyState_HitWindow::GetNotifyName_Implementation() const
 {
 	TArray<FString> Parts;
+	if (Direction.Preset != EKzHitDirectionPreset::Thrust)
+	{
+		Parts.Add(UEnum::GetDisplayValueAsText(Direction.Preset).ToString());
+	}
 	if (!FMath::IsNearlyEqual(DamageMultiplier, 1.0f))
 	{
 		Parts.Add(TEXT("x") + FString::SanitizeFloat(DamageMultiplier));
+	}
+	if (!FMath::IsNearlyEqual(Knockback, 1.0f))
+	{
+		Parts.Add(TEXT("Knockback x") + FString::SanitizeFloat(Knockback));
 	}
 	for (const FGameplayTag& Tag : AttackTags)
 	{
@@ -160,6 +169,40 @@ FString UKzAnimNotifyState_TagWindow::GetNotifyName_Implementation() const
 		return Super::GetNotifyName_Implementation();
 	}
 	return bRemove ? TEXT("Remove ") + Tags.ToStringSimple() : Tags.ToStringSimple();
+}
+
+UKzAnimNotifyState_KnockbackWindow::UKzAnimNotifyState_KnockbackWindow()
+{
+#if WITH_EDITORONLY_DATA
+	NotifyColor = FColor(90, 140, 230);
+#endif
+}
+
+void UKzAnimNotifyState_KnockbackWindow::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+
+	// Only in game, in animation time, as the Move Window.
+	AActor* Owner = MeshComp ? MeshComp->GetOwner() : nullptr;
+	const FAnimNotifyEvent* Event = EventReference.GetNotify();
+	const float Duration = Event ? Event->GetDuration() : 0.0f;
+	if (!Owner || !Owner->GetWorld() || !Owner->GetWorld()->IsGameWorld() || Duration <= 0.0f)
+	{
+		return;
+	}
+
+	FVector Direction;
+	float Scale = 1.0f;
+	if (!UKzGameplayAbility_HitReaction::FindKnockback(Owner, Direction, Scale))
+	{
+		Direction = -Owner->GetActorForwardVector();
+	}
+	UKzCombatLibrary::MoveBy(*Owner, Direction * (Distance * Scale * FrameDeltaTime / Duration));
+}
+
+FString UKzAnimNotifyState_KnockbackWindow::GetNotifyName_Implementation() const
+{
+	return FString::Printf(TEXT("Knockback %.0f"), Distance);
 }
 
 UKzAnimNotifyState_MoveWindow::UKzAnimNotifyState_MoveWindow()
