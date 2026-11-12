@@ -7,6 +7,7 @@
 #include "Combat/KzComboStage.h"
 #include "GameplayTagContainer.h"
 #include "KzGraphPreview.h"
+#include "Misc/FrameRate.h"
 #include "ScopedTransaction.h"
 #include "UObject/GCObject.h"
 
@@ -65,6 +66,13 @@ public:
 	float GetLength() const;
 	float GetInputBuffer() const;
 	float GetTime() const { return Time; }
+
+	/** Whether times show in the animation's frames rather than seconds. */
+	bool IsShowingFrames() const { return bShowFrames; }
+	FFrameRate GetFrameRate() const { return FrameRate; }
+
+	/** A time in seconds with Decimals, or in whole frames. */
+	FText FormatTime(float InTime, int32 Decimals) const;
 	bool IsPlaying() const { return bPlaying; }
 	virtual bool CanTogglePlay() const override { return !Steps.IsEmpty(); }
 	virtual void TogglePlay() override;
@@ -148,6 +156,12 @@ private:
 	bool bPlaying = true;
 	bool bLooping = true;
 	float Rate = 1.0f;
+
+	/** Remembered per user. */
+	bool bShowFrames = false;
+
+	/** The first attack's, as its montage numbers its frames. */
+	FFrameRate FrameRate = FFrameRate(30, 1);
 
 	/** The hitbox the gizmo is on, and its attack: rebuilding the steps, as an edit does, keeps it while that attack shows. */
 	int32 SelectedHitbox = INDEX_NONE;

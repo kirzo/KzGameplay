@@ -3,6 +3,7 @@
 #include "Combat/KzComboPreview.h"
 #include "AdvancedPreviewScene.h"
 #include "Algo/BinarySearch.h"
+#include "Animation/AnimSequenceBase.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Animation/KzAnimationPreview.h"
 #include "CanvasTypes.h"
@@ -14,12 +15,16 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "EdGraph/EdGraph.h"
 #include "Engine/Engine.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HitProxies.h"
 #include "Items/KzItemDefinition.h"
 #include "Kismet/KzSystemLibrary.h"
 #include "KzEdGraphNode.h"
 #include "KzGraphEditorUtils.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Rendering/SlateRenderer.h"
 #include "SceneManagement.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Sensors/KzSensorTags.h"
@@ -55,6 +60,9 @@ namespace
 
 	// Short of the end, where an animation that loops starts over.
 	constexpr float EndMargin = 1.0f / 120.0f;
+
+	const TCHAR* SettingsSection = TEXT("KzComboPreview");
+	const TCHAR* ShowFramesKey = TEXT("bShowFrames");
 
 	// Trail samples further apart are not swept between: the playhead jumped, which no game frame does.
 	constexpr float MaxTrailGap = 0.1f;
@@ -157,7 +165,7 @@ namespace
 		return Entries;
 	}
 
-	// The attacks one after another, each with its windows as bands in their notify's color, and the playhead; dragging scrubs.
+	// The attacks one after another under a ruler, each kind of window in its own lane, named on the left, with the windows as bands in their notify's color, and the playhead; dragging scrubs.
 	class SKzComboTrack : public SLeafWidget
 	{
 	public:
@@ -171,7 +179,7 @@ namespace
 
 		virtual FVector2D ComputeDesiredSize(float) const override
 		{
-			return FVector2D(100.0, 28.0);
+			return FVector2D(100.0, 48.0);
 		}
 
 		virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
@@ -196,12 +204,58 @@ namespace
 					Lanes.AddUnique(Span.Notify ? Span.Notify->GetClass() : nullptr);
 				}
 			}
-			const float LaneHeight = (Size.Y - 4.0f) / FMath::Max(Lanes.Num(), 1);
-			auto ToX = [&Size, Length](float Time) { return Size.X * FMath::Clamp(Time / Length, 0.0f, 1.0f); };
+
+			const FSlateFontInfo Font = FAppStyle::GetFontStyle("SmallFont");
+			const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+			auto LaneName = [](const UClass* Lane) { return Lane ? Lane->GetDisplayNameText().ToString() : FString(); };
+			LabelWidth = 0.0f;
+			for (const UClass* Lane : Lanes)
+			{
+				LabelWidth = FMath::Max(LabelWidth, static_cast<float>(Measure->Measure(LaneName(Lane), Font).X));
+			}
+			LabelWidth += 2.0f * TextPadding;
+
+			const float TextHeight = Measure->GetMaxCharacterHeight(Font);
+			const float RulerHeight = TextHeight + 2.0f;
+			const float LaneHeight = (Size.Y - RulerHeight - 2.0f) / FMath::Max(Lanes.Num(), 1);
+			auto ToX = [this, &Size, Length](float Time) { return LabelWidth + (Size.X - LabelWidth) * FMath::Clamp(Time / Length, 0.0f, 1.0f); };
 			auto Band = [&](float From, float To, float Top, const FLinearColor& Color)
 			{
 				FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FMath::Max(To - From, 2.0f), FMath::Max(LaneHeight - 1.0f, 1.0f)), FSlateLayoutTransform(FVector2f(From, Top))), White, ESlateDrawEffect::None, Color);
 			};
+			auto Line = [&](float X, float Top, float Bottom, const FLinearColor& Color, float Thickness, int32 Layer)
+			{
+				FSlateDrawElement::MakeLines(OutDrawElements, LayerId + Layer, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(X, Top), FVector2f(X, Bottom) }, ESlateDrawEffect::None, Color, true, Thickness);
+			};
+			auto Text = [&](const FString& String, float X, float Y)
+			{
+				FSlateDrawElement::MakeText(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(FVector2f(LabelWidth, TextHeight), FSlateLayoutTransform(FVector2f(X, Y))), String, Font, ESlateDrawEffect::None, FLinearColor(0.65f, 0.65f, 0.65f));
+			};
+
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(FVector2f(LabelWidth, Size.Y), FSlateLayoutTransform()), White, ESlateDrawEffect::None, FLinearColor(0.03f, 0.03f, 0.03f));
+			for (int32 Lane = 0; Lane < Lanes.Num(); ++Lane)
+			{
+				Text(LaneName(Lanes[Lane]), TextPadding, RulerHeight + LaneHeight * Lane + (LaneHeight - TextHeight) * 0.5f);
+			}
+
+			// Marks a readable distance apart, at 1, 2 or 5 times a power of ten seconds or frames, carried faintly down the lanes.
+			const bool bFrames = Pinned->IsShowingFrames();
+			const double Unit = bFrames ? Pinned->GetFrameRate().AsInterval() : 1.0;
+			const double PixelsPerUnit = (Size.X - LabelWidth) * Unit / Length;
+			double Mark = bFrames ? 1.0 : 0.01;
+			for (int32 Index = 0; Mark * PixelsPerUnit < MinMarkSpacing && Index < 30; ++Index)
+			{
+				Mark *= Index % 3 == 1 ? 2.5 : 2.0;
+			}
+			const int32 Decimals = Mark < 0.1 ? 2 : (Mark < 1.0 ? 1 : 0);
+			for (int32 Index = 0; Index * Mark * Unit <= Length; ++Index)
+			{
+				const float Time = Index * Mark * Unit;
+				const float X = ToX(Time);
+				Line(X, 0.0f, RulerHeight, FLinearColor(1.0f, 1.0f, 1.0f, 0.3f), 1.0f, 1);
+				Line(X, RulerHeight, Size.Y, FLinearColor(1.0f, 1.0f, 1.0f, 0.05f), 1.0f, 1);
+				Text(Pinned->FormatTime(Time, Decimals).ToString(), X + 3.0f, 0.0f);
+			}
 
 			const TArray<FKzComboPreview::FStep>& Steps = Pinned->GetSteps();
 			for (int32 Index = 0; Index < Steps.Num(); ++Index)
@@ -216,7 +270,7 @@ namespace
 					{
 						continue;
 					}
-					const float Top = 2.0f + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
+					const float Top = RulerHeight + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
 					const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
 					Band(Start, End, Top, Color.CopyWithNewOpacity(0.7f));
 
@@ -230,13 +284,11 @@ namespace
 
 				if (Index > 0)
 				{
-					const float X = ToX(Step.Start);
-					FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 2, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(X, 0.0f), FVector2f(X, Size.Y) }, ESlateDrawEffect::None, FLinearColor(1.0f, 1.0f, 1.0f, 0.35f), true, 1.0f);
+					Line(ToX(Step.Start), RulerHeight, Size.Y, FLinearColor(1.0f, 1.0f, 1.0f, 0.35f), 1.0f, 2);
 				}
 			}
 
-			const float Playhead = ToX(Pinned->GetTime());
-			FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 3, AllottedGeometry.ToPaintGeometry(), TArray<FVector2f>{ FVector2f(Playhead, 0.0f), FVector2f(Playhead, Size.Y) }, ESlateDrawEffect::None, FLinearColor::White, true, 2.0f);
+			Line(ToX(Pinned->GetTime()), 0.0f, Size.Y, FLinearColor::White, 2.0f, 3);
 			return LayerId + 3;
 		}
 
@@ -270,13 +322,19 @@ namespace
 		void ScrubTo(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const
 		{
 			const TSharedPtr<FKzComboPreview> Pinned = Preview.Pin();
-			const float Width = MyGeometry.GetLocalSize().X;
+			const float Width = MyGeometry.GetLocalSize().X - LabelWidth;
 			if (Pinned && Width > 0.0f)
 			{
-				const float X = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()).X;
+				const float X = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()).X - LabelWidth;
 				Pinned->ScrubTo(Pinned->GetLength() * FMath::Clamp(X / Width, 0.0f, 1.0f));
 			}
 		}
+
+		static constexpr float TextPadding = 6.0f;
+		static constexpr float MinMarkSpacing = 50.0f;
+
+		/** How wide the lane names are, as last painted, where the timeline starts. */
+		mutable float LabelWidth = 0.0f;
 
 		TWeakPtr<FKzComboPreview> Preview;
 	};
@@ -285,6 +343,7 @@ namespace
 void FKzComboPreview::Initialize(FAdvancedPreviewScene& InScene)
 {
 	Scene = &InScene;
+	GConfig->GetBool(SettingsSection, ShowFramesKey, bShowFrames, GEditorPerProjectIni);
 	if (UKzComboGraph* Asset = Combo.Get())
 	{
 		NodeRenderer = FKzComboNodeRenderer::Get(*Asset);
@@ -553,9 +612,10 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			TransportButton(LOCTEXT("StepTooltip", "Move on by one frame while paused."), FAppStyle::GetBrush("Animation.Forward_Step"), Run([](FKzComboPreview& Preview)
+			TransportButton(LOCTEXT("StepTooltip", "Move on to the animation's next frame while paused."), FAppStyle::GetBrush("Animation.Forward_Step"), Run([](FKzComboPreview& Preview)
 			{
-				Preview.ScrubTo(FMath::Min(Preview.GetTime() + StepSeconds, Preview.GetLength() - EndMargin));
+				const FFrameNumber Next = Preview.FrameRate.AsFrameTime(Preview.GetTime() + KINDA_SMALL_NUMBER).FloorToFrame() + 1;
+				Preview.ScrubTo(FMath::Min(static_cast<float>(Preview.FrameRate.AsSeconds(Next)), Preview.GetLength() - EndMargin));
 			}), While([](const FKzComboPreview& Preview) { return !Preview.Steps.IsEmpty() && !Preview.IsPlaying(); }))
 		]
 		+ SHorizontalBox::Slot()
@@ -660,16 +720,30 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		.Padding(0.0f, 0.0f, 2.0f, 0.0f)
 		[
-			SNew(STextBlock)
-			.Text_Lambda([Weak]()
+			SNew(SButton)
+			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("UnitsTooltip", "Times in seconds or in the animation's frames; click to switch."))
+			.OnClicked(Run([](FKzComboPreview& Preview)
 			{
-				const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
-				FNumberFormattingOptions Format;
-				Format.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
-				return FText::Format(LOCTEXT("Time", "{0} / {1} s"), FText::AsNumber(Pinned ? Pinned->GetTime() : 0.0f, &Format), FText::AsNumber(Pinned ? Pinned->GetLength() : 0.0f, &Format));
-			})
+				Preview.bShowFrames = !Preview.bShowFrames;
+				GConfig->SetBool(SettingsSection, ShowFramesKey, Preview.bShowFrames, GEditorPerProjectIni);
+			}))
+			[
+				SNew(STextBlock)
+				.Text_Lambda([Weak]()
+				{
+					const TSharedPtr<FKzComboPreview> Pinned = Weak.Pin();
+					if (!Pinned)
+					{
+						return FText::GetEmpty();
+					}
+					const FText Unit = Pinned->bShowFrames ? LOCTEXT("Frames", "f") : LOCTEXT("Seconds", "s");
+					return FText::Format(LOCTEXT("Time", "{0} / {1} {2}"), Pinned->FormatTime(Pinned->GetTime(), 2), Pinned->FormatTime(Pinned->GetLength(), 2), Unit);
+				})
+			]
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
@@ -726,6 +800,18 @@ float FKzComboPreview::GetInputBuffer() const
 {
 	const UKzComboGraph* Asset = Combo.Get();
 	return Asset ? Asset->InputBuffer : 0.0f;
+}
+
+FText FKzComboPreview::FormatTime(float InTime, int32 Decimals) const
+{
+	if (bShowFrames)
+	{
+		return FText::AsNumber(FrameRate.AsFrameTime(InTime).RoundToFrame().Value);
+	}
+
+	FNumberFormattingOptions Format;
+	Format.SetMinimumFractionalDigits(Decimals).SetMaximumFractionalDigits(Decimals);
+	return FText::AsNumber(InTime, &Format);
 }
 
 void FKzComboPreview::TogglePlay()
@@ -795,6 +881,12 @@ void FKzComboPreview::BuildSteps()
 		if (!Attack || !Attack->Animation)
 		{
 			break;
+		}
+
+		const UAnimSequenceBase* Sequence = Index == 0 ? Cast<UAnimSequenceBase>(Attack->Animation->GetAsset(Context)) : nullptr;
+		if (Sequence && Sequence->GetSamplingFrameRate().IsValid())
+		{
+			FrameRate = Sequence->GetSamplingFrameRate();
 		}
 
 		FStep& Step = Steps.AddDefaulted_GetRef();
