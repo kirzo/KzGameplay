@@ -21,8 +21,8 @@ struct FKzComboNode_Attack;
 /**
  * The combo editor's viewport: the selected attack's animation, or the one the combo starts with until one is picked, on the combo's preview character, holding the preview item, with the attack's hitboxes
  * and the trail they sweep through its Hit Windows. In combo mode it plays the attacks from an Entry up to the selected one instead, chaining each at
- * the combo's preview timing, in the Combo Window the way takes. Clicking a hitbox puts a gizmo on it to move and turn it. A transport bar under it plays, pauses, steps and scrubs,
- * with the windows as bands, and fainter before each Combo Window, its input buffer.
+ * the combo's preview timing, in the Combo Window the way takes. Clicking a hitbox puts a gizmo on it to move and turn it. A panel along the editor's bottom plays, pauses, steps and scrubs,
+ * on a track with the windows as bands, and fainter before each Combo Window, its input buffer.
  */
 class FKzComboPreview : public FKzGraphPreview, public FGCObject
 {

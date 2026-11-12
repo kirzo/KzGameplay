@@ -31,6 +31,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SLeafWidget.h"
+#include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "KzComboPreview"
@@ -473,11 +474,23 @@ FBox FKzComboPreview::GetBounds() const
 
 TSharedPtr<SWidget> FKzComboPreview::MakeBottomPanel()
 {
+	// The track below the controls, as wide and tall as the panel, so each window's lane reads.
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-		.Padding(FMargin(6.0f, 2.0f))
+		.Padding(FMargin(6.0f, 2.0f, 6.0f, 6.0f))
 		[
-			MakeTransportBar()
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				MakeTransportBar()
+			]
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+			[
+				SNew(SKzComboTrack, StaticCastSharedRef<FKzComboPreview>(AsShared()))
+			]
 		];
 }
 
@@ -641,10 +654,8 @@ TSharedRef<SWidget> FKzComboPreview::MakeTransportBar()
 		]
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
-		.VAlign(VAlign_Center)
-		.Padding(6.0f, 0.0f)
 		[
-			SNew(SKzComboTrack, Self)
+			SNullWidget::NullWidget
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
