@@ -6,7 +6,7 @@
 #include "Validation/KzAssetValidator.h"
 #include "KzInputProfileValidators.generated.h"
 
-/** Reports malformed action entries on a UKzInputProfile: null action, missing tag, or duplicate tag. */
+/** Reports malformed action entries on a UKzInputProfile (null action, missing tag, duplicate tag) and what its Mapping Context leaves unmatched: actions with no key, keys for actions it does not declare. */
 UCLASS()
 class UKzInputProfileValidator : public UKzAssetValidator
 {

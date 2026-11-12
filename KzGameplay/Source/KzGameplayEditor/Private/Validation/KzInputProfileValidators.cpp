@@ -2,6 +2,8 @@
 
 #include "Validation/KzInputProfileValidators.h"
 #include "Input/KzInputProfile.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 
 #define LOCTEXT_NAMESPACE "KzInputProfileValidators"
 
@@ -50,6 +52,41 @@ void UKzInputProfileValidator::Validate_Implementation(const UObject* Asset, TAr
 		else
 		{
 			FirstOccurrence.Add(Action.InputTag, i);
+		}
+	}
+
+	const UInputMappingContext* Context = Profile->MappingContext;
+	if (!Context) { return; }
+
+	const FText ContextName = FText::FromString(Context->GetName());
+	TSet<const UInputAction*> Declared;
+
+	for (int32 i = 0; i < Profile->InputActions.Num(); ++i)
+	{
+		const UInputAction* Action = Profile->InputActions[i].InputAction;
+		if (!Action) { continue; }
+		Declared.Add(Action);
+
+		const bool bHasKey = Context->GetMappings().ContainsByPredicate([Action](const FEnhancedActionKeyMapping& Mapping) { return Mapping.Action == Action && Mapping.Key.IsValid(); });
+		if (!bHasKey)
+		{
+			OutIssues.Add(FKzValidationIssue::WithContextIndex(
+				EKzValidationSeverity::Warning,
+				FText::Format(LOCTEXT("NoKey", "Entry {0}: '{1}' has no key in '{2}'."), FText::AsNumber(i + 1), FText::FromString(Action->GetName()), ContextName),
+				Id, i));
+		}
+	}
+
+	for (const FEnhancedActionKeyMapping& Mapping : Context->GetMappings())
+	{
+		const UInputAction* Action = Mapping.Action;
+		if (Action && !Declared.Contains(Action))
+		{
+			Declared.Add(Action);
+			OutIssues.Add(FKzValidationIssue(
+				EKzValidationSeverity::Warning,
+				FText::Format(LOCTEXT("Undeclared", "'{0}' maps '{1}', which this profile does not declare: its keys do nothing."), ContextName, FText::FromString(Action->GetName())),
+				Id));
 		}
 	}
 }
