@@ -2,11 +2,15 @@
 
 #include "KzGameplayEditorStyle.h"
 #include "Misc/Paths.h"
+#include "Styling/AppStyle.h"
 
 FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	: TKzEditorStyle_Base(FName("KzGameplayEditorStyle"))
 {
 	SetupPluginResources(TEXT("KzGameplay"));
+
+	// Lets an icon of this set wear the editor's overlays, such as the "+" badge of the add buttons
+	SetParentStyleName(FAppStyle::GetAppStyleSetName());
 
 	// White line icon for lists, tabs and menus; colour figure for the Content Browser
 	for (const TCHAR* Asset : { TEXT("InputProfile"), TEXT("ItemDefinition"), TEXT("EquipmentLayout"), TEXT("CapabilitySet"), TEXT("SteeringProfile"), TEXT("ComboGraph") })

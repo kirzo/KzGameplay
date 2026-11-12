@@ -5,6 +5,8 @@
 #include "KzGameplayEditor.h"
 #include "KzGameplayEditorStyle.h"
 #include "Customizations/KzItemFragmentRowCustomizer.h"
+#include "Customizations/KzInputProfileRowCustomizer.h"
+#include "Customizations/KzCapabilitySetRowCustomizer.h"
 #include "Customizations/KzFactionSettingsCustomization.h"
 
 #include "Items/KzItemDefinition.h"
@@ -78,6 +80,54 @@ static TArray<TSharedPtr<FKzStackRow>> BuildEquipmentLayoutInheritedRows(UObject
 	return Rows;
 }
 
+/** Builds read-only rows for a capability set's inherited capabilities, walking the parent chain. */
+static TArray<TSharedPtr<FKzStackRow>> BuildCapabilitySetInheritedRows(UObject* Asset)
+{
+	TArray<TSharedPtr<FKzStackRow>> Rows;
+	const UKzCapabilitySet* Set = Cast<UKzCapabilitySet>(Asset);
+	if (!Set) { return Rows; }
+
+	// Capabilities already defined by this set (or a nearer ancestor as we climb) are overrides.
+	TSet<FGameplayTag> Defined;
+	for (const TPair<FGameplayTag, FKzCapabilityGrant>& Pair : Set->Capabilities)
+	{
+		Defined.Add(Pair.Key);
+	}
+
+	const UScriptStruct* GrantStruct = FKzCapabilityGrant::StaticStruct();
+
+	// Walk ancestors, nearest first, guarding against a chain that loops.
+	TSet<const UKzCapabilitySet*> Visited = { Set };
+	for (const UKzCapabilitySet* Ancestor = Set->ParentSet; Ancestor && !Visited.Contains(Ancestor); Ancestor = Ancestor->ParentSet)
+	{
+		Visited.Add(Ancestor);
+
+		const FText SourceTag = FText::FromString(Ancestor->GetName());
+		const FText Group = FText::Format(LOCTEXT("InheritedFrom", "Inherited from {0}"), SourceTag);
+
+		for (const TPair<FGameplayTag, FKzCapabilityGrant>& Pair : Ancestor->Capabilities)
+		{
+			TSharedPtr<FKzStackRow> Row = MakeShared<FKzStackRow>();
+			Row->bEditable = false;
+			Row->GroupName = Group;
+			Row->SourceTag = SourceTag;
+			Row->bIsOverridden = Defined.Contains(Pair.Key);
+			Row->DisplayLabel = FText::FromString(Pair.Key.ToString());
+
+			TSharedPtr<FStructOnScope> Snapshot = MakeShared<FStructOnScope>(GrantStruct);
+			GrantStruct->CopyScriptStruct(Snapshot->GetStructMemory(), &Pair.Value);
+			Row->Snapshot = Snapshot;
+
+			Rows.Add(Row);
+
+			// Deeper ancestors defining the same capability are overridden by this one.
+			Defined.Add(Pair.Key);
+		}
+	}
+
+	return Rows;
+}
+
 void FKzGameplayEditorModule::OnStartupModule()
 {
 	FKzGameplayEditorStyle::Initialize();
@@ -91,7 +141,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 	TArray<FKzArrayEditorTabConfig> InputTabs;
 	InputTabs.Add(FKzArrayEditorTabConfig(
 		GET_MEMBER_NAME_CHECKED(UKzInputProfile, InputActions),
-		INVTEXT("Action")));
+		INVTEXT("Action"),
+		MakeShared<FKzInputProfileRowCustomizer>()));
 
 	TArray<FKzArrayEditorTabConfig> LayoutTabs;
 	{
@@ -104,8 +155,14 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzEquipmentLayout, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Equipment Layout"), FColor::FromHex("#2A9D8F"), { INVTEXT("Gameplay") }, LayoutTabs);
 	RegisterAssetTypeAction<UKzInputProfile, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Input Profile"), FColor::FromHex("#00CBA9"), { INVTEXT("Input") }, InputTabs);
 
-	// Keyed by tag rather than an array, so the plain details editor fits it better than the array editor
-	RegisterAssetTypeAction<UKzCapabilitySet>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") });
+	TArray<FKzArrayEditorTabConfig> CapabilityTabs;
+	{
+		FKzArrayEditorTabConfig CapabilitiesTab(GET_MEMBER_NAME_CHECKED(UKzCapabilitySet, Capabilities), INVTEXT("Capability"), INVTEXT("Capabilities"), MakeShared<FKzCapabilitySetRowCustomizer>());
+		CapabilitiesTab.ImmutableRowsSource = &BuildCapabilitySetInheritedRows;
+		CapabilityTabs.Add(CapabilitiesTab);
+	}
+
+	RegisterAssetTypeAction<UKzCapabilitySet, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") }, CapabilityTabs);
 
 	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
 	KzAnimationPreview::RegisterMontagePreview();

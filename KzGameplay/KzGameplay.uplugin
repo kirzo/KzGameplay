@@ -46,6 +46,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "GameplayTagsEditor",
+			"Enabled": true
+		},
+		{
 			"Name": "GameplayAbilities",
 			"Enabled": true
 		},
