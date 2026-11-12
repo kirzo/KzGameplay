@@ -148,8 +148,9 @@ private:
 	bool bLooping = true;
 	float Rate = 1.0f;
 
-	/** The hitbox of the attack playing the gizmo is on. */
+	/** The hitbox the gizmo is on, and its attack: rebuilding the steps, as an edit does, keeps it while that attack shows. */
 	int32 SelectedHitbox = INDEX_NONE;
+	TWeakObjectPtr<const UKzEdGraphNode> SelectedHitboxNode;
 	TUniquePtr<FScopedTransaction> GizmoTransaction;
 
 	/** Per hitbox of the attack playing, where it went through the Hit Windows played so far. */

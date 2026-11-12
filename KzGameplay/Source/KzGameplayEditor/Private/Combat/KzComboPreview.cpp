@@ -906,10 +906,9 @@ void FKzComboPreview::PoseAt(float InTime)
 
 	if (Index != CurrentStep || !Animation)
 	{
-		const UKzEdGraphNode* Shown = GetShownNode();
 		CurrentStep = Index;
 		Trails.Reset();
-		if (GetShownNode() != Shown)
+		if (GetShownNode() != SelectedHitboxNode.Get())
 		{
 			SelectedHitbox = INDEX_NONE;
 		}
@@ -987,6 +986,7 @@ bool FKzComboPreview::HandleClick(HHitProxy* HitProxy)
 	if (const HKzComboHitboxProxy* Proxy = HitProxyCast<HKzComboHitboxProxy>(HitProxy))
 	{
 		SelectedHitbox = Proxy->Index;
+		SelectedHitboxNode = GetShownNode();
 		return true;
 	}
 	SelectedHitbox = INDEX_NONE;
