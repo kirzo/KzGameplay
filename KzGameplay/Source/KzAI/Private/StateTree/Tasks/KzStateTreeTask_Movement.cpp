@@ -23,6 +23,26 @@ EStateTreeRunStatus FKzStateTreeTask_SetMovementMode::EnterState(FStateTreeExecu
 	return EStateTreeRunStatus::Running;
 }
 
+EStateTreeRunStatus FKzStateTreeTask_SetAvoidanceWeight::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+	if (UCharacterMovementComponent* Movement = InstanceData.Character ? InstanceData.Character->GetCharacterMovement() : nullptr)
+	{
+		InstanceData.PreviousWeight = Movement->AvoidanceWeight;
+		Movement->SetRVOAvoidanceWeight(InstanceData.Weight);
+	}
+	return EStateTreeRunStatus::Running;
+}
+
+void FKzStateTreeTask_SetAvoidanceWeight::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+	if (UCharacterMovementComponent* Movement = InstanceData.Character ? InstanceData.Character->GetCharacterMovement() : nullptr)
+	{
+		Movement->SetRVOAvoidanceWeight(InstanceData.PreviousWeight);
+	}
+}
+
 #if WITH_EDITOR
 FText FKzStateTreeTask_SetMovementMode::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
 {

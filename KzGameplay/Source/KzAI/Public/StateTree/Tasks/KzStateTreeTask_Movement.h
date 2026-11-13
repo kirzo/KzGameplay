@@ -40,3 +40,36 @@ struct KZAI_API FKzStateTreeTask_SetMovementMode : public FStateTreeTaskCommonBa
 	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
 #endif
 };
+
+USTRUCT()
+struct FKzStateTreeTask_SetAvoidanceWeightInstanceData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Context")
+	TObjectPtr<ACharacter> Character = nullptr;
+
+	/** How much of the way it gives to others in RVO avoidance: 1 gives none, so the others step aside. */
+	UPROPERTY(EditAnywhere, Category = "Parameter", meta = (ClampMin = "0", ClampMax = "1"))
+	float Weight = 1.0f;
+
+	float PreviousWeight = 0.0f;
+};
+
+/** Changes how much a character gives way in RVO avoidance while the state lasts, such as an attacker the others step aside for. */
+USTRUCT(meta = (DisplayName = "Set Avoidance Weight", Category = "KzAI|Movement"))
+struct KZAI_API FKzStateTreeTask_SetAvoidanceWeight : public FStateTreeTaskCommonBase
+{
+	GENERATED_BODY()
+
+	FKzStateTreeTask_SetAvoidanceWeight()
+	{
+		bShouldCallTick = false;
+	}
+
+	using FInstanceDataType = FKzStateTreeTask_SetAvoidanceWeightInstanceData;
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+};
