@@ -75,3 +75,14 @@ bool FKzStateTreeActorMatchTagQueryCondition::TestCondition(FStateTreeExecutionC
 
 	return bMatches ^ bInvert;
 }
+
+//----------------------------------------------------------------------//
+//  FKzStateTreeTagCompareCondition
+//----------------------------------------------------------------------//
+
+bool FKzStateTreeTagCompareCondition::TestCondition(FStateTreeExecutionContext& Context) const
+{
+	const FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+	const bool bMatches = bExactMatch ? InstanceData.Left.MatchesTagExact(InstanceData.Right) : InstanceData.Left.MatchesTag(InstanceData.Right);
+	return bMatches ^ bInvert;
+}

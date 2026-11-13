@@ -86,3 +86,38 @@ struct KZAI_API FKzStateTreeActorMatchTagQueryCondition : public FStateTreeCondi
 	UPROPERTY(EditAnywhere, Category = "Condition")
 	bool bInvert = false;
 };
+
+//----------------------------------------------------------------------//
+//  FKzStateTreeTagCompareCondition
+//----------------------------------------------------------------------//
+
+USTRUCT()
+struct KZAI_API FKzStateTreeTagCompareConditionInstanceData
+{
+	GENERATED_BODY()
+
+	/** The tag to check, such as the Tag a Shuffle Bag Draw drew. */
+	UPROPERTY(EditAnywhere, Category = "Input")
+	FGameplayTag Left;
+
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	FGameplayTag Right;
+};
+
+/** Whether a tag is another one, or one of its children unless Exact Match, as Integer Compare does with numbers. */
+USTRUCT(meta = (DisplayName = "Gameplay Tag Compare", Category = "Gameplay Tags"))
+struct KZAI_API FKzStateTreeTagCompareCondition : public FStateTreeConditionCommonBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FKzStateTreeTagCompareConditionInstanceData;
+
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+	virtual bool TestCondition(FStateTreeExecutionContext& Context) const override;
+
+	UPROPERTY(EditAnywhere, Category = "Condition")
+	bool bExactMatch = false;
+
+	UPROPERTY(EditAnywhere, Category = "Condition")
+	bool bInvert = false;
+};
