@@ -11,6 +11,7 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Dead, "State.Dead", "Dead, until whoever handles death says otherwise.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Attacking, "State.Attacking", "Playing a combo, from its first attack until it ends.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_ComboWindow, "State.ComboWindow", "A Combo Window of the attack playing is open: a press of the combo's inputs chains now.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Reacting, "State.Reacting", "Playing a hit reaction, from the hit until it ends.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Combo_Window, "Combo.Window", "Root of the names of Combo Windows, which Switch on Window leads by. The attacker has the name while its window is open.");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Unblockable, "Attack.Unblockable", "Neither blocked nor parried.");
