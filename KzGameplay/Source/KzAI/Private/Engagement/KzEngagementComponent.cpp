@@ -162,12 +162,38 @@ void UKzEngagementComponent::ReleasePlace(AActor* Attacker)
 		return;
 	}
 
-	// Arrived, the place stays its own: it counts there, not wherever it stopped. Stopped on the way, it counts where it is
+	// Arrived, the place stays its own: it counts there, not wherever it stopped. Stopped on the way, where it stands becomes its place
 	Engager->bTravelling = false;
-	if (Engager->Place.IsSet() && FVector::Dist2D(Attacker->GetActorLocation(), Engager->Place.GetValue()) > PlaceTolerance)
+	if (!Engager->Place.IsSet() || FVector::Dist2D(Attacker->GetActorLocation(), Engager->Place.GetValue()) > PlaceTolerance)
 	{
-		Engager->Place.Reset();
+		Engager->Place = Attacker->GetActorLocation();
 	}
+}
+
+bool UKzEngagementComponent::ClaimPlace(AActor* Attacker, const FVector& Location)
+{
+	FEngager* Engager = FindEngager(Attacker);
+	if (!Engager)
+	{
+		return false;
+	}
+
+	Engager->Place = Location;
+	Engager->bTravelling = true;
+	UpdateTick();
+	return true;
+}
+
+bool UKzEngagementComponent::HasPlace(const AActor* Attacker) const
+{
+	const FEngager* Engager = FindEngager(Attacker);
+	return Engager && Engager->Place.IsSet();
+}
+
+bool UKzEngagementComponent::IsInWrongPlace(const AActor* Attacker) const
+{
+	const FEngager* Engager = FindEngager(Attacker);
+	return Engager && Engager->Place.IsSet() && !Settings.Areas.IsEmpty() && IsWrongPlace(*Engager, Engager->Place.GetValue());
 }
 
 bool UKzEngagementComponent::IsInForbiddenArea(const AActor* Attacker) const
@@ -183,7 +209,7 @@ bool UKzEngagementComponent::IsOutOfPlace(const AActor* Attacker) const
 		return false;
 	}
 
-	// Without a place, away from it, such as after a hit, or too close to the target
+	// Without a place, away from it, such as pushed by a hit, or too close to the target
 	if (!Engager->Place.IsSet() || IsInForbiddenArea(Attacker))
 	{
 		return true;

@@ -13,7 +13,13 @@ enum class EKzEngagementCheck : uint8
 	InForbiddenArea,
 
 	/** Should move: in the forbidden area or outside every area, in an area it doesn't prefer while one it prefers has room, or making room for others. */
-	OutOfPlace
+	OutOfPlace,
+
+	/** Has never found nor claimed a place, such as just after engaging. */
+	NoPlace,
+
+	/** Its place is in the wrong area or sector, as for Out Of Place, wherever the pawn stands. */
+	WrongPlace
 };
 
 USTRUCT()

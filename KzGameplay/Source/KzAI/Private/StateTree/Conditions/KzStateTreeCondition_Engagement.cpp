@@ -13,6 +13,21 @@ bool FKzStateTreeCondition_Engagement::TestCondition(FStateTreeExecutionContext&
 		return false ^ bInvert;
 	}
 
-	const bool bResult = Check == EKzEngagementCheck::InForbiddenArea ? Engagement->IsInForbiddenArea(InstanceData.Actor) : Engagement->IsOutOfPlace(InstanceData.Actor);
+	bool bResult = false;
+	switch (Check)
+	{
+	case EKzEngagementCheck::InForbiddenArea:
+		bResult = Engagement->IsInForbiddenArea(InstanceData.Actor);
+		break;
+	case EKzEngagementCheck::OutOfPlace:
+		bResult = Engagement->IsOutOfPlace(InstanceData.Actor);
+		break;
+	case EKzEngagementCheck::NoPlace:
+		bResult = !Engagement->HasPlace(InstanceData.Actor);
+		break;
+	case EKzEngagementCheck::WrongPlace:
+		bResult = Engagement->IsInWrongPlace(InstanceData.Actor);
+		break;
+	}
 	return bResult ^ bInvert;
 }

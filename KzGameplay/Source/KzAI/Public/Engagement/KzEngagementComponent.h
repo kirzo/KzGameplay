@@ -121,14 +121,23 @@ public:
 
 	/**
 	 * The attacker is no longer on its way. Close enough to its place, it keeps it and counts there, wherever exactly it stopped, so counts
-	 * don't flicker at the edges of areas and sectors. Stopped short, such as by a hit, it loses the place and counts where it is.
+	 * don't flicker at the edges of areas and sectors. Stopped short, such as by a hit, where it stands becomes its place.
 	 */
 	void ReleasePlace(AActor* Attacker);
+
+	/** Sets the attacker on its way to a place it chose itself, such as the end of a move around the target: it counts there from now on. False if it isn't engaged. */
+	bool ClaimPlace(AActor* Attacker, const FVector& Location);
+
+	/** False until the attacker first finds or claims a place. */
+	bool HasPlace(const AActor* Attacker) const;
+
+	/** Whether the attacker's place is no longer right for it, wherever the attacker is: the area or the sector, as in Is Out Of Place. */
+	bool IsInWrongPlace(const AActor* Attacker) const;
 
 	bool IsInForbiddenArea(const AActor* Attacker) const;
 
 	/**
-	 * Whether the attacker should move: it has no place, is away from it, such as after a hit, or in the forbidden area; or its place is no
+	 * Whether the attacker should move: it has no place, is away from it, such as pushed by a hit, or in the forbidden area; or its place is no
 	 * longer right for it, such as when the target moved: in an area it doesn't prefer while a closer one it prefers has room, among those that have to make
 	 * room in an area or sector holding too much (the settled ones that are not exempt, nearest to where there is room first), or beside a
 	 * sector that is clearly better for it, by Spread.
