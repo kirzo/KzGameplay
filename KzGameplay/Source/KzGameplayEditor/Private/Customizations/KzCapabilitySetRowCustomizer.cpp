@@ -128,28 +128,29 @@ namespace
 		return Profile;
 	}
 
-	/** The ability Blueprint of a capability, listening to its input when it has one. Null if there is no such gameplay ability. */
-	UClass* FindOrCreateAbility(const UKzCapabilitySet& Set, const FString& Name, UClass* ParentClass, const FGameplayTag& Input)
+	/** The ability Blueprint GA_<Name>, made from ParentClass when it does not exist. Null if there is no such gameplay ability. */
+	UClass* FindOrCreateAbility(const UKzCapabilitySet& Set, const FString& Name, UClass* ParentClass)
 	{
 		UBlueprintFactory* Factory = NewObject<UBlueprintFactory>();
 		Factory->ParentClass = ParentClass;
 
-		UBlueprint* Blueprint = Cast<UBlueprint>(KzAssetCreation::FindOrCreate(TEXT("GA_") + Name, KzAssetCreation::InferFolder(Set, PickAbility), Factory, false));
+		const UBlueprint* Blueprint = Cast<UBlueprint>(KzAssetCreation::FindOrCreate(TEXT("GA_") + Name, KzAssetCreation::InferFolder(Set, PickAbility), Factory, false));
 		UClass* AbilityClass = Blueprint ? Blueprint->GeneratedClass.Get() : nullptr;
-		if (!AbilityClass || !AbilityClass->IsChildOf(UGameplayAbility::StaticClass()))
-		{
-			return nullptr;
-		}
+		return AbilityClass && AbilityClass->IsChildOf(UGameplayAbility::StaticClass()) ? AbilityClass : nullptr;
+	}
 
-		UKzGameplayAbility* Defaults = Cast<UKzGameplayAbility>(AbilityClass->GetDefaultObject());
-		if (Defaults && Input.IsValid() && Defaults->GetInputPolicy(Input) == EKzAbilityInputPolicy::None)
+	/** Makes the ability listen to the input. Only a Blueprint saves its defaults, so a native ability is left as it is. */
+	void BindInput(UClass& AbilityClass, const FGameplayTag& Input)
+	{
+		UBlueprint* Blueprint = Cast<UBlueprint>(AbilityClass.ClassGeneratedBy.Get());
+		UKzGameplayAbility* Defaults = Cast<UKzGameplayAbility>(AbilityClass.GetDefaultObject());
+		if (Blueprint && Defaults && Input.IsValid() && Defaults->GetInputPolicy(Input) == EKzAbilityInputPolicy::None)
 		{
 			FKzAbilityInput& Binding = Defaults->InputBindings.AddDefaulted_GetRef();
 			Binding.InputTag = Input;
 			Binding.Policy = EKzAbilityInputPolicy::ActivateAndListen;
 			Blueprint->MarkPackageDirty();
 		}
-		return AbilityClass;
 	}
 
 	void NewCapability(UKzCapabilitySet& Set)
@@ -166,6 +167,13 @@ namespace
 		if (Name.IsEmpty() || !FName::IsValidXName(Name, INVALID_OBJECTNAME_CHARACTERS, &Reason))
 		{
 			FMessageDialog::Open(EAppMsgType::Ok, Name.IsEmpty() ? LOCTEXT("NoName", "The capability needs a name.") : Reason);
+			return;
+		}
+
+		UClass* AbilityClass = Options->AbilityClass.Get();
+		if (AbilityClass && !Options->bCreateBlueprint && AbilityClass->HasAnyClassFlags(CLASS_Abstract))
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("AbstractAbility", "{0} is abstract: it can only be the parent of a new ability."), AbilityClass->GetDisplayNameText()));
 			return;
 		}
 
@@ -195,14 +203,19 @@ namespace
 			Grant.InputProfiles.Add(Profile);
 		}
 
-		if (UClass* ParentClass = Options->AbilityClass.Get())
+		if (AbilityClass && Options->bCreateBlueprint)
 		{
-			Grant.Ability = FindOrCreateAbility(Set, Name, ParentClass, Input);
-			if (!Grant.Ability)
+			AbilityClass = FindOrCreateAbility(Set, Name, AbilityClass);
+			if (!AbilityClass)
 			{
 				FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("AbilityFailed", "Could not create the ability GA_{0}, or an asset of that name exists that is not a gameplay ability."), FText::FromString(Name)));
 				return;
 			}
+		}
+		if (AbilityClass)
+		{
+			BindInput(*AbilityClass, Input);
+			Grant.Ability = AbilityClass;
 		}
 
 		const FScopedTransaction Transaction(LOCTEXT("NewCapability", "New Capability"));

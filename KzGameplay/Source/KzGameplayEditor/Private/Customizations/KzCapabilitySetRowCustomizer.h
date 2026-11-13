@@ -27,9 +27,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Capability")
 	bool bGrantedByDefault = true;
 
-	/** Parent of the ability Blueprint that implements the capability. None for a capability that needs no ability. */
+	/** The ability that implements the capability, or the parent of a new one. None for a capability that needs no ability. */
 	UPROPERTY(EditAnywhere, Category = "Capability", meta = (AllowAbstract = "true"))
 	TSubclassOf<UKzGameplayAbility> AbilityClass;
+
+	/** Create GA_<Name> as a child of Ability Class. Off, the capability uses Ability Class itself. */
+	UPROPERTY(EditAnywhere, Category = "Capability")
+	bool bCreateBlueprint = true;
 
 	/** Whether the capability comes with a button: its input tag, action, mapping context and profile, and the ability bound to it. */
 	UPROPERTY(EditAnywhere, Category = "Capability")
