@@ -18,4 +18,7 @@ namespace KzTags::Interaction
 
 	/** The owner can interact. */
 	KZGAMEPLAY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Capability_Interact);
+
+	/** Interacts with what the interactor focuses: the input of UKzGameplayAbility_Interact. */
+	KZGAMEPLAY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Interact);
 }
