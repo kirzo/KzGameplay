@@ -32,6 +32,7 @@ public class KzGameplayEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"UnrealEd",
+				"EditorFramework",
 				"ComponentVisualizers",
 				"PropertyEditor",
 				"InputCore",

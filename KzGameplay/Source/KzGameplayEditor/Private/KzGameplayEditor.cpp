@@ -23,6 +23,10 @@
 #include "Factions/KzFactionSettings.h"
 #include "Engagement/KzEngagementComponent.h"
 #include "Engagement/KzEngagementVisualizer.h"
+#include "Factories/ItemDefinitionActorFactory.h"
+
+#include "Editor.h"
+#include "Subsystems/PlacementSubsystem.h"
 
 #include "Editors/KzArrayAssetEditor.h"
 #include "Widgets/SKzPropertyStack.h"
@@ -174,6 +178,17 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterPropertyLayout<FKzHitDirection, FKzHitDirectionCustomization>();
 
 	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
+
+	// This module loads after the editor gathers its actor factories, so the item one is added by hand.
+	if (GEditor)
+	{
+		UItemDefinitionActorFactory* ItemActorFactory = NewObject<UItemDefinitionActorFactory>();
+		GEditor->ActorFactories.Add(ItemActorFactory);
+		if (UPlacementSubsystem* PlacementSubsystem = GEditor->GetEditorSubsystem<UPlacementSubsystem>())
+		{
+			PlacementSubsystem->RegisterAssetFactory(ItemActorFactory);
+		}
+	}
 }
 
 void FKzGameplayEditorModule::OnShutdownModule()
