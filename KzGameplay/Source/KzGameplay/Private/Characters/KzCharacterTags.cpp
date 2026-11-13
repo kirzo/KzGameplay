@@ -5,4 +5,5 @@
 namespace KzTags::Character
 {
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Player, "Character.Player", "Driven by a player. Which side it is on is its faction.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Capability_Jump, "Capability.Jump", "Can jump: grants UKzGameplayAbility_Jump.");
 }
