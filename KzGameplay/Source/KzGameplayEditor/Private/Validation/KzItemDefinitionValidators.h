@@ -6,7 +6,7 @@
 #include "Validation/KzAssetValidator.h"
 #include "KzItemDefinitionValidators.generated.h"
 
-/** Reports an Equippable fragment whose slots no Equipment Layout defines, or whose capabilities no Capability Set defines. */
+/** Reports an Equippable fragment whose slots no Equipment Layout defines, whose capabilities no Capability Set defines, or that several slots cannot hold as it asks. */
 UCLASS()
 class UKzItemDefinitionValidator : public UKzAssetValidator
 {

@@ -12,18 +12,40 @@
 
 class UKzItemDefinition;
 struct FStreamableHandle;
+class UKzEquipmentComponent;
 class UKzInteractorComponent;
 class UKzInteractableComponent;
 
+/** One slot holding the item: of which equipment, which slot, and the interactable it was picked up by. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzItemHolder
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	TObjectPtr<UKzEquipmentComponent> Equipment = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	FGameplayTag SlotID;
+
+	/** Null when it was handed over rather than picked up: equipped by definition, from the inventory or by code. */
+	UPROPERTY(BlueprintReadOnly, Category = "Item")
+	TObjectPtr<UKzInteractableComponent> PickedUpBy = nullptr;
+
+	/** The actor wearing the equipment. */
+	AActor* GetActor() const;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemPickedUpDelegate, AActor*, NewOwner);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemEquippedDelegate, AActor*, Equipper);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemDroppedDelegate, AActor*, FormerEquipper);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemCustomAttachDelegate, AActor*, Equipper, FKzTransformSource, AttachSource);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemCustomDetachDelegate, AActor*, Equipper);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemHeldDelegate, const FKzItemHolder&, Holder, FKzTransformSource, AttachSource);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemReleasedDelegate, const FKzItemHolder&, Holder);
 
 /**
  * Add this component to any Actor in the world to make it a pickable item.
  * It holds the definition and quantity, and routes the pickup logic to the interactor's inventory or equipment.
+ *
+ * The item has no owner: it has holders, the equipment slots holding it, as many as its Equippable's Max Holders. The equipment slots are
+ * what replicates; every machine's equipment tells the item as its slots change, so the holders are the same everywhere.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzItemComponent : public UActorComponent, public IKzInteractableInterface
@@ -46,58 +68,42 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
 	FOnItemPickedUpDelegate OnPickedUp;
 
-	/** Fired when this item lands in an equipper's hands. */
+	/**
+	 * Fired on every machine as a slot starts holding the item, with where that slot holds it: an item with custom attachment hangs itself
+	 * there. A slot moving it to another, as when putting it away, releases it in the one and holds it in the other.
+	 */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
-	FOnItemEquippedDelegate OnEquipped;
+	FOnItemHeldDelegate OnHeld;
 
-	/** Fired when this item leaves the equipper's hands (dropped, thrown or stashed). */
+	/** Fired on every machine as a slot stops holding the item. */
 	UPROPERTY(BlueprintAssignable, Category = "Item|Events")
-	FOnItemDroppedDelegate OnDropped;
+	FOnItemReleasedDelegate OnReleased;
 
-	/**
-	 * Fired by the EquipmentComponent to handle custom attachment logic
-	 * if the KzItemDefinition has bUseCustomAttachment set to true.
-	 */
-	UPROPERTY(BlueprintAssignable, Category = "Item|Equipment")
-	FOnItemCustomAttachDelegate OnCustomAttach;
-
-	/**
-	 * Fired by the EquipmentComponent to handle custom detachment logic
-	 * if the KzItemDefinition has bUseCustomAttachment set to true.
-	 */
-	UPROPERTY(BlueprintAssignable, Category = "Item|Equipment")
-	FOnItemCustomDetachDelegate OnCustomDetach;
-
-	/** Called by the EquipmentComponent when this item is equipped */
-	void SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlotID);
-
-	/** Called by the EquipmentComponent when this item is dropped/stashed */
-	void ClearEquippedState();
-
-	/** Returns the Actor holding this item, if any. */
+	/** The slots holding the item, of one equipment or of several, in no particular order. */
 	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
-	AActor* GetEquipper() const { return EquipperActor.Get(); }
+	TArray<FKzItemHolder> GetHolders() const { return Holders; }
 
-	/** Returns the slot this item is currently equipped in. Invalid if not equipped. */
 	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
-	FGameplayTag GetEquippedSlot() const { return EquippedSlotID; }
+	bool IsHeld() const { return !Holders.IsEmpty(); }
 
-	/**
-	 * Returns the velocity of the equipper if held,
-	 * or the physical velocity of the item itself if dropped.
-	 */
+	/** Whether any slot of the actor's equipment holds the item. */
+	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
+	bool IsHeldBy(const AActor* Actor) const;
+
+	/** Whether one more slot can hold the item: fewer hold it than its Equippable's Max Holders. */
+	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
+	bool HasRoomForHolder() const;
+
+	/** Called by an equipment on every machine as one of its slots starts holding the item. */
+	void AddHolder(const FKzItemHolder& Holder, const FKzTransformSource& AttachSource);
+
+	/** Called by an equipment on every machine as one of its slots stops holding the item. */
+	void RemoveHolder(const UKzEquipmentComponent* Equipment, FGameplayTag SlotID);
+
+	/** The velocity of whoever holds the item, averaged over its holders, or the item's own while nobody does. */
 	UFUNCTION(BlueprintPure, Category = "KzGameplay|Item")
 	FVector GetItemVelocity() const;
 
-protected:
-	/** The actor currently holding this item. */
-	TWeakObjectPtr<AActor> EquipperActor = nullptr;
-
-	/** The specific slot this item is occupying. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment")
-	FGameplayTag EquippedSlotID;
-
-public:
 	UKzItemComponent();
 
 protected:
@@ -113,6 +119,10 @@ protected:
 	virtual TMap<FString, FText> GetPromptArguments_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable) override;
 
 private:
+	/** Kept by the equipments holding the item, on every machine. */
+	UPROPERTY(Transient)
+	TArray<FKzItemHolder> Holders;
+
 	/** Keeps what the item's fragments preload in memory while the actor plays. */
 	TSharedPtr<FStreamableHandle> PreloadHandle;
 };

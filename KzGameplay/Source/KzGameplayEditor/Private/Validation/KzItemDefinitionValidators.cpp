@@ -3,6 +3,7 @@
 #include "Validation/KzItemDefinitionValidators.h"
 #include "Items/KzItemDefinition.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
+#include "Items/Fragments/KzItemFragment_Storable.h"
 #include "Equipment/KzEquipmentLayout.h"
 #include "Capabilities/KzCapabilitySet.h"
 #include "AssetRegistry/IAssetRegistry.h"
@@ -47,7 +48,25 @@ void UKzItemDefinitionValidator::Validate_Implementation(const UObject* Asset, T
 			OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error, LOCTEXT("NoTargetSlot", "Equippable has no Target Slot."), Id, i));
 		}
 
-		for (const FGameplayTag& Slot : { Equippable->TargetSlot, Equippable->StowSlot })
+		if (Equippable->MaxHolders > 1)
+		{
+			if (!Equippable->bUseCustomAttachment)
+			{
+				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error, LOCTEXT("SharedNeedsCustomAttachment", "Max Holders above 1 needs Use Custom Attachment: one actor cannot be attached to several slots."), Id, i));
+			}
+			if (Equippable->EquipmentSpawnMode != EKzEquipmentSpawnMode::SpawnActor || Equippable->bOverrideEquipmentActor)
+			{
+				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error, LOCTEXT("SharedNeedsWorldActor", "Max Holders above 1 needs Spawn Actor without Override Equipment Actor: every slot holds the item's own World Actor."), Id, i));
+			}
+			if (Item->FindFragmentByClass<UKzItemFragment_Storable>())
+			{
+				OutIssues.Add(FKzValidationIssue::WithContextIndex(EKzValidationSeverity::Error, LOCTEXT("SharedStorable", "Max Holders above 1 cannot be Storable: storing it would take it from the other holders."), Id, i));
+			}
+		}
+
+		TArray<FGameplayTag> Slots = { Equippable->TargetSlot, Equippable->StowSlot };
+		Slots.Append(Equippable->ExtraSlots);
+		for (const FGameplayTag& Slot : Slots)
 		{
 			const bool bDefined = !Slot.IsValid() || AnyAssetInProject<UKzEquipmentLayout>([&Slot](const UKzEquipmentLayout& Layout)
 				{

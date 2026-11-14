@@ -11,6 +11,11 @@
 #include "GameFramework/Actor.h"
 #include "Engine/AssetManager.h"
 
+AActor* FKzItemHolder::GetActor() const
+{
+	return Equipment ? Equipment->GetOwner() : nullptr;
+}
+
 UKzItemComponent::UKzItemComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -65,6 +70,19 @@ void UKzItemComponent::BeginPlay()
 
 void UKzItemComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Destroyed while held, as a rope that burns: the slots holding it let go of it, which replicates to everyone
+	if (EndPlayReason == EEndPlayReason::Destroyed && GetOwner()->HasAuthority())
+	{
+		for (const FKzItemHolder& Holder : TArray<FKzItemHolder>(Holders))
+		{
+			if (Holder.Equipment)
+			{
+				FKzItemInstance Unequipped;
+				Holder.Equipment->UnequipItem(Holder.SlotID, Unequipped);
+			}
+		}
+	}
+
 	if (PreloadHandle.IsValid())
 	{
 		PreloadHandle->ReleaseHandle();
@@ -73,9 +91,77 @@ void UKzItemComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	Super::EndPlay(EndPlayReason);
 }
+
+bool UKzItemComponent::IsHeldBy(const AActor* Actor) const
+{
+	return Actor && Holders.ContainsByPredicate([Actor](const FKzItemHolder& Holder) { return Holder.GetActor() == Actor; });
+}
+
+bool UKzItemComponent::HasRoomForHolder() const
+{
+	const UKzItemFragment_Equippable* Equippable = ItemInstance.ItemDef ? ItemInstance.ItemDef->FindFragmentByClass<UKzItemFragment_Equippable>() : nullptr;
+	return Holders.Num() < (Equippable ? Equippable->MaxHolders : 1);
+}
+
+void UKzItemComponent::AddHolder(const FKzItemHolder& Holder, const FKzTransformSource& AttachSource)
+{
+	Holders.Add(Holder);
+	OnHeld.Broadcast(Holder, AttachSource);
+}
+
+void UKzItemComponent::RemoveHolder(const UKzEquipmentComponent* Equipment, FGameplayTag SlotID)
+{
+	const int32 Index = Holders.IndexOfByPredicate([Equipment, SlotID](const FKzItemHolder& Holder) { return Holder.Equipment.Get() == Equipment && Holder.SlotID == SlotID; });
+	if (Index != INDEX_NONE)
+	{
+		const FKzItemHolder Holder = Holders[Index];
+		Holders.RemoveAt(Index);
+		OnReleased.Broadcast(Holder);
+	}
+}
+
+FVector UKzItemComponent::GetItemVelocity() const
+{
+	FVector Sum = FVector::ZeroVector;
+	int32 Count = 0;
+	for (const FKzItemHolder& Holder : Holders)
+	{
+		if (const AActor* Actor = Holder.GetActor())
+		{
+			Sum += Actor->GetVelocity();
+			++Count;
+		}
+	}
+
+	if (Count > 0)
+	{
+		return Sum / Count;
+	}
+
+	if (AActor* OwnerActor = GetOwner())
+	{
+		return OwnerActor->GetVelocity();
+	}
+
+	return FVector::ZeroVector;
+}
+
 bool UKzItemComponent::CanInteract_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
 {
-	return !EquipperActor.IsValid();
+	if (!HasRoomForHolder())
+	{
+		return false;
+	}
+
+	// The interactor may take it into another slot of its own, while it has one left that does not hold it already
+	const AActor* InteractorActor = Interactor ? Interactor->GetOwner() : nullptr;
+	if (!IsHeldBy(InteractorActor))
+	{
+		return true;
+	}
+
+	const UKzEquipmentComponent* Equipment = InteractorActor->FindComponentByClass<UKzEquipmentComponent>();
+	return Equipment && Equipment->FindSlotFor(ItemInstance.ItemDef, GetOwner()).IsValid();
 }
 
 EKzInteractionResult UKzItemComponent::GetInteractionResult_Implementation(UKzInteractorComponent* Interactor, UKzInteractableComponent* Interactable)
@@ -115,7 +201,7 @@ void UKzItemComponent::OnInteractionBegun_Implementation(UKzInteractorComponent*
 		if (UKzEquipmentComponent* EquipmentComp = InteractorActor->FindComponentByClass<UKzEquipmentComponent>())
 		{
 			FKzItemInstance UnequippedItem;
-			bool bEquipped = EquipmentComp->EquipItemFromWorld(this, UnequippedItem);
+			bool bEquipped = EquipmentComp->EquipItemFromWorld(this, UnequippedItem, Interactable);
 
 			if (bEquipped)
 			{
@@ -134,37 +220,4 @@ void UKzItemComponent::OnInteractionBegun_Implementation(UKzInteractorComponent*
 			InvComp->TryAddInstance(ItemInstance, GetOwner());
 		}
 	}
-}
-
-void UKzItemComponent::SetEquippedState(AActor* NewEquipper, FGameplayTag NewSlotID)
-{
-	EquipperActor = NewEquipper;
-	EquippedSlotID = NewSlotID;
-
-	OnEquipped.Broadcast(NewEquipper);
-}
-
-void UKzItemComponent::ClearEquippedState()
-{
-	AActor* FormerEquipper = EquipperActor.Get();
-
-	EquipperActor = nullptr;
-	EquippedSlotID = FGameplayTag::EmptyTag;
-
-	OnDropped.Broadcast(FormerEquipper);
-}
-
-FVector UKzItemComponent::GetItemVelocity() const
-{
-	if (AActor* Equipper = EquipperActor.Get())
-	{
-		return Equipper->GetVelocity();
-	}
-
-	if (AActor* OwnerActor = GetOwner())
-	{
-		return OwnerActor->GetVelocity();
-	}
-
-	return FVector::ZeroVector;
 }

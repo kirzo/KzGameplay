@@ -40,15 +40,29 @@ public:
 	FGameplayTag TargetSlot;
 
 	/**
+	 * How many slots can hold the item at once, of one equipment or of several: two for a rope, one at each end. Above one, the item needs
+	 * custom attachment and its own World Actor, and cannot be Storable: every slot holds the same actor.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (ClampMin = 1))
+	int32 MaxHolders = 1;
+
+	/**
+	 * Slots tried in order when the Target Slot already holds this very item, such as the other end of a rope in the other hand. Whatever
+	 * such a slot holds is unequipped first, as it would be from the Target Slot.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (Categories = "Equipment.Slot", EditCondition = "MaxHolders > 1"))
+	TArray<FGameplayTag> ExtraSlots;
+
+	/**
 	 * If set, the item will visually attach to this socket instead of the Layout's default socket for the TargetSlot.
-	 * Useful for items that occupy the hands logically but sit on the shoulder or use a special IK socket.
+	 * Useful for items that occupy the hands logically but sit on the shoulder or use a special IK socket. Extra Slots keep their own.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Equipment")
 	FName SocketOverride = NAME_None;
 
 	/**
-	 * If true, the system will NOT use the default AttachToComponent.
-	 * Instead, it will call PerformCustomAttach/Detach on the item's ItemComponent.
+	 * If true, the equipment does not attach the item's actor: the actor hangs itself where each slot holds it, as its ItemComponent's
+	 * On Held and On Released tell it on every machine.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Equipment")
 	bool bUseCustomAttachment = false;

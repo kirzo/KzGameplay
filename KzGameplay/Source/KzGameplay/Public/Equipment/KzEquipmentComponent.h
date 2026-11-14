@@ -12,6 +12,7 @@
 #include "KzEquipmentComponent.generated.h"
 
 class UKzEquipmentComponent;
+class UKzInteractableComponent;
 class UKzItemFragment_Equippable;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChangedDelegate, FGameplayTag, SlotID, const FKzItemInstance&, Item);
@@ -36,9 +37,17 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Equipment Slot")
 	FKzItemInstance Instance;
 
+	/** The interactable the item was picked up by, null when it was handed over: which part of an item held in several slots this one holds. */
+	UPROPERTY(BlueprintReadOnly, Category = "Equipment Slot")
+	TObjectPtr<UKzInteractableComponent> PickedUpBy = nullptr;
+
 	/** The item this machine shows in the slot and told its equip listeners about. Local: by the time a change replicates, clients have lost the old item. */
 	UPROPERTY(NotReplicated, Transient)
 	TObjectPtr<const UKzItemDefinition> ShownItem = nullptr;
+
+	/** The item actor this machine has the slot holding, told so through its ItemComponent. Local, for the same reason as ShownItem. */
+	UPROPERTY(NotReplicated, Transient)
+	TWeakObjectPtr<AActor> HeldActor;
 
 	FEquippedSlot() {}
 	FEquippedSlot(FGameplayTag InSlotID) : SlotID(InSlotID) {}
@@ -96,6 +105,10 @@ struct TStructOpsTypeTraits<FKzEquipmentList> : public TStructOpsTypeTraitsBase2
 /**
  * Manages active equipment slots for a character.
  * Handles the logic of swapping items, replicating the equipped state, and triggering attachment events.
+ *
+ * The slots are the truth of who holds what: the server changes them, they replicate, and every machine applies them to the item actors
+ * they hold, attaching them and telling their ItemComponents. An item actor can be in slots of several equipments at once, and in several
+ * of one, up to its Equippable's Max Holders.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzEquipmentComponent : public UActorComponent
@@ -137,12 +150,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
 	void InitializeEquipment(const UKzEquipmentLayout* Layout);
 
-	/** * Attempts to equip an item into its designated target slot.
+	/** * Attempts to equip an item into its designated target slot, or the slot FindSlotFor gives when that one already holds it.
 	 * If the slot was already occupied, the old item is returned via OutUnequippedItem.
-	 * @return True if the item was successfully equipped.
+	 * @param PickedUpBy The interactable of the item's actor it was picked up by, which the slot keeps: null when it is handed over.
+	 * @return True if the item was successfully equipped. False, without touching any slot, if no more slots can hold its actor.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
-	bool EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem);
+	bool EquipItem(const FKzItemInstance& ItemToEquip, FKzItemInstance& OutUnequippedItem, UKzInteractableComponent* PickedUpBy = nullptr);
 
 	/**
 	 * Equips an item directly from its definition.
@@ -155,11 +169,20 @@ public:
 	/**
 	 * Equips an item directly from an KzItemComponent in the world.
 	 * Triggers pre-pickup events before attaching.
+	 * @param PickedUpBy The interactable it was picked up by, null when it was not.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
-	bool EquipItemFromWorld(class UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem);
+	bool EquipItemFromWorld(class UKzItemComponent* ItemComp, FKzItemInstance& OutUnequippedItem, UKzInteractableComponent* PickedUpBy = nullptr);
+
+	/**
+	 * The slot equipping an item would put it in: its Target Slot, or, when that already holds this very actor, the first of its Extra Slots
+	 * that does not. Invalid when none of them is left, or without a layout.
+	 * @param ItemActor The item's actor, null for an item equipped as a mesh.
+	 */
+	FGameplayTag FindSlotFor(const UKzItemDefinition* ItemDef, const AActor* ItemActor) const;
 
 	/** * Removes whatever item is currently in the specified slot.
+	 * An item still held by other slots stays with them; let go by its last one, it goes to the inventory or drops.
 	 * @return True if there was an item to unequip.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Equipment")
@@ -205,6 +228,9 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
 
+	/** Lets go of the item actors its slots hold on this machine: a character that goes stops holding them everywhere. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	/** Replicated FastArray holding the current state of all equipment slots. */
 	UPROPERTY(Replicated)
 	FKzEquipmentList EquipmentList;
@@ -231,6 +257,18 @@ protected:
 
 	/** Makes ItemDef what this machine shows in the slot, telling the old item's equip listeners it went and the new one's it came. An item put away counts as none. Dedicated servers show nothing. */
 	void ShowItem(FEquippedSlot& Slot, const UKzItemDefinition* ItemDef);
+
+	/**
+	 * Makes the slot's item actor the one this machine has the slot holding: lets go of the one it held, and attaches the new one, or lets it
+	 * attach itself, telling its ItemComponent. Every machine runs it as the slot changes, the server as it changes it.
+	 */
+	void HoldItemActor(FEquippedSlot& Slot);
+
+	/** Lets go of the actor this machine has the slot holding. Let go by every slot, it is a thing of the world again: it collides, and falls if it simulates. */
+	void ReleaseItemActor(FEquippedSlot& Slot);
+
+	/** Where the slot holds its item: its component, socket and offset, as the item's Equippable says for that slot, put away or in use. */
+	USceneComponent* GetAttachmentForSlot(const FEquippedSlot& Slot, const UKzItemFragment_Equippable& Equippable, FName& OutSocket, FTransform& OutOffset) const;
 
 	/** Called on clients when a slot first replicates in: refresh the visual and broadcast if it holds an item. */
 	void HandleSlotAdded(FEquippedSlot& Slot);
