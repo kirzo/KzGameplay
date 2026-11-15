@@ -40,14 +40,15 @@ public:
 	void GrantDefaultCapabilities();
 
 	/**
-	 * Grants one capability: the tag always, plus whatever implements it.
+	 * Grants one capability: the tag always, plus whatever implements it. Its parents that the set defines come along, as the tag A.B
+	 * already answers for A: Capability.Rope.Throw brings Capability.Rope, so holding the one never leaves the other without its ability.
 	 * @param SourceSet Where to look the implementation up. Defaults to our own CapabilitySet, so an object
 	 *                  handing out a temporary capability can pass its own set instead.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Capabilities")
 	void GrantCapability(FGameplayTag Capability, UKzCapabilitySet* SourceSet = nullptr);
 
-	/** Takes back a capability and whatever was granted with it. */
+	/** Takes back a capability and whatever was granted with it, its parents too unless another capability still brings them. */
 	UFUNCTION(BlueprintCallable, Category = "Capabilities")
 	void RevokeCapability(FGameplayTag Capability);
 
@@ -95,6 +96,22 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/** Capabilities granted by name, with the set each is looked up in. Held are these and the parents their sets define. Authority only. */
+	UPROPERTY(Transient)
+	TMap<FGameplayTag, TObjectPtr<const UKzCapabilitySet>> GrantedCapabilities;
+
+	/** Capabilities whose tag, ability and controls are on. Authority only. */
+	TSet<FGameplayTag> AppliedCapabilities;
+
+	/** Puts on what is held and is not on, and takes off what is on and no longer held. */
+	void RefreshCapabilities();
+
+	/** Puts on one capability's tag, and its ability and controls as Set defines them. */
+	void ApplyCapability(FGameplayTag Capability, const UKzCapabilitySet* Set);
+
+	/** Takes off one capability's tag, ability and controls. */
+	void UnapplyCapability(FGameplayTag Capability);
+
 	/** Abilities we granted, so we can take back exactly what we gave. Authority only. */
 	TMap<FGameplayTag, FGameplayAbilitySpecHandle> GrantedAbilities;
 

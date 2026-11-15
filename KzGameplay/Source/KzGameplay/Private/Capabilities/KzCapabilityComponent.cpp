@@ -23,15 +23,10 @@ void UKzCapabilityComponent::BeginPlay()
 
 void UKzCapabilityComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld)
+	if ((EndPlayReason == EEndPlayReason::Destroyed || EndPlayReason == EEndPlayReason::RemovedFromWorld) && HasAuthority())
 	{
-		TArray<FGameplayTag> Granted;
-		GrantedAbilities.GetKeys(Granted);
-
-		for (const FGameplayTag& Capability : Granted)
-		{
-			RevokeCapability(Capability);
-		}
+		GrantedCapabilities.Empty();
+		RefreshCapabilities();
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -69,11 +64,63 @@ void UKzCapabilityComponent::GrantDefaultCapabilities()
 
 void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabilitySet* SourceSet)
 {
-	if (!Capability.IsValid() || !HasAuthority() || HasCapability(Capability))
+	// By name, not by match: a parent answers for a child already granted, but has its own ability to grant
+	if (!Capability.IsValid() || !HasAuthority() || GrantedCapabilities.Contains(Capability))
 	{
 		return;
 	}
 
+	GrantedCapabilities.Add(Capability, SourceSet ? SourceSet : CapabilitySet.Get());
+	RefreshCapabilities();
+}
+
+void UKzCapabilityComponent::RevokeCapability(FGameplayTag Capability)
+{
+	if (!HasAuthority() || GrantedCapabilities.Remove(Capability) == 0)
+	{
+		return;
+	}
+
+	RefreshCapabilities();
+}
+
+void UKzCapabilityComponent::RefreshCapabilities()
+{
+	// Held: what was granted, and each parent its set defines, as the tag A.B answers for A
+	TMap<FGameplayTag, const UKzCapabilitySet*> Held;
+	for (const TPair<FGameplayTag, TObjectPtr<const UKzCapabilitySet>>& Pair : GrantedCapabilities)
+	{
+		Held.Add(Pair.Key, Pair.Value);
+	}
+	for (const TPair<FGameplayTag, TObjectPtr<const UKzCapabilitySet>>& Pair : GrantedCapabilities)
+	{
+		for (FGameplayTag Parent = Pair.Key.RequestDirectParent(); Parent.IsValid(); Parent = Parent.RequestDirectParent())
+		{
+			if (Pair.Value && Pair.Value->DefinesCapability(Parent) && !Held.Contains(Parent))
+			{
+				Held.Add(Parent, Pair.Value);
+			}
+		}
+	}
+
+	for (const FGameplayTag& Applied : AppliedCapabilities.Array())
+	{
+		if (!Held.Contains(Applied))
+		{
+			UnapplyCapability(Applied);
+		}
+	}
+	for (const TPair<FGameplayTag, const UKzCapabilitySet*>& Pair : Held)
+	{
+		if (!AppliedCapabilities.Contains(Pair.Key))
+		{
+			ApplyCapability(Pair.Key, Pair.Value);
+		}
+	}
+}
+
+void UKzCapabilityComponent::ApplyCapability(FGameplayTag Capability, const UKzCapabilitySet* Set)
+{
 	UAbilitySystemComponent* ASC = GetAbilitySystem();
 	if (!ASC)
 	{
@@ -83,8 +130,8 @@ void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabil
 
 	// The tag goes on regardless: a capability with nothing behind it still means the owner can do the thing
 	ASC->AddLooseGameplayTag(Capability, 1, EGameplayTagReplicationState::TagOnly);
+	AppliedCapabilities.Add(Capability);
 
-	const UKzCapabilitySet* Set = SourceSet ? SourceSet : CapabilitySet.Get();
 	const FKzCapabilityGrant* Grant = Set ? Set->FindGrant(Capability) : nullptr;
 
 	if (!Grant)
@@ -110,12 +157,9 @@ void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabil
 	}
 }
 
-void UKzCapabilityComponent::RevokeCapability(FGameplayTag Capability)
+void UKzCapabilityComponent::UnapplyCapability(FGameplayTag Capability)
 {
-	if (!HasAuthority())
-	{
-		return;
-	}
+	AppliedCapabilities.Remove(Capability);
 
 	UAbilitySystemComponent* ASC = GetAbilitySystem();
 	if (!ASC)
