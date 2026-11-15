@@ -53,6 +53,9 @@ private:
 		TArray<uint32> BindHandles;
 		bool bAppliedContext = false;
 		bool bIsBase = false;
+
+		/** How many pushed it: the same controls shared by two capabilities stay until both take them back. */
+		int32 PushCount = 1;
 	};
 
 	/**
@@ -90,11 +93,12 @@ public:
 	 * Adds a profile on top of the current ones: binds its actions and applies its keys.
 	 * Made for things that grant controls while held, so an item ships its own inputs and takes them with
 	 * it. A tag declared here shadows the same tag lower down, which is how an item retunes what exists.
+	 * Pushed again while on, it is counted, and stays until taken back as many times.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void PushInputProfile(UKzInputProfile* Profile);
 
-	/** Takes a profile back off, unbinding exactly what it brought. */
+	/** Takes a profile back off, unbinding exactly what it brought, once nothing else that pushed it still wants it. */
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void RemoveInputProfile(UKzInputProfile* Profile);
 

@@ -98,8 +98,14 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 void UKzInputHandlerComponent::PushInputProfile(UKzInputProfile* Profile)
 {
 	APawn* Pawn = Cast<APawn>(GetOwner());
-	if (!Profile || !Pawn || ActiveProfiles.ContainsByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; }))
+	if (!Profile || !Pawn)
 	{
+		return;
+	}
+
+	if (FActiveProfile* Pushed = ActiveProfiles.FindByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; }))
+	{
+		++Pushed->PushCount;
 		return;
 	}
 
@@ -112,7 +118,7 @@ void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
 {
 	APawn* Pawn = Cast<APawn>(GetOwner());
 	const int32 Index = ActiveProfiles.IndexOfByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; });
-	if (Index == INDEX_NONE)
+	if (Index == INDEX_NONE || --ActiveProfiles[Index].PushCount > 0)
 	{
 		return;
 	}
