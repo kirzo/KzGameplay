@@ -79,11 +79,22 @@ void UKzInputHandlerComponent::TryBindInput(APawn* Pawn, UKzInputProfile* Profil
 
 	// Only the base is replaced: pushed layers belong to what the pawn holds and can do, which a possession
 	// does not change, and the ones pushed before there was input are bound here for the first time
-	ActiveProfiles.RemoveAll([](const FActiveProfile& Layer) { return Layer.bIsBase; });
+	for (FActiveProfile& Layer : ActiveProfiles)
+	{
+		Layer.bIsBase = false;
+	}
+	ActiveProfiles.RemoveAll([](const FActiveProfile& Layer) { return Layer.PushCount == 0; });
 
 	if (UKzInputProfile* BaseProfile = ProfileToUse ? ProfileToUse : DefaultInputProfile.Get())
 	{
+		// One layer per profile, or its actions fire twice: a base already pushed, as by a capability before there was input, keeps its pushes
 		FActiveProfile Base;
+		const int32 Pushed = ActiveProfiles.IndexOfByPredicate([BaseProfile](const FActiveProfile& Layer) { return Layer.Profile == BaseProfile; });
+		if (Pushed != INDEX_NONE)
+		{
+			Base = MoveTemp(ActiveProfiles[Pushed]);
+			ActiveProfiles.RemoveAt(Pushed);
+		}
 		Base.Profile = BaseProfile;
 		Base.bIsBase = true;
 		ActiveProfiles.Insert(MoveTemp(Base), 0);
@@ -103,22 +114,23 @@ void UKzInputHandlerComponent::PushInputProfile(UKzInputProfile* Profile)
 		return;
 	}
 
-	if (FActiveProfile* Pushed = ActiveProfiles.FindByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; }))
+	FActiveProfile* Layer = ActiveProfiles.FindByPredicate([Profile](const FActiveProfile& Active) { return Active.Profile == Profile; });
+	if (!Layer)
 	{
-		++Pushed->PushCount;
-		return;
+		Layer = &ActiveProfiles.AddDefaulted_GetRef();
+		Layer->Profile = Profile;
+		BindProfileLayer(Pawn, *Layer);
 	}
-
-	FActiveProfile& Layer = ActiveProfiles.AddDefaulted_GetRef();
-	Layer.Profile = Profile;
-	BindProfileLayer(Pawn, Layer);
+	++Layer->PushCount;
 }
 
 void UKzInputHandlerComponent::RemoveInputProfile(UKzInputProfile* Profile)
 {
 	APawn* Pawn = Cast<APawn>(GetOwner());
 	const int32 Index = ActiveProfiles.IndexOfByPredicate([Profile](const FActiveProfile& Layer) { return Layer.Profile == Profile; });
-	if (Index == INDEX_NONE || --ActiveProfiles[Index].PushCount > 0)
+
+	// Only pushes are taken back: the base stays until another base replaces it
+	if (Index == INDEX_NONE || ActiveProfiles[Index].PushCount == 0 || --ActiveProfiles[Index].PushCount > 0 || ActiveProfiles[Index].bIsBase)
 	{
 		return;
 	}
