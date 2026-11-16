@@ -200,6 +200,33 @@ private:
 	FVector GetDesiredLead(const FKzCameraContext& Context, const FKzCameraPose& Pose, const FVector& Velocity) const;
 };
 
+/**
+ * Keeps the focus out of the blocking camera limits and inside the confining ones the target is in, before it is smoothed.
+ * The focus slides along blocking shapes from where it was, so a target that walks deep into one never pulls it through to the other side.
+ */
+UCLASS(meta = (DisplayName = "Limits"))
+class KZGAMEPLAY_API UKzCameraModule_Limits : public UKzCameraModule
+{
+	GENERATED_BODY()
+
+public:
+	UKzCameraModule_Limits();
+
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+
+protected:
+	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
+
+private:
+	/** The focus as the limits left it last frame, outside every blocking shape. */
+	FVector Position = FVector::ZeroVector;
+
+	/** The focus before the limits, for the debug draw. */
+	FVector DesiredFocus = FVector::ZeroVector;
+
+	bool bInitialized = false;
+};
+
 /** Makes the focus trail the target, with optional caps so sudden moves don't drag the camera along at their speed. */
 UCLASS(meta = (DisplayName = "Lag"))
 class KZGAMEPLAY_API UKzCameraModule_Lag : public UKzCameraModule

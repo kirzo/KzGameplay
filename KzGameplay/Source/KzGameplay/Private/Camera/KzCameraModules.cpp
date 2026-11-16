@@ -1,13 +1,19 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraModules.h"
+#include "Camera/KzCameraLimit.h"
+#include "Collision/KzGJK.h"
+#include "Collision/KzHitResult.h"
+#include "Components/KzShapeComponent.h"
 #include "Components/KzSplineFollowerComponent.h"
 #include "Components/SplineComponent.h"
+#include "Core/KzRegistrySubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "KzDrawDebugHelpers.h"
 
 namespace
 {
@@ -15,6 +21,97 @@ namespace
 
 	/** How close to a face of the dead zone's box the target counts as up against it. */
 	constexpr double FaceTolerance = 1.0;
+
+	/** How far outside a blocking shape the focus is left, so the next sweep starts clear of it. */
+	constexpr double LimitSkin = 0.1;
+
+	/** Slides along blocking shapes in a frame, and passes to push the focus out of overlapping ones. Two cover a corner. */
+	constexpr int32 MaxLimitPasses = 3;
+
+	struct FLimitShape
+	{
+		FKzShapeInstance Shape;
+		FVector Location;
+		FQuat Rotation;
+		FBox Bounds;
+
+		bool Contains(const FVector& Point) const { return Shape.IntersectsPoint(Location, Rotation, Point); }
+	};
+
+	/** Moves a point inside blocking shapes out through the nearest face, found by casting in along each axis of the shape. */
+	FVector PushOut(FVector Point, TConstArrayView<FLimitShape> Blockers)
+	{
+		for (int32 Pass = 0; Pass < MaxLimitPasses; ++Pass)
+		{
+			bool bMoved = false;
+
+			for (const FLimitShape& Blocker : Blockers)
+			{
+				if (!Blocker.Contains(Point)) continue;
+
+				// From past the shape's bounds every cast starts outside it.
+				const double Reach = Blocker.Bounds.GetSize().Size() + 1.0;
+				double BestExit = TNumericLimits<double>::Max();
+				FVector BestPoint = Point;
+
+				for (int32 Side = 0; Side < 6; ++Side)
+				{
+					FVector Axis = FVector::ZeroVector;
+					Axis[Side / 2] = Side % 2 ? -1.0 : 1.0;
+					const FVector Out = Blocker.Rotation.RotateVector(Axis);
+
+					FKzHitResult Hit;
+					if (Kz::GJK::Raycast(Hit, Point + Out * Reach, -Out, static_cast<float>(Reach), Blocker.Shape, Blocker.Location, Blocker.Rotation) && Reach - Hit.Distance < BestExit)
+					{
+						BestExit = Reach - Hit.Distance;
+						BestPoint = Hit.Location + Hit.Normal * LimitSkin;
+					}
+				}
+
+				bMoved |= BestPoint != Point;
+				Point = BestPoint;
+			}
+
+			if (!bMoved) break;
+		}
+
+		return Point;
+	}
+
+	/** Moves a point towards Goal, stopping at the blocking shapes in the way and sliding along them with what is left of the move. */
+	FVector Sweep(FVector Point, FVector Goal, TConstArrayView<FLimitShape> Blockers)
+	{
+		for (int32 Pass = 0; Pass < MaxLimitPasses; ++Pass)
+		{
+			const FVector Move = Goal - Point;
+			const double Length = Move.Size();
+			if (Length < UE_KINDA_SMALL_NUMBER) return Goal;
+
+			const FVector Direction = Move / Length;
+			FKzHitResult Hit;
+			bool bHit = false;
+
+			for (const FLimitShape& Blocker : Blockers)
+			{
+				// A cast from inside would stop the point where it stands; the next frame pushes it out instead.
+				if (Blocker.Contains(Point)) continue;
+
+				FKzHitResult BlockerHit;
+				if (Kz::GJK::Raycast(BlockerHit, Point, Direction, static_cast<float>(Length), Blocker.Shape, Blocker.Location, Blocker.Rotation) && (!bHit || BlockerHit.Distance < Hit.Distance))
+				{
+					Hit = BlockerHit;
+					bHit = true;
+				}
+			}
+
+			if (!bHit) return Goal;
+
+			Point = Hit.Location + Hit.Normal * LimitSkin;
+			Goal = Point + FVector::VectorPlaneProject(Goal - Point, Hit.Normal);
+		}
+
+		return Point;
+	}
 }
 
 UKzCameraModule_DeadZone::UKzCameraModule_DeadZone()
@@ -235,6 +332,93 @@ void UKzCameraModule_LookAhead::DrawDebug(const FKzCameraContext& Context, const
 	if (!Lead.IsNearlyZero())
 	{
 		DrawDebugDirectionalArrow(GetWorld(), LeadOrigin, LeadOrigin + Lead, 30.0f, FColor::Green, false, -1.0f, SDPG_Foreground, DebugThickness);
+	}
+}
+
+UKzCameraModule_Limits::UKzCameraModule_Limits()
+{
+	Stage = EKzCameraStage::Limit;
+	bHasState = true;
+}
+
+FKzCameraPose UKzCameraModule_Limits::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
+{
+	DesiredFocus = Pose.Focus;
+	FVector Goal = Pose.Focus;
+
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	if (!Registry) return Pose;
+
+	// Inside the confining limits the target is in, the nearest point of a convex shape moves without jumps, so it needs no memory.
+	double BestDistSq = TNumericLimits<double>::Max();
+	FVector Confined = Goal;
+	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
+	{
+		if (!Limit->IsConfining(Context.TargetLocation)) return;
+
+		const FVector Closest = Limit->GetShape(true).GetClosestPoint(Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Goal);
+		const double DistSq = FVector::DistSquared(Closest, Goal);
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Confined = Closest;
+		}
+	});
+	Goal = Confined;
+
+	if (!bInitialized || Context.bTeleport)
+	{
+		Position = Goal;
+		bInitialized = true;
+	}
+
+	// Only blocking limits whose bounds reach the move are tested: sliding never takes the focus farther than the move itself.
+	FBox Reach(ForceInit);
+	Reach += Position;
+	Reach += Goal;
+	Reach = Reach.ExpandBy(FVector::Dist(Position, Goal) + LimitSkin);
+
+	TArray<FLimitShape, TInlineAllocator<8>> Blockers;
+	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
+	{
+		if (Limit->Mode != EKzCameraLimitMode::Block) return;
+
+		const FBox Bounds = Limit->GetBounds();
+		if (!Bounds.Intersect(Reach)) return;
+
+		const FKzShapeInstance Shape = Limit->GetShape(true);
+		if (Shape.IsValid())
+		{
+			Blockers.Add({ Shape, Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Bounds });
+		}
+	});
+
+	// The focus moves on from where the limits left it, so one deep inside a shape stays at the face it came in by.
+	Position = Sweep(PushOut(Position, Blockers), Goal, Blockers);
+
+	FKzCameraPose Result = Pose;
+	Result.Focus = Position;
+	return Result;
+}
+
+void UKzCameraModule_Limits::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+{
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	if (!Registry) return;
+
+	const UWorld* World = GetWorld();
+	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
+	{
+		const FKzShapeInstance Shape = Limit->GetShape(true);
+		if (!Shape.IsValid()) return;
+
+		const FColor Color = Limit->Mode == EKzCameraLimitMode::Block ? FColor::Red : Limit->IsConfining(Context.TargetLocation) ? FColor::Green : FColor::Silver;
+		DrawDebugShape(World, Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Shape, Color, false, -1.0f, SDPG_Foreground, DebugThickness);
+	});
+
+	if (!DesiredFocus.Equals(Position))
+	{
+		DrawDebugLine(World, DesiredFocus, Position, FColor::Red, false, -1.0f, SDPG_Foreground, DebugThickness);
 	}
 }
 

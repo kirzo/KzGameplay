@@ -21,6 +21,9 @@ enum class EKzCameraStage : uint8
 	/** Moves the focus ahead of the target. */
 	Lead,
 
+	/** Keeps the focus off the camera limits, before it is smoothed. */
+	Limit,
+
 	/** Smooths the focus. */
 	Smooth,
 
