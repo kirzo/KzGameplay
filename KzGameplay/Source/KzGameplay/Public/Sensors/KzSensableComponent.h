@@ -6,9 +6,13 @@
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Components/KzComponentReference.h"
 #include "KzSensableComponent.generated.h"
 
-/** Component that registers an Actor to the Spatial Sense Subsystem. */
+/**
+ * Registers its actor with the Spatial Sense Subsystem, for sensors to find. It sits where Component is, as a point unless given a Shape, so a
+ * sensor finds it by whether that point lies inside the sensor's shape.
+ */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzSensableComponent : public UActorComponent
 {
@@ -25,9 +29,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kz Sensable")
 	bool bIsDynamic = true;
 
-	/** Shape definition (sphere, box, capsule, etc.) */
+	/** Where it is: a scene component of its actor, the root if none. */
 	UPROPERTY(EditAnywhere, Category = "Kz Sensable")
-	FKzShapeInstance FallbackShape;
+	FKzComponentReference Component;
+
+	/** Takes Component's own shape instead of Shape: its Shape if a KzShapeComponent, its collision shape if a primitive. For when sensors have to meet its volume. */
+	UPROPERTY(EditAnywhere, Category = "Kz Sensable")
+	bool bUseComponentShape = false;
+
+	/** Its shape, at Component. A point by default, the cheapest for a sensor to test. */
+	UPROPERTY(EditAnywhere, Category = "Kz Sensable", meta = (EditCondition = "!bUseComponentShape"))
+	FKzShapeInstance Shape;
 
 	// --- Runtime API ---
 
@@ -47,7 +59,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kz Sensable")
 	FQuat GetShapeRotation() const;
 
-	/** Force updates the shape cache. Useful if the primitive changes significantly at runtime. */
+	/** Finds Component again, for when it changes at runtime. */
 	UFUNCTION(BlueprintCallable, Category = "Kz Sensable")
 	void CacheShapeComponent();
 
@@ -55,6 +67,6 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	/** Cached reference to the shape we are tracking */
-	TWeakObjectPtr<UPrimitiveComponent> CachedPrimitive;
+	/** Component, found once: queries ask for it every time. */
+	TWeakObjectPtr<USceneComponent> CachedComponent;
 };

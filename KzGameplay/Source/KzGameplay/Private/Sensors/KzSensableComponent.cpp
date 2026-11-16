@@ -2,14 +2,15 @@
 
 #include "Sensors/KzSensableComponent.h"
 #include "Sensors/KzSpatialSenseSubsystem.h"
-#include "Sensors/KzSensorComponent.h"
 #include "Components/KzShapeComponent.h"
+#include "Math/Geometry/Shapes/KzPoint.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 
 UKzSensableComponent::UKzSensableComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	Shape = FKzShapeInstance::Make<FKzPoint>();
 }
 
 void UKzSensableComponent::BeginPlay()
@@ -37,74 +38,40 @@ void UKzSensableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void UKzSensableComponent::CacheShapeComponent()
 {
-	AActor* Owner = GetOwner();
-	if (!Owner) return;
-
-	// 1. Prioritize the Root Component if it's a Primitive (KzShapeComponent inherits from Primitive)
-	if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(Owner->GetRootComponent()))
-	{
-		CachedPrimitive = RootPrim;
-		return;
-	}
-
-	// 2. Fallback to a KzShapeComponent explicitly, but NEVER pick a Sensor
-	TArray<UKzShapeComponent*> ShapeComponents;
-	Owner->GetComponents<UKzShapeComponent>(ShapeComponents);
-
-	for (UKzShapeComponent* Shape : ShapeComponents)
-	{
-		if (!Shape->IsA(UKzSensorComponent::StaticClass()))
-		{
-			CachedPrimitive = Shape;
-			return;
-		}
-	}
-
-	// 3. Fallback to the first Primitive Component, again ignoring Sensors
-	TArray<UPrimitiveComponent*> PrimitiveComponents;
-	Owner->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
-
-	for (UPrimitiveComponent* Prim : PrimitiveComponents)
-	{
-		if (!Prim->IsA(UKzSensorComponent::StaticClass()))
-		{
-			CachedPrimitive = Prim;
-			return;
-		}
-	}
+	CachedComponent = Component.GetComponent(this);
 }
 
 FKzShapeInstance UKzSensableComponent::GetShapeInstance() const
 {
-	if (UPrimitiveComponent* PrimComp = CachedPrimitive.Get())
+	// A component without a shape of its own, a plain scene component, still has Shape there
+	if (bUseComponentShape)
 	{
-		// Is it already our native Shape?
-		if (UKzShapeComponent* KzShapeComp = Cast<UKzShapeComponent>(PrimComp))
+		if (const UKzShapeComponent* KzShapeComp = Cast<UKzShapeComponent>(CachedComponent.Get()))
 		{
 			return KzShapeComp->Shape * KzShapeComp->GetComponentScale();
 		}
-
-		return FKzShapeInstance::MakeFromCollisionShape(PrimComp->GetCollisionShape());
+		if (const UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(CachedComponent.Get()))
+		{
+			return FKzShapeInstance::MakeFromCollisionShape(PrimComp->GetCollisionShape());
+		}
 	}
-	return FallbackShape;
+	return Shape;
 }
 
 FBox UKzSensableComponent::GetBounds() const
 {
-	if (UPrimitiveComponent* PrimComp = CachedPrimitive.Get()) return PrimComp->Bounds.GetBox();
-
-	AActor* Owner = GetOwner();
-	return Owner ? FallbackShape.GetBoundingBox(Owner->GetActorLocation(), Owner->GetActorQuat()) : FBox();
+	const UPrimitiveComponent* PrimComp = bUseComponentShape ? Cast<UPrimitiveComponent>(CachedComponent.Get()) : nullptr;
+	return PrimComp ? PrimComp->Bounds.GetBox() : Shape.GetBoundingBox(GetShapeLocation(), GetShapeRotation());
 }
 
 FVector UKzSensableComponent::GetShapeLocation() const
 {
-	if (UPrimitiveComponent* PrimComp = CachedPrimitive.Get()) return PrimComp->GetComponentLocation();
+	if (const USceneComponent* SceneComp = CachedComponent.Get()) return SceneComp->GetComponentLocation();
 	return GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
 }
 
 FQuat UKzSensableComponent::GetShapeRotation() const
 {
-	if (UPrimitiveComponent* PrimComp = CachedPrimitive.Get()) return PrimComp->GetComponentQuat();
+	if (const USceneComponent* SceneComp = CachedComponent.Get()) return SceneComp->GetComponentQuat();
 	return GetOwner() ? GetOwner()->GetActorQuat() : FQuat::Identity;
 }
