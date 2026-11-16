@@ -16,7 +16,7 @@ enum class EKzInputRouting : uint8
 {
 	/** Digital: Started/Completed drive GAS input tags, plus optional gameplay events. */
 	Ability,
-	/** Analog: value runs through the modifier stack and broadcasts on OnInputAxis across its lifecycle (Started/Triggered/Completed/Canceled). */
+	/** Analog: value runs through the modifier stack and broadcasts on OnInputAxis across its lifecycle (Started/Triggered/Completed/Canceled), plus optional gameplay events. */
 	Analog
 };
 
@@ -42,11 +42,11 @@ public:
 	EKzInputRouting Routing = EKzInputRouting::Ability;
 
 	/** Gameplay Event sent to the ASC when this action Starts. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events", meta = (EditCondition = "Routing == EKzInputRouting::Ability"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
 	FGameplayTag OnStartedEvent;
 
 	/** Gameplay Event sent to the ASC when this action Completes or Cancels. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events", meta = (EditCondition = "Routing == EKzInputRouting::Ability"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input|Events")
 	FGameplayTag OnCompletedEvent;
 };
 
