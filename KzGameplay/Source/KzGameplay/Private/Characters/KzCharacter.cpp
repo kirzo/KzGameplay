@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Characters/KzCharacter.h"
+#include "Characters/KzCharacterTags.h"
 
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "Capabilities/KzCapabilityComponent.h"
@@ -22,6 +23,9 @@ AKzCharacter::AKzCharacter(const FObjectInitializer& ObjectInitializer)
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->PerchRadiusThreshold = 30.0f;
 	Movement->PerchAdditionalHeight = 0.0f;
+
+	// Strafing is facing the control rotation, whatever drives it: UKzGameplayAbility_Strafe holds this tag
+	FaceControlRotationTags.AddTag(KzTags::Character::State_Strafing);
 
 	for (FScriptableAction* Action : { &OnPossessedAction, &OnPossessedByAIAction, &OnPossessedByPlayerAction })
 	{

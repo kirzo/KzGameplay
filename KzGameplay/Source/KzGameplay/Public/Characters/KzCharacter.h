@@ -111,7 +111,8 @@ protected:
 
 	/**
 	 * While the character has any of these tags it turns to its control rotation instead of its movement, so it strafes facing
-	 * where its controller looks: the camera for a player, the focus for an AI.
+	 * where its controller looks: the camera for a player, the focus for an AI, or the stick UKzGameplayAbility_Strafe follows.
+	 * State.Strafing by default.
 	 */
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	FGameplayTagContainer FaceControlRotationTags;
@@ -137,7 +138,7 @@ protected:
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void UnPossessed() override;
 
-	/** Move goes to the movement component and Look turns the control rotation. Override for other schemes, such as twin-stick aiming. */
+	/** Move goes to the movement component and Look turns the control rotation. Twin-stick facing is UKzGameplayAbility_Strafe's, on Input.Strafe. */
 	UFUNCTION()
 	virtual void HandleInputAxis(FGameplayTag InputTag, const FInputActionValue& Value, ETriggerEvent TriggerEvent);
 
