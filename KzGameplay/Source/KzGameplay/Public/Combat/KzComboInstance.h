@@ -83,7 +83,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combo")
 	bool IsRunning() const { return bRunning; }
 
-	/** Whether a Cancel Window of the attack playing is open. */
+	/** Whether a Cancel Window of the attack playing is open to abilities. */
 	UFUNCTION(BlueprintPure, Category = "Combo")
 	bool IsCancelable() const { return CancelWindows > 0; }
 
@@ -98,7 +98,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Combo")
 	FKzOnComboEnded OnEnded;
 
-	/** A Cancel Window opened, or the last one closed. */
+	/** A Cancel Window open to abilities opened, or the last one closed. */
 	UPROPERTY(BlueprintAssignable, Category = "Combo")
 	FKzOnComboCancelable OnCancelable;
 

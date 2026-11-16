@@ -4,6 +4,8 @@
 #include "Abilities/KzGameplayAbility_HitReaction.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Combat/KzCombatLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -80,6 +82,51 @@ UKzAnimNotifyState_CancelWindow::UKzAnimNotifyState_CancelWindow()
 #if WITH_EDITORONLY_DATA
 	NotifyColor = FColor(70, 130, 220);
 #endif
+}
+
+void UKzAnimNotifyState_CancelWindow::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+
+	// Only in game, where there is a stick: the editors' previews would stop their own playback.
+	const UKzInputHandlerComponent* InputHandler = bMovement ? FindInputHandler(MeshComp) : nullptr;
+	UAnimInstance* AnimInstance = MeshComp ? MeshComp->GetAnimInstance() : nullptr;
+	if (!InputHandler || !AnimInstance || !MeshComp->GetWorld() || !MeshComp->GetWorld()->IsGameWorld())
+	{
+		return;
+	}
+
+	// The stick as pushed, even while Input.Move is blocked; below this, a resting stick or a light touch.
+	constexpr float MinMoveInput = 0.25f;
+	if (InputHandler->GetIntendedInput(KzTags::Input::Move).SizeSquared() < FMath::Square(MinMoveInput))
+	{
+		return;
+	}
+
+	// A notify in a sequence the montage plays reports the sequence: the montage is the one playing.
+	UAnimMontage* Montage = Cast<UAnimMontage>(Animation);
+	if (!Montage)
+	{
+		Montage = AnimInstance->GetCurrentActiveMontage();
+	}
+	if (Montage)
+	{
+		AnimInstance->Montage_Stop(Montage->BlendOut.GetBlendTime(), Montage);
+	}
+}
+
+FString UKzAnimNotifyState_CancelWindow::GetNotifyName_Implementation() const
+{
+	TArray<FString> By;
+	if (bAbilities)
+	{
+		By.Add(TEXT("Abilities"));
+	}
+	if (bMovement)
+	{
+		By.Add(TEXT("Movement"));
+	}
+	return By.IsEmpty() ? Super::GetNotifyName_Implementation() : TEXT("Cancel: ") + FString::Join(By, TEXT(", "));
 }
 
 UKzAnimNotifyState_WarpWindow::UKzAnimNotifyState_WarpWindow()

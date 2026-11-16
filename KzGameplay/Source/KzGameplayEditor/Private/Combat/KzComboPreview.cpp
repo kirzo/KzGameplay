@@ -99,6 +99,16 @@ namespace
 		return Unnamed ? Unnamed : Spans.FindByPredicate(&IsComboWindow);
 	}
 
+	/** The timeline lane of a window: its kind's, and a Cancel Window's by what cuts it, so one for abilities and one for moving stay apart. */
+	FString GetLane(const UKzAnimationNotifyState* Notify)
+	{
+		if (!Notify)
+		{
+			return FString();
+		}
+		return Notify->IsA<UKzAnimNotifyState_CancelWindow>() ? Notify->GetNotifyName() : Notify->GetClass()->GetDisplayNameText().ToString();
+	}
+
 	/** From when a press is kept for a Combo Window, as the game keeps it: its Input Buffer before it opens, but not before the Hit Windows and Combo Windows ahead of it close. */
 	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow)
 	{
@@ -198,13 +208,13 @@ namespace
 			}
 
 			// One lane per kind of window, so overlapping ones stay readable, in the color of its first window.
-			TArray<const UClass*> Lanes;
+			TArray<FString> Lanes;
 			TArray<FLinearColor> LaneColors;
 			for (const FKzComboPreview::FStep& Step : Pinned->GetSteps())
 			{
 				for (const FKzAnimationNotifySpan& Span : Step.Notifies)
 				{
-					const UClass* Lane = Span.Notify ? Span.Notify->GetClass() : nullptr;
+					const FString Lane = GetLane(Span.Notify);
 					if (!Lanes.Contains(Lane))
 					{
 						Lanes.Add(Lane);
@@ -215,11 +225,10 @@ namespace
 
 			const FSlateFontInfo Font = FAppStyle::GetFontStyle("SmallFont");
 			const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-			auto LaneName = [](const UClass* Lane) { return Lane ? Lane->GetDisplayNameText().ToString() : FString(); };
 			LabelWidth = 0.0f;
-			for (const UClass* Lane : Lanes)
+			for (const FString& Lane : Lanes)
 			{
-				LabelWidth = FMath::Max(LabelWidth, static_cast<float>(Measure->Measure(LaneName(Lane), Font).X));
+				LabelWidth = FMath::Max(LabelWidth, static_cast<float>(Measure->Measure(Lane, Font).X));
 			}
 			LabelWidth += 2.0f * TextPadding + SwatchWidth + TextPadding;
 
@@ -257,7 +266,7 @@ namespace
 					Box(0.0f, Top, Size.X, LaneHeight, FLinearColor(1.0f, 1.0f, 1.0f, 0.02f), 0);
 				}
 				Box(TextPadding, Top + BandInset + 1.0f, SwatchWidth, FMath::Max(LaneHeight - 2.0f * BandInset - 2.0f, 2.0f), LaneColors[Lane], 1);
-				Text(LaneName(Lanes[Lane]), 2.0f * TextPadding + SwatchWidth, Top + (LaneHeight - TextHeight) * 0.5f, FLinearColor(0.8f, 0.8f, 0.8f));
+				Text(Lanes[Lane], 2.0f * TextPadding + SwatchWidth, Top + (LaneHeight - TextHeight) * 0.5f, FLinearColor(0.8f, 0.8f, 0.8f));
 			}
 
 			// Marks a readable distance apart, at 1, 2 or 5 times a power of ten seconds or frames, carried faintly down the lanes.
@@ -292,7 +301,7 @@ namespace
 					{
 						continue;
 					}
-					const float Top = RulerHeight + LaneHeight * Lanes.IndexOfByKey(Span.Notify ? Span.Notify->GetClass() : nullptr);
+					const float Top = RulerHeight + LaneHeight * Lanes.IndexOfByKey(GetLane(Span.Notify));
 					const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
 					Band(Start, End, Top, Color.CopyWithNewOpacity(0.7f));
 

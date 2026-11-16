@@ -66,7 +66,7 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
-/** While it lasts, the attack can be cut, such as by a dodge. */
+/** While it lasts, the action can be cut: by abilities, such as a dodge, by moving, or both. A montage can have one of each, open at different times. */
 UCLASS(meta = (DisplayName = "Cancel Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_CancelWindow : public UKzAnimationNotifyState
 {
@@ -74,6 +74,17 @@ class KZGAMEPLAY_API UKzAnimNotifyState_CancelWindow : public UKzAnimationNotify
 
 public:
 	UKzAnimNotifyState_CancelWindow();
+
+	/** In a combo, the abilities in its ability's Cancelable By, such as dodging and blocking, may cut the attack. */
+	UPROPERTY(EditAnywhere, Category = "Cancel Window")
+	bool bAbilities = true;
+
+	/** Moving the stick stops the montage, and the action playing it ends, so the character walks off. Works in any montage, and even while Input.Move is blocked. */
+	UPROPERTY(EditAnywhere, Category = "Cancel Window")
+	bool bMovement = false;
+
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
 };
 
 /** While it lasts, the attacker closes in on its target, or steps forward without one, along an arc if it has a Height. */

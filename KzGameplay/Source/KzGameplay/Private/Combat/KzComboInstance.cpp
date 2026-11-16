@@ -255,9 +255,13 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 		return;
 	}
 
-	if (Notify->IsA<UKzAnimNotifyState_CancelWindow>())
+	// Only those open to abilities: moving cancels by itself, from the window.
+	if (const UKzAnimNotifyState_CancelWindow* CancelWindow = Cast<UKzAnimNotifyState_CancelWindow>(Notify))
 	{
-		SetCancelWindows(FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0));
+		if (CancelWindow->bAbilities)
+		{
+			SetCancelWindows(FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0));
+		}
 		return;
 	}
 
