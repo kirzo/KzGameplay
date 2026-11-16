@@ -95,9 +95,10 @@ void FKzAnimTimeCustomization::OnUnitChanged()
 		return;
 	}
 
-	// The unit just picked is the one it is now in; the value is still in the other.
+	// The unit just picked is the one it is now in; the value is still in the other. Frames round to a thousandth, so 2 frames there and back stay 2.
 	const bool bToFrames = static_cast<EKzAnimTimeUnit>(Unit) == EKzAnimTimeUnit::Frames;
-	ValueHandle->SetValue(static_cast<float>(bToFrames ? Value * *FramesPerSecond : Value / *FramesPerSecond));
+	const double Converted = bToFrames ? FMath::RoundToDouble(Value * *FramesPerSecond * 1000.0) / 1000.0 : Value / *FramesPerSecond;
+	ValueHandle->SetValue(static_cast<float>(Converted));
 }
 
 #undef LOCTEXT_NAMESPACE

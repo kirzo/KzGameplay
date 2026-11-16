@@ -58,7 +58,7 @@ public:
 	 * close. Zero takes only presses inside it.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Combo Window")
-	FKzAnimTime InputBuffer = FKzAnimTime(0.15f);
+	FKzAnimTime InputBuffer = FKzAnimTime(2.0f, EKzAnimTimeUnit::Frames);
 
 	/** InputBuffer in seconds, frames counting at the frame rate of the animation it is in. */
 	float GetInputBuffer() const;
