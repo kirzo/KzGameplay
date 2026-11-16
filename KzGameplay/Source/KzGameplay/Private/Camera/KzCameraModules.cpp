@@ -580,6 +580,26 @@ void UKzCameraModule_Pan::DrawDebug(const FKzCameraContext& Context, const FKzCa
 	DrawDebugCircle(GetWorld(), Context.Anchor.GetLocation(), MaxDistance, 32, FColor::Orange, false, -1.0f, SDPG_Foreground, DebugThickness, AxisY, AxisZ, false);
 }
 
+UKzCameraModule_Arm::UKzCameraModule_Arm()
+{
+	Stage = EKzCameraStage::Distance;
+}
+
+FKzCameraPose UKzCameraModule_Arm::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
+{
+	// Forwards or back along the resting view until the focus is Length deep.
+	const FVector Forward = Context.Rest.Vector();
+
+	FKzCameraPose Result = Pose;
+	Result.Location += Forward * (FVector::DotProduct(Pose.Focus - Pose.Location, Forward) - Length);
+	return Result;
+}
+
+void UKzCameraModule_Arm::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+{
+	DrawDebugLine(GetWorld(), Pose.Location, Pose.Location + Context.Rest.Vector() * Length, FColor(0, 128, 255), false, -1.0f, SDPG_Foreground, DebugThickness);
+}
+
 UKzCameraModule_LookAt::UKzCameraModule_LookAt()
 {
 	Stage = EKzCameraStage::Aim;

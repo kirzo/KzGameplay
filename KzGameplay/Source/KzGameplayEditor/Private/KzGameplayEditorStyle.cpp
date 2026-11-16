@@ -85,6 +85,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		{ TEXT("KzCameraModule_Follow"), TEXT("CameraFollow") },
 		{ TEXT("KzCameraModule_PositionOffset"), TEXT("CameraPositionOffset") },
 		{ TEXT("KzCameraModule_Pan"), TEXT("CameraPan") },
+		{ TEXT("KzCameraModule_Arm"), TEXT("CameraArm") },
 		{ TEXT("KzCameraModule_LookAt"), TEXT("CameraLookAt") },
 		{ TEXT("KzCameraModule_RotationLimit"), TEXT("CameraRotationLimit") },
 		{ TEXT("KzCameraModule_RotationOffset"), TEXT("CameraRotationOffset") },

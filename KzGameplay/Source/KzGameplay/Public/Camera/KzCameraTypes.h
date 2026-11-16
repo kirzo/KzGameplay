@@ -32,6 +32,9 @@ enum class EKzCameraStage : uint8
 
 	Position,
 
+	/** Sets how far the camera stays from the focus. */
+	Distance,
+
 	/** Points the camera, replacing its rotation. */
 	Aim,
 

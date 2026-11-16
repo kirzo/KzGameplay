@@ -339,6 +339,28 @@ private:
 	FVector GetPlaneNormal(const FKzCameraContext& Context, const FKzCameraPose& Pose) const;
 };
 
+/**
+ * Keeps the camera at a fixed distance from the focus, like a spring arm without lag, moving it only along its resting view.
+ * Where it is along the spline and how high still come from the anchor, so limits and markers keep working.
+ */
+UCLASS(meta = (DisplayName = "Arm"))
+class KZGAMEPLAY_API UKzCameraModule_Arm : public UKzCameraModule
+{
+	GENERATED_BODY()
+
+public:
+	UKzCameraModule_Arm();
+
+	/** Distance from the camera to the focus, measured along the camera's resting view, so the target keeps its size on screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arm", meta = (ClampMin = "0", ForceUnits = "Centimeters"))
+	float Length = 800.0f;
+
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+
+protected:
+	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
+};
+
 UCLASS(meta = (DisplayName = "Look At"))
 class KZGAMEPLAY_API UKzCameraModule_LookAt : public UKzCameraModule
 {
