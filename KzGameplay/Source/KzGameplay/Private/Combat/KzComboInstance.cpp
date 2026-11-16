@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Animation/KzAnimationSource.h"
+#include "Collision/KzGJK.h"
 #include "Combat/KzCombatLibrary.h"
 #include "Combat/KzCombatNotifies.h"
 #include "Combat/KzCombatTags.h"
@@ -11,6 +12,7 @@
 #include "Combat/KzComboNodes.h"
 #include "Combat/KzMeshShakeSubsystem.h"
 #include "Combat/KzTimeDilationSubsystem.h"
+#include "Components/KzShapeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -22,6 +24,7 @@
 #include "Items/KzItemDefinition.h"
 #include "KzDrawDebugHelpers.h"
 #include "Kismet/KzSystemLibrary.h"
+#include "Math/Geometry/Shapes/KzBox.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Sensors/KzSensorTags.h"
@@ -68,6 +71,26 @@ namespace
 			}
 		}
 		return INDEX_NONE;
+	}
+
+	/** Whether Shape, swept from Start to End, meets the component the hit found: a shape component as it is, anything else by its bounds. */
+	bool SweepReaches(const FKzShapeInstance& Shape, const FVector& Start, const FVector& End, const FQuat& Rotation, const FHitResult& Hit)
+	{
+		const UPrimitiveComponent* Component = Hit.GetComponent();
+		if (!Component)
+		{
+			return true;
+		}
+
+		if (const UKzShapeComponent* KzShape = Cast<UKzShapeComponent>(Component))
+		{
+			return Kz::GJK::SweepIntersect(Shape, Start, End, Rotation, KzShape->Shape * KzShape->GetComponentScale(), Component->GetComponentLocation(), Component->GetComponentQuat());
+		}
+		if (Component->IsA<UShapeComponent>())
+		{
+			return Kz::GJK::SweepIntersect(Shape, Start, End, Rotation, FKzShapeInstance::MakeFromCollisionShape(Component->GetCollisionShape()), Component->GetComponentLocation(), Component->GetComponentQuat());
+		}
+		return Kz::GJK::SweepIntersect(Shape, Start, End, Rotation, FKzShapeInstance::Make<FKzBox>(Component->Bounds.BoxExtent), Component->Bounds.Origin, FQuat::Identity);
 	}
 }
 
@@ -348,6 +371,8 @@ void UKzComboInstance::SweepHitboxes()
 
 			TArray<FHitResult> Hits;
 			World->SweepMultiByObjectType(Hits, Previous.GetLocation(), Current.GetLocation(), Rotation, ObjectQuery, Shape, QueryParams);
+			// The engine sweeps an enclosing shape for those it lacks, such as the wedge: only what the hitbox itself reaches counts.
+			Hits.RemoveAll([&](const FHitResult& Hit) { return !SweepReaches(Hitbox.Shape, Previous.GetLocation(), Current.GetLocation(), Rotation, Hit); });
 
 #if ENABLE_DRAW_DEBUG
 			if (CVarDrawHitboxes.GetValueOnGameThread())
