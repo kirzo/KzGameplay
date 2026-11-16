@@ -7,6 +7,7 @@
 #include "Math/Geometry/KzShapeInstance.h"
 #include "KzCameraLimit.generated.h"
 
+class UBillboardComponent;
 class UKzShapeComponent;
 
 UENUM(BlueprintType)
@@ -31,15 +32,16 @@ class KZGAMEPLAY_API AKzCameraLimit : public AActor
 public:
 	AKzCameraLimit();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera Limit")
-	TObjectPtr<UKzShapeComponent> ShapeComponent;
-
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Limit")
 	EKzCameraLimitMode Mode = EKzCameraLimitMode::Block;
 
 	/** How far from the surface the focus stays: outside it when blocking, inside it when confining. E.g. half the screen, so the edge stays out of view. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Limit", meta = (ClampMin = "0", Units = "Centimeters"))
 	float Margin = 0.0f;
+
+	/** After the settings, so they show above the shape's categories. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera Limit")
+	TObjectPtr<UKzShapeComponent> ShapeComponent;
 
 	/** The shape at its world scale. With the margin, grown by it when blocking and shrunk by it when confining. */
 	FKzShapeInstance GetShape(bool bWithMargin) const;
@@ -53,4 +55,10 @@ public:
 	virtual void PostRegisterAllComponents() override;
 	virtual void UnregisterAllComponents(bool bForReregister = false) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+
+#if WITH_EDITORONLY_DATA
+private:
+	UPROPERTY()
+	TObjectPtr<UBillboardComponent> SpriteComponent = nullptr;
+#endif
 };

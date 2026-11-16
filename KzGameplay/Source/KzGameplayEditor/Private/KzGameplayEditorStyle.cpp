@@ -68,7 +68,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	}
 
 	// Camera: the actors placed in the level, the rig, and each module after what it does
-	for (const TCHAR* CameraActor : { TEXT("CameraMarker"), TEXT("CameraVolume") })
+	for (const TCHAR* CameraActor : { TEXT("CameraMarker"), TEXT("CameraVolume"), TEXT("CameraLimit") })
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 		Set(*FString::Printf(TEXT("ClassThumbnail.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor + TEXT("Color"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
@@ -79,6 +79,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		{ TEXT("KzCameraModule"), TEXT("CameraModule") },
 		{ TEXT("KzCameraModule_DeadZone"), TEXT("CameraDeadZone") },
 		{ TEXT("KzCameraModule_LookAhead"), TEXT("CameraLookAhead") },
+		{ TEXT("KzCameraModule_Limits"), TEXT("CameraLimit") },
 		{ TEXT("KzCameraModule_Lag"), TEXT("CameraLag") },
 		{ TEXT("KzCameraModule_SplineOffset"), TEXT("CameraSplineOffset") },
 		{ TEXT("KzCameraModule_Follow"), TEXT("CameraFollow") },

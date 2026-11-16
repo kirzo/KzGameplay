@@ -1,10 +1,13 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraLimit.h"
+#include "Components/BillboardComponent.h"
 #include "Components/KzShapeComponent.h"
 #include "Core/KzRegistrySubsystem.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/Texture2D.h"
 #include "Math/Geometry/Shapes/KzBox.h"
+#include "UObject/ConstructorHelpers.h"
 
 AKzCameraLimit::AKzCameraLimit()
 {
@@ -17,6 +20,19 @@ AKzCameraLimit::AKzCameraLimit()
 
 	SetCanBeDamaged(false);
 	bReplicates = false;
+
+#if WITH_EDITORONLY_DATA
+	SpriteComponent = CreateEditorOnlyDefaultSubobject<UBillboardComponent>(TEXT("Sprite"));
+	if (SpriteComponent)
+	{
+		static ConstructorHelpers::FObjectFinderOptional<UTexture2D> SpriteTexture(TEXT("/KzGameplay/EditorResources/CameraLimit"));
+		SpriteComponent->Sprite = SpriteTexture.Get();
+		SpriteComponent->bIsScreenSizeScaled = true;
+		SpriteComponent->SpriteInfo.Category = TEXT("Cameras");
+		SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("KzSpriteCategory", "Cameras", "Cameras");
+		SpriteComponent->SetupAttachment(ShapeComponent);
+	}
+#endif
 }
 
 FKzShapeInstance AKzCameraLimit::GetShape(bool bWithMargin) const
