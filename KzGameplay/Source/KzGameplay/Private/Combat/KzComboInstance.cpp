@@ -241,11 +241,16 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 	if (const UKzAnimNotifyState_ComboWindow* ComboWindow = Cast<UKzAnimNotifyState_ComboWindow>(Notify))
 	{
 		SetComboWindow(*ComboWindow, bBegin);
-		if (bBegin && KeptInput.IsValid() && Clock - KeptAt <= Combo->InputBuffer)
+
+		// Whatever was kept is this window's or nobody's, so no press carries past it to a later one.
+		if (bBegin && KeptInput.IsValid())
 		{
 			const FGameplayTag Input = KeptInput;
 			KeptInput = FGameplayTag();
-			Chain(Input, KeptDirection);
+			if (Clock - KeptAt <= ComboWindow->GetInputBuffer())
+			{
+				Chain(Input, KeptDirection);
+			}
 		}
 		return;
 	}

@@ -4,6 +4,7 @@
 #include "Abilities/KzGameplayAbility_HitReaction.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Animation/AnimSequenceBase.h"
 #include "Combat/KzCombatLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
@@ -62,6 +63,11 @@ UKzAnimNotifyState_ComboWindow::UKzAnimNotifyState_ComboWindow()
 #if WITH_EDITORONLY_DATA
 	NotifyColor = FColor(70, 180, 90);
 #endif
+}
+
+float UKzAnimNotifyState_ComboWindow::GetInputBuffer() const
+{
+	return InputBuffer.ToSeconds(GetTypedOuter<UAnimSequenceBase>());
 }
 
 FString UKzAnimNotifyState_ComboWindow::GetNotifyName_Implementation() const

@@ -9,6 +9,8 @@
 #include "Customizations/KzCapabilitySetRowCustomizer.h"
 #include "Customizations/KzFactionSettingsCustomization.h"
 #include "Customizations/KzHitDirectionCustomization.h"
+#include "Customizations/KzAnimTimeCustomization.h"
+#include "Animation/KzAnimationNotifyState.h"
 #include "Combat/KzCombatTypes.h"
 
 #include "Items/KzItemDefinition.h"
@@ -176,6 +178,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
 	RegisterPropertyLayout<FKzHitDirection, FKzHitDirectionCustomization>();
+	RegisterPropertyLayout<FKzAnimTime, FKzAnimTimeCustomization>();
 
 	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
 

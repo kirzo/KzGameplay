@@ -99,13 +99,15 @@ namespace
 		return Unnamed ? Unnamed : Spans.FindByPredicate(&IsComboWindow);
 	}
 
-	/** From when a press is kept for a Combo Window, as the game keeps it: InputBuffer before it opens, but not before the Hit Windows ahead of it close. */
-	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow, float InputBuffer)
+	/** From when a press is kept for a Combo Window, as the game keeps it: its Input Buffer before it opens, but not before the Hit Windows and Combo Windows ahead of it close. */
+	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow)
 	{
-		float Start = FMath::Max(ComboWindow.Start - InputBuffer, 0.0f);
+		const UKzAnimNotifyState_ComboWindow* Window = Cast<UKzAnimNotifyState_ComboWindow>(ComboWindow.Notify);
+		float Start = FMath::Max(ComboWindow.Start - (Window ? Window->GetInputBuffer() : 0.0f), 0.0f);
 		for (const FKzAnimationNotifySpan& Span : Spans)
 		{
-			if (Span.Notify && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() && Span.Start < ComboWindow.Start)
+			const bool bAhead = &Span != &ComboWindow && Span.Start < ComboWindow.Start;
+			if (bAhead && Span.Notify && (Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() || IsComboWindow(Span)))
 			{
 				Start = FMath::Max(Start, Span.End);
 			}
@@ -295,7 +297,7 @@ namespace
 					Band(Start, End, Top, Color.CopyWithNewOpacity(0.7f));
 
 					// The input buffer leads into a Combo Window, fainter.
-					const float BufferStart = IsComboWindow(Span) ? ToX(Step.Start + GetBufferStart(Step.Notifies, Span, Pinned->GetInputBuffer())) : Start;
+					const float BufferStart = IsComboWindow(Span) ? ToX(Step.Start + GetBufferStart(Step.Notifies, Span)) : Start;
 					if (BufferStart < Start)
 					{
 						Band(BufferStart, Start, Top, Color.CopyWithNewOpacity(0.25f));
@@ -815,12 +817,6 @@ void FKzComboPreview::AddReferencedObjects(FReferenceCollector& Collector)
 float FKzComboPreview::GetLength() const
 {
 	return Steps.IsEmpty() ? 0.0f : Steps.Last().End;
-}
-
-float FKzComboPreview::GetInputBuffer() const
-{
-	const UKzComboGraph* Asset = Combo.Get();
-	return Asset ? Asset->InputBuffer : 0.0f;
 }
 
 FText FKzComboPreview::FormatTime(float InTime, int32 Decimals) const

@@ -53,6 +53,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combo Window", meta = (Categories = "Combo.Window"))
 	FGameplayTag Window;
 
+	/**
+	 * How long before it opens a press is kept, to chain as soon as it opens. Never from before the Hit Windows and Combo Windows ahead of it
+	 * close. Zero takes only presses inside it.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Combo Window")
+	FKzAnimTime InputBuffer = FKzAnimTime(0.15f);
+
+	/** InputBuffer in seconds, frames counting at the frame rate of the animation it is in. */
+	float GetInputBuffer() const;
+
 	virtual FString GetNotifyName_Implementation() const override;
 };
 

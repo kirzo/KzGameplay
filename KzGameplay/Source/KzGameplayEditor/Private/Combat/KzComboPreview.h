@@ -64,7 +64,6 @@ public:
 	virtual FString GetReferencerName() const override { return TEXT("FKzComboPreview"); }
 
 	float GetLength() const;
-	float GetInputBuffer() const;
 	float GetTime() const { return Time; }
 
 	/** Whether times show in the animation's frames rather than seconds. */
