@@ -566,8 +566,11 @@ void UKzComboInstance::UpdateWarp(float DeltaTime)
 	FVector Delta = FVector::ZeroVector;
 	if (Allowed > 0.0f)
 	{
-		// What is left spreads over what is left of the window, so a moving target is followed.
-		const float Step = Allowed * FMath::Min(1.0f, DeltaTime / FMath::Max(TimeLeft, DeltaTime));
+		// What is left spreads over what is left of the window, at its Speed Curve's pace, so a moving target is followed.
+		const float From = WarpDuration > 0.0f ? 1.0f - TimeLeft / WarpDuration : 1.0f;
+		const float To = WarpDuration > 0.0f ? 1.0f - WarpTimeLeft / WarpDuration : 1.0f;
+		const float Left = Window->GetShare(From, 1.0f);
+		const float Step = Allowed * (Left > UE_SMALL_NUMBER ? FMath::Min(1.0f, Window->GetShare(From, To) / Left) : 1.0f);
 		WarpMoved += Step;
 		Delta = Direction * Step;
 	}

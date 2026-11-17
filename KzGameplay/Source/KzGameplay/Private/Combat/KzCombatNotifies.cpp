@@ -33,20 +33,20 @@ namespace
 	};
 	TMap<TObjectKey<UAbilitySystemComponent>, TMap<FGameplayTag, FKzTagRemoval>> TagRemovals;
 
-	/** Per mesh, how long each Move Window with a Speed Curve has been open on it, in animation time: a montage's notifies do not say. */
-	using FKzMoveKey = TPair<TObjectKey<USkeletalMeshComponent>, TObjectKey<UKzAnimNotifyState_MoveWindow>>;
-	TMap<FKzMoveKey, float> MoveTimes;
+	/** Per mesh, how long each window with a Speed Curve has been open on it, in animation time: a montage's notifies do not say. */
+	using FKzDisplacementKey = TPair<TObjectKey<USkeletalMeshComponent>, TObjectKey<UKzAnimNotifyState_Displacement>>;
+	TMap<FKzDisplacementKey, float> DisplacementTimes;
 
-	/** The curve's mean over 0 to 1, sampled. */
-	float GetMeanValue(const UCurveFloat& Curve)
+	/** The area under the curve from From to To, sampled halfway through Steps equal steps. */
+	float IntegrateCurve(const FRichCurve& Curve, float From, float To, int32 Steps)
 	{
-		constexpr int32 Samples = 32;
+		const float Step = (To - From) / Steps;
 		float Sum = 0.0f;
-		for (int32 Index = 0; Index < Samples; ++Index)
+		for (int32 Index = 0; Index < Steps; ++Index)
 		{
-			Sum += Curve.GetFloatValue((Index + 0.5f) / Samples);
+			Sum += Curve.Eval(From + (Index + 0.5f) * Step);
 		}
-		return Sum / Samples;
+		return Sum * Step;
 	}
 
 	/** Per root component and channel, the Collision Windows open on it and the response the first took, to give back once the last closes. */
@@ -177,6 +177,41 @@ FString UKzAnimNotifyState_CancelWindow::GetNotifyName_Implementation() const
 	return By.IsEmpty() ? Super::GetNotifyName_Implementation() : TEXT("Cancel: ") + FString::Join(By, TEXT(", "));
 }
 
+float UKzAnimNotifyState_Displacement::GetShare(float From, float To) const
+{
+	From = FMath::Clamp(From, 0.0f, 1.0f);
+	To = FMath::Clamp(To, 0.0f, 1.0f);
+	const FRichCurve* Curve = SpeedCurve.GetRichCurveConst();
+	if (To <= From || !Curve || Curve->IsEmpty())
+	{
+		return FMath::Max(To - From, 0.0f);
+	}
+
+	// Against the whole window's, so it always adds up to the whole distance
+	const float Whole = IntegrateCurve(*Curve, 0.0f, 1.0f, 32);
+	return Whole > UE_SMALL_NUMBER ? IntegrateCurve(*Curve, From, To, 8) / Whole : To - From;
+}
+
+float UKzAnimNotifyState_Displacement::TickShare(const USkeletalMeshComponent* MeshComp, float FrameDeltaTime, float Duration)
+{
+	const FRichCurve* Curve = SpeedCurve.GetRichCurveConst();
+	if (!Curve || Curve->IsEmpty())
+	{
+		return FrameDeltaTime / Duration;
+	}
+
+	float& Elapsed = DisplacementTimes.FindOrAdd(FKzDisplacementKey(MeshComp, this));
+	const float Share = GetShare(Elapsed / Duration, (Elapsed + FrameDeltaTime) / Duration);
+	Elapsed += FrameDeltaTime;
+	return Share;
+}
+
+void UKzAnimNotifyState_Displacement::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyEnd(MeshComp, Animation, EventReference);
+	DisplacementTimes.Remove(FKzDisplacementKey(MeshComp, this));
+}
+
 UKzAnimNotifyState_WarpWindow::UKzAnimNotifyState_WarpWindow()
 {
 #if WITH_EDITORONLY_DATA
@@ -292,7 +327,7 @@ void UKzAnimNotifyState_KnockbackWindow::NotifyTick(USkeletalMeshComponent* Mesh
 	{
 		Direction = -Owner->GetActorForwardVector();
 	}
-	UKzCombatLibrary::MoveBy(*Owner, Direction * (Distance * Scale * FrameDeltaTime / Duration));
+	UKzCombatLibrary::MoveBy(*Owner, Direction * (Distance * Scale * TickShare(MeshComp, FrameDeltaTime, Duration)));
 }
 
 FString UKzAnimNotifyState_KnockbackWindow::GetNotifyName_Implementation() const
@@ -321,33 +356,7 @@ void UKzAnimNotifyState_MoveWindow::NotifyTick(USkeletalMeshComponent* MeshComp,
 	}
 
 	// In animation time, so a hit stop holds the step and the play rate does not change its length
-	float Share = FrameDeltaTime / Duration;
-	if (float* Elapsed = SpeedCurve ? MoveTimes.Find(FKzMoveKey(MeshComp, this)) : nullptr)
-	{
-		// The speed halfway through this step against the curve's mean, so the window still adds up to Distance
-		const float Mean = GetMeanValue(*SpeedCurve);
-		if (Mean > UE_SMALL_NUMBER)
-		{
-			Share *= SpeedCurve->GetFloatValue((*Elapsed + FrameDeltaTime * 0.5f) / Duration) / Mean;
-		}
-		*Elapsed += FrameDeltaTime;
-	}
-	UKzCombatLibrary::MoveBy(*Owner, Owner->GetActorForwardVector() * (Distance * Share));
-}
-
-void UKzAnimNotifyState_MoveWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
-{
-	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
-	if (SpeedCurve && MeshComp)
-	{
-		MoveTimes.Add(FKzMoveKey(MeshComp, this), 0.0f);
-	}
-}
-
-void UKzAnimNotifyState_MoveWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
-{
-	Super::NotifyEnd(MeshComp, Animation, EventReference);
-	MoveTimes.Remove(FKzMoveKey(MeshComp, this));
+	UKzCombatLibrary::MoveBy(*Owner, Owner->GetActorForwardVector() * (Distance * TickShare(MeshComp, FrameDeltaTime, Duration)));
 }
 
 FString UKzAnimNotifyState_MoveWindow::GetNotifyName_Implementation() const

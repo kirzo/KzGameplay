@@ -5,11 +5,10 @@
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Combat/KzCombatTypes.h"
+#include "Curves/CurveFloat.h"
 #include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzCombatNotifies.generated.h"
-
-class UCurveFloat;
 
 /** While it lasts, the attack's hitboxes hit, each target once. */
 UCLASS(meta = (DisplayName = "Hit Window"))
@@ -107,9 +106,33 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
+/** A window that moves the mesh's owner over its length, at the speed its Speed Curve gives along it. */
+UCLASS(Abstract)
+class KZGAMEPLAY_API UKzAnimNotifyState_Displacement : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Shapes the speed over the window, 0 to 1 on X, such as a strong start that slows down; the window still covers its whole distance. Without
+	 * keys, an even speed.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Movement")
+	FRuntimeFloatCurve SpeedCurve;
+
+	/** The share of the window's distance between From and To, fractions of the window. */
+	float GetShare(float From, float To) const;
+
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
+
+protected:
+	/** The share of the distance this tick covers, keeping how far into the window the mesh is, in animation time. */
+	float TickShare(const USkeletalMeshComponent* MeshComp, float FrameDeltaTime, float Duration);
+};
+
 /** While it lasts, the attacker closes in on its target, or steps forward without one, along an arc if it has a Height. */
 UCLASS(meta = (DisplayName = "Warp Window"))
-class KZGAMEPLAY_API UKzAnimNotifyState_WarpWindow : public UKzAnimationNotifyState
+class KZGAMEPLAY_API UKzAnimNotifyState_WarpWindow : public UKzAnimNotifyState_Displacement
 {
 	GENERATED_BODY()
 
@@ -165,7 +188,7 @@ public:
  * window. Outside a reaction it is pushed straight back. Walls stop it.
  */
 UCLASS(meta = (DisplayName = "Knockback Window"))
-class KZGAMEPLAY_API UKzAnimNotifyState_KnockbackWindow : public UKzAnimationNotifyState
+class KZGAMEPLAY_API UKzAnimNotifyState_KnockbackWindow : public UKzAnimNotifyState_Displacement
 {
 	GENERATED_BODY()
 
@@ -182,7 +205,7 @@ public:
 
 /** While it lasts, the mesh's owner moves Distance forward, spread over the window, so any montage can step without root motion. Walls stop it. */
 UCLASS(meta = (DisplayName = "Move Window"))
-class KZGAMEPLAY_API UKzAnimNotifyState_MoveWindow : public UKzAnimationNotifyState
+class KZGAMEPLAY_API UKzAnimNotifyState_MoveWindow : public UKzAnimNotifyState_Displacement
 {
 	GENERATED_BODY()
 
@@ -193,12 +216,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Move Window", meta = (Units = "Centimeters"))
 	float Distance = 100.0f;
 
-	/** Shapes the speed over the window, 0 to 1 on X, such as a strong start that slows down; it still moves Distance. None moves at an even speed. */
-	UPROPERTY(EditAnywhere, Category = "Move Window")
-	TObjectPtr<UCurveFloat> SpeedCurve;
-
-	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
-	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 	virtual FString GetNotifyName_Implementation() const override;
 };
