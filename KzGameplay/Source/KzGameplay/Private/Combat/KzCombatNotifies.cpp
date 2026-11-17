@@ -9,6 +9,8 @@
 #include "Animation/AnimSequenceBase.h"
 #include "Combat/KzCombatLibrary.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/World.h"
 #include "Input/KzInputHandlerComponent.h"
 #include "Input/KzInputTags.h"
@@ -29,6 +31,38 @@ namespace
 		int32 Taken = 0;
 	};
 	TMap<TObjectKey<UAbilitySystemComponent>, TMap<FGameplayTag, FKzTagRemoval>> TagRemovals;
+
+	/** Per mesh, how long each Move Window with a Speed Curve has been open on it, in animation time: a montage's notifies do not say. */
+	using FKzMoveKey = TPair<TObjectKey<USkeletalMeshComponent>, TObjectKey<UKzAnimNotifyState_MoveWindow>>;
+	TMap<FKzMoveKey, float> MoveTimes;
+
+	/** The curve's mean over 0 to 1, sampled. */
+	float GetMeanValue(const UCurveFloat& Curve)
+	{
+		constexpr int32 Samples = 32;
+		float Sum = 0.0f;
+		for (int32 Index = 0; Index < Samples; ++Index)
+		{
+			Sum += Curve.GetFloatValue((Index + 0.5f) / Samples);
+		}
+		return Sum / Samples;
+	}
+
+	/** Per root component and channel, the Collision Windows open on it and the response the first took, to give back once the last closes. */
+	struct FKzIgnoredChannel
+	{
+		int32 Windows = 0;
+		ECollisionResponse Response = ECR_Block;
+	};
+	TMap<TObjectKey<UPrimitiveComponent>, TMap<ECollisionChannel, FKzIgnoredChannel>> IgnoredChannels;
+
+	/** The mesh owner's root, such as a character's capsule, in game only: a preview has nothing to pass through. */
+	UPrimitiveComponent* FindGameRoot(const USkeletalMeshComponent* MeshComp)
+	{
+		const AActor* Owner = MeshComp ? MeshComp->GetOwner() : nullptr;
+		const UWorld* World = Owner ? Owner->GetWorld() : nullptr;
+		return World && World->IsGameWorld() ? Cast<UPrimitiveComponent>(Owner->GetRootComponent()) : nullptr;
+	}
 }
 
 UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
@@ -273,12 +307,104 @@ void UKzAnimNotifyState_MoveWindow::NotifyTick(USkeletalMeshComponent* MeshComp,
 	}
 
 	// In animation time, so a hit stop holds the step and the play rate does not change its length
-	UKzCombatLibrary::MoveBy(*Owner, Owner->GetActorForwardVector() * (Distance * FrameDeltaTime / Duration));
+	float Share = FrameDeltaTime / Duration;
+	if (float* Elapsed = SpeedCurve ? MoveTimes.Find(FKzMoveKey(MeshComp, this)) : nullptr)
+	{
+		// The speed halfway through this step against the curve's mean, so the window still adds up to Distance
+		const float Mean = GetMeanValue(*SpeedCurve);
+		if (Mean > UE_SMALL_NUMBER)
+		{
+			Share *= SpeedCurve->GetFloatValue((*Elapsed + FrameDeltaTime * 0.5f) / Duration) / Mean;
+		}
+		*Elapsed += FrameDeltaTime;
+	}
+	UKzCombatLibrary::MoveBy(*Owner, Owner->GetActorForwardVector() * (Distance * Share));
+}
+
+void UKzAnimNotifyState_MoveWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+	if (SpeedCurve && MeshComp)
+	{
+		MoveTimes.Add(FKzMoveKey(MeshComp, this), 0.0f);
+	}
+}
+
+void UKzAnimNotifyState_MoveWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyEnd(MeshComp, Animation, EventReference);
+	MoveTimes.Remove(FKzMoveKey(MeshComp, this));
 }
 
 FString UKzAnimNotifyState_MoveWindow::GetNotifyName_Implementation() const
 {
 	return FString::Printf(TEXT("Move %.0f"), Distance);
+}
+
+UKzAnimNotifyState_CollisionWindow::UKzAnimNotifyState_CollisionWindow()
+{
+	Channels.Add(ECC_Pawn);
+#if WITH_EDITORONLY_DATA
+	NotifyColor = FColor(200, 160, 60);
+#endif
+}
+
+void UKzAnimNotifyState_CollisionWindow::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+
+	UPrimitiveComponent* Root = FindGameRoot(MeshComp);
+	if (!Root)
+	{
+		return;
+	}
+
+	TMap<ECollisionChannel, FKzIgnoredChannel>& Ignored = IgnoredChannels.FindOrAdd(Root);
+	for (const TEnumAsByte<ECollisionChannel> Channel : Channels)
+	{
+		FKzIgnoredChannel& Entry = Ignored.FindOrAdd(Channel.GetValue());
+		if (Entry.Windows++ == 0)
+		{
+			Entry.Response = Root->GetCollisionResponseToChannel(Channel);
+			Root->SetCollisionResponseToChannel(Channel, ECR_Ignore);
+		}
+	}
+}
+
+void UKzAnimNotifyState_CollisionWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyEnd(MeshComp, Animation, EventReference);
+
+	UPrimitiveComponent* Root = FindGameRoot(MeshComp);
+	TMap<ECollisionChannel, FKzIgnoredChannel>* Ignored = Root ? IgnoredChannels.Find(Root) : nullptr;
+	if (!Ignored)
+	{
+		return;
+	}
+
+	for (const TEnumAsByte<ECollisionChannel> Channel : Channels)
+	{
+		FKzIgnoredChannel* Entry = Ignored->Find(Channel.GetValue());
+		if (Entry && --Entry->Windows == 0)
+		{
+			Root->SetCollisionResponseToChannel(Channel, Entry->Response);
+			Ignored->Remove(Channel.GetValue());
+		}
+	}
+	if (Ignored->IsEmpty())
+	{
+		IgnoredChannels.Remove(Root);
+	}
+}
+
+FString UKzAnimNotifyState_CollisionWindow::GetNotifyName_Implementation() const
+{
+	TArray<FString> Names;
+	for (const TEnumAsByte<ECollisionChannel> Channel : Channels)
+	{
+		Names.Add(UCollisionProfile::Get()->ReturnChannelNameFromContainerIndex(Channel).ToString());
+	}
+	return Names.IsEmpty() ? Super::GetNotifyName_Implementation() : TEXT("Ignore ") + FString::Join(Names, TEXT(", "));
 }
 
 UKzAnimNotifyState_RotationWindow::UKzAnimNotifyState_RotationWindow()

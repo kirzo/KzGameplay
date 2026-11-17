@@ -66,8 +66,6 @@ private:
 	UFUNCTION()
 	void OnCancelable(bool bCancelable);
 
-	void SetCancelBlocked(bool bBlocked);
-
 	UPROPERTY()
 	TObjectPtr<UKzComboInstance> Instance;
 
@@ -76,5 +74,4 @@ private:
 
 	float BaseDamage = 0.0f;
 	TSubclassOf<UGameplayEffect> DamageEffect;
-	bool bCancelBlocked = false;
 };

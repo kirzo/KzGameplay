@@ -83,3 +83,22 @@ FVector UKzGameplayAbility::GetMoveInput() const
 	const APawn* Pawn = Cast<APawn>(Avatar);
 	return Pawn ? Pawn->GetLastMovementInputVector() : FVector::ZeroVector;
 }
+
+void UKzGameplayAbility::SetCancelBlocked(const FGameplayTagContainer& Tags, bool bBlocked)
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC || Tags.IsEmpty() || bCancelBlocked == bBlocked)
+	{
+		return;
+	}
+
+	bCancelBlocked = bBlocked;
+	if (bBlocked)
+	{
+		ASC->BlockAbilitiesWithTags(Tags);
+	}
+	else
+	{
+		ASC->UnBlockAbilitiesWithTags(Tags);
+	}
+}

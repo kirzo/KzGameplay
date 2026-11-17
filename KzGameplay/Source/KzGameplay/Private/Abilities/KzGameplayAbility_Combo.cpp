@@ -65,7 +65,7 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 		Input = Combo->Inputs[0];
 	}
 
-	SetCancelBlocked(true);
+	SetCancelBlocked(CancelableBy, true);
 	Instance = UKzComboInstance::StartCombo(Combo, Context, Input, GetMoveInput());
 	if (!Instance)
 	{
@@ -92,7 +92,7 @@ void UKzGameplayAbility_Combo::EndAbility(const FGameplayAbilitySpecHandle Handl
 		Instance->Stop();
 		Instance = nullptr;
 	}
-	SetCancelBlocked(false);
+	SetCancelBlocked(CancelableBy, false);
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
@@ -117,24 +117,5 @@ void UKzGameplayAbility_Combo::OnComboEnded(bool bInterrupted)
 
 void UKzGameplayAbility_Combo::OnCancelable(bool bCancelable)
 {
-	SetCancelBlocked(!bCancelable);
-}
-
-void UKzGameplayAbility_Combo::SetCancelBlocked(bool bBlocked)
-{
-	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-	if (!ASC || CancelableBy.IsEmpty() || bCancelBlocked == bBlocked)
-	{
-		return;
-	}
-
-	bCancelBlocked = bBlocked;
-	if (bBlocked)
-	{
-		ASC->BlockAbilitiesWithTags(CancelableBy);
-	}
-	else
-	{
-		ASC->UnBlockAbilitiesWithTags(CancelableBy);
-	}
+	SetCancelBlocked(CancelableBy, !bCancelable);
 }

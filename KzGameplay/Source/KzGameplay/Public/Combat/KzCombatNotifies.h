@@ -5,8 +5,11 @@
 #include "CoreMinimal.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Combat/KzCombatTypes.h"
+#include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzCombatNotifies.generated.h"
+
+class UCurveFloat;
 
 /** While it lasts, the attack's hitboxes hit, each target once. */
 UCLASS(meta = (DisplayName = "Hit Window"))
@@ -79,7 +82,7 @@ class KZGAMEPLAY_API UKzAnimNotifyState_CancelWindow : public UKzAnimationNotify
 public:
 	UKzAnimNotifyState_CancelWindow();
 
-	/** In a combo, the abilities in its ability's Cancelable By, such as dodging and blocking, may cut the attack. */
+	/** The abilities in Cancelable By of the combo or animation ability playing it may cut it, such as a dodge an attack or an attack a dodge. */
 	UPROPERTY(EditAnywhere, Category = "Cancel Window")
 	bool bAbilities = true;
 
@@ -177,7 +180,31 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Move Window", meta = (Units = "Centimeters"))
 	float Distance = 100.0f;
 
+	/** Shapes the speed over the window, 0 to 1 on X, such as a strong start that slows down; it still moves Distance. None moves at an even speed. */
+	UPROPERTY(EditAnywhere, Category = "Move Window")
+	TObjectPtr<UCurveFloat> SpeedCurve;
+
+	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+};
+
+/** While it lasts, the mesh's owner passes through these channels, such as Pawn so a dodge goes through enemies. Hitboxes still find it. */
+UCLASS(meta = (DisplayName = "Collision Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_CollisionWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_CollisionWindow();
+
+	/** What its root component, such as the capsule, ignores meanwhile. */
+	UPROPERTY(EditAnywhere, Category = "Collision Window")
+	TArray<TEnumAsByte<ECollisionChannel>> Channels;
+
+	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
 	virtual FString GetNotifyName_Implementation() const override;
 };
 

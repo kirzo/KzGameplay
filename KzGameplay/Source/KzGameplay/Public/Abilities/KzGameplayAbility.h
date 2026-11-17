@@ -94,7 +94,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ability|Input")
 	FVector GetMoveInput() const;
 
+protected:
+	/** Blocks the abilities with these tags, or lifts the block, so they may cut this one only inside its animation's Cancel Windows. */
+	void SetCancelBlocked(const FGameplayTagContainer& Tags, bool bBlocked);
+
 private:
+	bool bCancelBlocked = false;
+
 	/**
 	 * Single binding from before InputBindings existed. Names kept so old assets still load, and migrated
 	 * into the array on PostLoad. Hidden rather than removed for that one reason.

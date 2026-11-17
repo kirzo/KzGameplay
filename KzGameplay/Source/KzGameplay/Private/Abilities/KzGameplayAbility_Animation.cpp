@@ -2,6 +2,7 @@
 
 #include "Abilities/KzGameplayAbility_Animation.h"
 #include "Animation/KzAnimationSource.h"
+#include "Combat/KzCombatNotifies.h"
 #include "Combat/KzCombatTags.h"
 #include "Input/KzInputHandlerComponent.h"
 #include "Input/KzInputTags.h"
@@ -23,6 +24,13 @@ void UKzGameplayAbility_Animation::ActivateAbility(const FGameplayAbilitySpecHan
 		return;
 	}
 
+	const FVector Input = bFaceInput ? GetMoveInput().GetSafeNormal2D() : FVector::ZeroVector;
+	if (!Input.IsNearlyZero())
+	{
+		const FRotator Current = Avatar->GetActorRotation();
+		Avatar->SetActorRotation(FRotator(Current.Pitch, Input.Rotation().Yaw, Current.Roll));
+	}
+
 	FKzAnimationContext Context;
 	Context.Mesh = ActorInfo->SkeletalMeshComponent.Get();
 	Context.User = Avatar;
@@ -32,6 +40,9 @@ void UKzGameplayAbility_Animation::ActivateAbility(const FGameplayAbilitySpecHan
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 		return;
 	}
+	CancelWindows = 0;
+	SetCancelBlocked(CancelableBy, true);
+	Play->OnNotify.AddUObject(this, &UKzGameplayAbility_Animation::OnAnimationNotify);
 	Play->OnBlendOut.AddUObject(this, &UKzGameplayAbility_Animation::OnAnimationBlendOut);
 	Play->OnEnded.AddUObject(this, &UKzGameplayAbility_Animation::OnAnimationEnded);
 
@@ -47,6 +58,7 @@ void UKzGameplayAbility_Animation::EndAbility(const FGameplayAbilitySpecHandle H
 {
 	if (Play)
 	{
+		Play->OnNotify.RemoveAll(this);
 		Play->OnBlendOut.RemoveAll(this);
 		Play->OnEnded.RemoveAll(this);
 		if (bWasCancelled)
@@ -55,6 +67,7 @@ void UKzGameplayAbility_Animation::EndAbility(const FGameplayAbilitySpecHandle H
 		}
 		Play.Reset();
 	}
+	SetCancelBlocked(CancelableBy, false);
 
 	if (UKzInputHandlerComponent* InputHandler = IgnoredInput.Get())
 	{
@@ -63,6 +76,16 @@ void UKzGameplayAbility_Animation::EndAbility(const FGameplayAbilitySpecHandle H
 	IgnoredInput.Reset();
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UKzGameplayAbility_Animation::OnAnimationNotify(const UKzAnimationNotifyState* Notify, bool bBegin, float Duration)
+{
+	const UKzAnimNotifyState_CancelWindow* Window = Cast<UKzAnimNotifyState_CancelWindow>(Notify);
+	if (Window && Window->bAbilities)
+	{
+		CancelWindows = FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0);
+		SetCancelBlocked(CancelableBy, CancelWindows == 0);
+	}
 }
 
 void UKzGameplayAbility_Animation::OnAnimationBlendOut()
