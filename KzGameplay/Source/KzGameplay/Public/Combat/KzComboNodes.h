@@ -224,9 +224,16 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Impact")
 	FKzHitShake HitShake;
 
-	/** Executed on the target when it hits: particles, sound, camera shake, slow motion. */
+	/**
+	 * Executed on the target when it hits, at the impact and with the surface hit: particles and sound, and the camera shake and rumble of a
+	 * player taking the blow.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
 	FGameplayTag ImpactCue;
+
+	/** Executed on the attacker when it hits, with the same impact: the camera shake and rumble of a player landing the blow. */
+	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
+	FGameplayTag AttackerCue;
 
 #if WITH_EDITOR
 	virtual void GetOutputPins(const UKzGraph& Graph, TArray<FKzGraphPinDesc>& OutPins) const override;

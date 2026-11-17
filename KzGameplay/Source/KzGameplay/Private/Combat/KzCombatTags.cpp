@@ -35,6 +35,7 @@ namespace KzTags::Combat
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_Damage, "Data.Damage", "Set By Caller magnitude of a combo hit's damage effect.");
 
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Hit, "GameplayCue.Hit", "A hit landing, as an attack's Impact Cue: particles, sound, camera shake, rumble.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Hit, "GameplayCue.Hit", "A hit landing, as an attack's Impact Cue on the target: particles and sound by surface, and the camera shake and rumble of taking it.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_HitDealt, "GameplayCue.HitDealt", "A hit landing, as an attack's Attacker Cue on the attacker: the camera shake and rumble of landing it.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Block, "GameplayCue.Block", "A hit blocked, as a Defense item's Block Cue: sparks and a clang at the item.");
 }

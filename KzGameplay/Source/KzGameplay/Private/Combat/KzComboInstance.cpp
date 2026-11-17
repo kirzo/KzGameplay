@@ -338,6 +338,8 @@ void UKzComboInstance::SweepHitboxes()
 	}
 
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(KzComboSweep), false);
+	// The impact cues pick their effects by the surface hit
+	QueryParams.bReturnPhysicalMaterial = true;
 	QueryParams.AddIgnoredActor(Context.User);
 	if (Context.Weapon)
 	{
@@ -355,6 +357,7 @@ void UKzComboInstance::SweepHitboxes()
 		Template.AttackTags.AppendTags(Window->AttackTags);
 	}
 	Template.ImpactCue = Attack->ImpactCue;
+	Template.AttackerCue = Attack->AttackerCue;
 	Template.Knockback = Window ? Window->Knockback : 1.0f;
 	const FKzHitDirection Direction = Window ? Window->Direction : FKzHitDirection();
 

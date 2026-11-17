@@ -160,6 +160,9 @@ struct KZGAMEPLAY_API FKzComboHit
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	FGameplayTag ImpactCue;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Combo")
+	FGameplayTag AttackerCue;
+
 	/** Which way the blow travels in the world, normalized, by its Hit Window's Direction. */
 	UPROPERTY(BlueprintReadOnly, Category = "Combo")
 	FVector Direction = FVector::ZeroVector;

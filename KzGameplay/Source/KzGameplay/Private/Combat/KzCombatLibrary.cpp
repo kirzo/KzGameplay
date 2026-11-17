@@ -76,10 +76,10 @@ namespace
 		ASC->HandleGameplayEvent(Reaction, &Payload);
 	}
 
-	/** The attack's cue, at the point it hit. */
-	void ExecuteImpactCue(UAbilitySystemComponent* ASC, AActor* Attacker, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
+	/** One of the attack's cues, at the point it hit and with the surface it hit. */
+	void ExecuteImpactCue(UAbilitySystemComponent* ASC, FGameplayTag Cue, AActor* Attacker, const FKzComboHit& Hit, float Damage, const UObject* SourceObject)
 	{
-		if (!ASC || !Hit.ImpactCue.IsValid())
+		if (!ASC || !Cue.IsValid())
 		{
 			return;
 		}
@@ -93,7 +93,7 @@ namespace
 		Parameters.PhysicalMaterial = Hit.Hit.PhysMaterial.Get();
 		Parameters.RawMagnitude = Damage;
 		Parameters.AggregatedSourceTags = Hit.AttackTags;
-		ASC->ExecuteGameplayCue(Hit.ImpactCue, Parameters);
+		ASC->ExecuteGameplayCue(Cue, Parameters);
 	}
 
 	/** A defense cue, on the defending item: no location, so the cue spawns at the item's socket rather than where the hitbox touched the body. */
@@ -175,7 +175,8 @@ void UKzCombatLibrary::ApplyComboHit(AActor* Attacker, const FKzComboHit& Hit, T
 		}
 		SendReaction(Target, Attacker, Hit.Reaction.IsValid() ? Hit.Reaction : Reaction_Hit.GetTag(), Hit, Hit.Direction, Damage, SourceObject);
 		// Targets without an ability system still show the impact, through the attacker's.
-		ExecuteImpactCue(TargetASC ? TargetASC : AttackerASC, Attacker, Hit, Damage, SourceObject);
+		ExecuteImpactCue(TargetASC ? TargetASC : AttackerASC, Hit.ImpactCue, Attacker, Hit, Damage, SourceObject);
+		ExecuteImpactCue(AttackerASC, Hit.AttackerCue, Attacker, Hit, Damage, SourceObject);
 		break;
 
 	case EKzHitResult::Blocked:
