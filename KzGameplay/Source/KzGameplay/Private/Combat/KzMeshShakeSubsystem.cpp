@@ -1,9 +1,41 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzMeshShakeSubsystem.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Combat/KzCombatSettings.h"
 #include "Components/MeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
+
+namespace
+{
+	/** Below this much of a hit left on the screen, it goes into the screen and Screen Projected takes it across. */
+	constexpr double MinOnScreen = 0.3;
+
+	/** Direction turned as Kz Combat's Shake Space asks, by the first local player's camera; as it is without one. */
+	FVector ToShakeSpace(const UWorld& World, const FVector& Direction)
+	{
+		const EKzShakeSpace Space = UKzCombatSettings::Get()->ShakeSpace;
+		const APlayerController* Player = Space != EKzShakeSpace::Hit ? World.GetFirstPlayerController() : nullptr;
+		const APlayerCameraManager* Camera = Player ? Player->PlayerCameraManager.Get() : nullptr;
+		if (!Camera)
+		{
+			return Direction;
+		}
+
+		const FQuat View = Camera->GetCameraRotation().Quaternion();
+		const FVector Right = View.GetRightVector();
+		const FVector Across = FVector::DotProduct(Direction, Right) < 0.0 ? -Right : Right;
+		if (Space == EKzShakeSpace::ScreenHorizontal)
+		{
+			return Across;
+		}
+
+		const FVector OnScreen = FVector::VectorPlaneProject(Direction, View.GetForwardVector());
+		return OnScreen.Size() < MinOnScreen ? Across : OnScreen.GetSafeNormal();
+	}
+}
 
 void UKzMeshShakeSubsystem::ShakeMesh(AActor* Actor, FVector Direction, float Amplitude, float Duration, float Frequency)
 {
@@ -22,7 +54,7 @@ void UKzMeshShakeSubsystem::ShakeMesh(AActor* Actor, FVector Direction, float Am
 		Shake = &Subsystem->Shakes.Add(Mesh);
 		Shake->BaseLocation = Mesh->GetRelativeLocation();
 	}
-	Shake->Direction = Direction.GetSafeNormal();
+	Shake->Direction = ToShakeSpace(*World, Direction.GetSafeNormal());
 	Shake->Amplitude = Amplitude;
 	Shake->Duration = Duration;
 	Shake->Frequency = Frequency;

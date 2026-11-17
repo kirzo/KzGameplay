@@ -15,7 +15,7 @@ class KZGAMEPLAY_API UKzMeshShakeSubsystem : public UTickableWorldSubsystem
 public:
 	/**
 	 * Shakes the actor's mesh, the character's own or its first one, fading out over Duration. A new shake on a mesh still shaking replaces it.
-	 * @param Direction The way it moves first, such as the way the hit pushes.
+	 * @param Direction The way it moves first, such as the way the hit pushes. Kz Combat's Shake Space, in Project Settings, can turn it to the screen.
 	 * @param Amplitude How far it moves at first, in centimeters.
 	 * @param Frequency How many times a second it goes back and forth.
 	 */
