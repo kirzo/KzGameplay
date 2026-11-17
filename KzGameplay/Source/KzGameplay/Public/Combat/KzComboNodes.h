@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Combat/KzCombatTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzGraphNode.h"
 #include "Math/Geometry/KzShapeInstance.h"
@@ -219,9 +220,9 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Seconds"))
 	float HitStop = 0.0f;
 
-	/** How far the target's mesh shakes back and forth along the hit while the hit stop holds it. */
-	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Centimeters"))
-	float HitShake = 0.0f;
+	/** How the target's mesh shakes along the hit: how far, when through the Hit Stop, how long and how fast. */
+	UPROPERTY(EditAnywhere, Category = "Impact")
+	FKzHitShake HitShake;
 
 	/** Executed on the target when it hits: particles, sound, camera shake, slow motion. */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))

@@ -18,9 +18,10 @@ public:
 	 * @param Direction The way it moves first, such as the way the hit pushes. Kz Combat's Shake Space, in Project Settings, can turn it to the screen.
 	 * @param Amplitude How far it moves at first, in centimeters.
 	 * @param Frequency How many times a second it goes back and forth.
+	 * @param Delay How long it waits before it starts, still, such as part of a hit stop.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Combat")
-	static void ShakeMesh(AActor* Actor, FVector Direction, float Amplitude = 3.0f, float Duration = 0.15f, float Frequency = 30.0f);
+	static void ShakeMesh(AActor* Actor, FVector Direction, float Amplitude = 3.0f, float Duration = 0.15f, float Frequency = 30.0f, float Delay = 0.0f);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
@@ -35,6 +36,8 @@ private:
 		float Amplitude = 0.0f;
 		float Duration = 0.0f;
 		float Frequency = 0.0f;
+
+		/** Since it started; below zero, while it waits. */
 		float Time = 0.0f;
 	};
 

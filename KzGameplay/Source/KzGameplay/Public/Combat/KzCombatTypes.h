@@ -6,7 +6,10 @@
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Engine/HitResult.h"
 #include "GameplayTagContainer.h"
+#include "Serialization/StructuredArchive.h"
 #include "KzCombatTypes.generated.h"
+
+struct FPropertyTag;
 
 class UKzItemDefinition;
 class USceneComponent;
@@ -76,6 +79,44 @@ struct KZGAMEPLAY_API FKzHitDirection
 
 	/** In the world, normalized, for a blow from Attacker on Target whose hitbox moved by Motion as it hit. */
 	FVector ToWorld(const FVector& Attacker, const FVector& Target, const FVector& Motion) const;
+};
+
+/** How a hit shakes the target's mesh back and forth, fading out, around the attack's Hit Stop. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzHitShake
+{
+	GENERATED_BODY()
+
+	/** How far the mesh moves at first; zero does not shake it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Centimeters"))
+	float Amplitude = 0.0f;
+
+	/** When it starts, through the Hit Stop: 0 with the hit, 1 as the Hit Stop ends, 0.3 a third of the way in. Without Hit Stop, with the hit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", ClampMax = "1"))
+	float Start = 0.0f;
+
+	/** How long it lasts; zero lasts as long as the Hit Stop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Seconds"))
+	float Duration = 0.0f;
+
+	/** How many times a second it goes back and forth: low sways, high trembles. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Hertz"))
+	float Frequency = 30.0f;
+
+	/** Shakes Target along Direction for a hit that froze it for HitStop. */
+	void Shake(AActor* Target, const FVector& Direction, float HitStop) const;
+
+	/** Hit Shake was a float, the amplitude alone: it loads into Amplitude. */
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+};
+
+template<>
+struct TStructOpsTypeTraits<FKzHitShake> : public TStructOpsTypeTraitsBase2<FKzHitShake>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true
+	};
 };
 
 /** What stopped a hit: the defender's item with the Defense fragment, and where it is in the world. */

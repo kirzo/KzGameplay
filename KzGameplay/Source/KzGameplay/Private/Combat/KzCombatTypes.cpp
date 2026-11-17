@@ -1,6 +1,8 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzCombatTypes.h"
+#include "Combat/KzMeshShakeSubsystem.h"
+#include "UObject/PropertyTag.h"
 
 FVector FKzHitDirection::GetPresetVector(EKzHitDirectionPreset InPreset)
 {
@@ -44,4 +46,19 @@ bool FKzHitReactionTargetData::NetSerialize(FArchive& Ar, UPackageMap* Map, bool
 	Ar << Direction;
 	Ar << Knockback;
 	return true;
+}
+
+void FKzHitShake::Shake(AActor* Target, const FVector& Direction, float HitStop) const
+{
+	UKzMeshShakeSubsystem::ShakeMesh(Target, Direction, Amplitude, Duration > 0.0f ? Duration : HitStop, Frequency, Start * HitStop);
+}
+
+bool FKzHitShake::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_FloatProperty)
+	{
+		Slot << Amplitude;
+		return true;
+	}
+	return false;
 }

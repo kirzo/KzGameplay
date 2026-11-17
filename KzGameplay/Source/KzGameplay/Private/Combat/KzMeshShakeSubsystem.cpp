@@ -37,7 +37,7 @@ namespace
 	}
 }
 
-void UKzMeshShakeSubsystem::ShakeMesh(AActor* Actor, FVector Direction, float Amplitude, float Duration, float Frequency)
+void UKzMeshShakeSubsystem::ShakeMesh(AActor* Actor, FVector Direction, float Amplitude, float Duration, float Frequency, float Delay)
 {
 	UWorld* World = Actor ? Actor->GetWorld() : nullptr;
 	UKzMeshShakeSubsystem* Subsystem = World ? World->GetSubsystem<UKzMeshShakeSubsystem>() : nullptr;
@@ -58,7 +58,7 @@ void UKzMeshShakeSubsystem::ShakeMesh(AActor* Actor, FVector Direction, float Am
 	Shake->Amplitude = Amplitude;
 	Shake->Duration = Duration;
 	Shake->Frequency = Frequency;
-	Shake->Time = 0.0f;
+	Shake->Time = -FMath::Max(Delay, 0.0f);
 }
 
 void UKzMeshShakeSubsystem::Tick(float DeltaTime)
@@ -74,6 +74,14 @@ void UKzMeshShakeSubsystem::Tick(float DeltaTime)
 
 		FShake& Shake = It.Value();
 		Shake.Time += DeltaTime;
+
+		// Still while it waits, also when it took over a shake halfway
+		if (Shake.Time < 0.0f)
+		{
+			Mesh->SetRelativeLocation(Shake.BaseLocation);
+			continue;
+		}
+
 		if (Shake.Time >= Shake.Duration)
 		{
 			Mesh->SetRelativeLocation(Shake.BaseLocation);

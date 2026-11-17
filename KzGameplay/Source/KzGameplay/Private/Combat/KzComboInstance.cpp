@@ -10,7 +10,6 @@
 #include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
-#include "Combat/KzMeshShakeSubsystem.h"
 #include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/KzShapeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -420,7 +419,7 @@ void UKzComboInstance::SweepHitboxes()
 				const bool bSuperArmor = HitASC && HitASC->HasMatchingGameplayTag(KzTags::Combat::State_SuperArmor);
 				if (ComboHit.Result == EKzHitResult::Hit && !bSuperArmor)
 				{
-					UKzMeshShakeSubsystem::ShakeMesh(HitActor, ComboHit.Direction, Attack->HitShake, Attack->HitStop);
+					Attack->HitShake.Shake(HitActor, ComboHit.Direction, Attack->HitStop);
 				}
 				OnHit.Broadcast(ComboHit);
 
