@@ -28,11 +28,16 @@
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Sensors/KzSensorTags.h"
+#include "UObject/ObjectKey.h"
 
 namespace
 {
 	TAutoConsoleVariable<bool> CVarDrawHitboxes(TEXT("kz.Combo.DrawHitboxes"), false, TEXT("Draws combo hitboxes as they sweep: green, red where they hit."));
-	TAutoConsoleVariable<bool> CVarDrawTargeting(TEXT("kz.Combo.DrawTargeting"), false, TEXT("Draws the shape each attack looks for targets in: yellow, red when it found one."));
+
+#if WITH_GAMEPLAY_DEBUGGER
+	/** Per user, the last search of its attacks. */
+	TMap<TObjectKey<AActor>, FKzTargetingRecord> TargetingRecords;
+#endif
 
 	constexpr float HitStopDilation = 0.01f;
 	constexpr int32 MaxBranchSteps = 16;
@@ -422,51 +427,72 @@ void UKzComboInstance::SweepHitboxes()
 
 AActor* UKzComboInstance::FindTarget(const FVector& Direction) const
 {
+	const AActor* User = Context.User;
+	UKzSensorComponent* TargetSensor = Sensor.Get();
+	const FKzComboNode_Attack* Attack = GetAttack();
+	FKzTargetingSearch Search;
+	const bool bSearched = !Context.Target && User && TargetSensor && Attack && SearchTargets(*TargetSensor, *Attack, Combo->TargetScoring, *User, Direction, Search);
+
+#if WITH_GAMEPLAY_DEBUGGER
+	if (User)
+	{
+		FKzTargetingRecord& Record = TargetingRecords.FindOrAdd(User);
+		Record.Search = Search;
+		Record.bSearched = bSearched;
+		Record.Combo = Combo.Get();
+		Record.Node = Node;
+		Record.GivenTarget = Context.Target.Get();
+		Record.Time = User->GetWorld() ? User->GetWorld()->GetTimeSeconds() : 0.0;
+	}
+#endif
+
 	if (Context.Target)
 	{
 		return Context.Target;
 	}
+	return Search.Candidates.IsValidIndex(Search.Best) ? Search.Candidates[Search.Best].Actor.Get() : nullptr;
+}
 
-	const AActor* User = Context.User;
-	UKzSensorComponent* TargetSensor = Sensor.Get();
-	const FKzComboNode_Attack* Attack = GetAttack();
-	FKzShapeInstance Shape;
-	FTransform Transform;
-	if (!User || !TargetSensor || !Attack || !GetTargetingShape(*Attack, TargetSensor, User->GetActorTransform(), Direction, Shape, Transform))
+bool UKzComboInstance::SearchTargets(UKzSensorComponent& Sensor, const FKzComboNode_Attack& Attack, const FKzTargetScoringProfile& Scoring, const AActor& User, const FVector& Direction, FKzTargetingSearch& OutSearch)
+{
+	OutSearch = FKzTargetingSearch();
+	OutSearch.Origin = User.GetActorLocation();
+	OutSearch.Direction = Direction;
+	if (!GetTargetingShape(Attack, &Sensor, User.GetActorTransform(), Direction, OutSearch.Shape, OutSearch.Transform))
 	{
-		return nullptr;
+		return false;
 	}
 
-	TArray<FKzOverlapResult> Candidates;
-	TargetSensor->Query(Shape, Transform, Candidates);
+	TArray<FKzOverlapResult> Overlaps;
+	Sensor.Query(OutSearch.Shape, OutSearch.Transform, Overlaps);
 
-	const FVector Origin = User->GetActorLocation();
-	const FKzTransformSource OriginSource(FTransform(Direction.Rotation(), Origin));
-
-	AActor* Best = nullptr;
-	double BestScore = -UE_BIG_NUMBER;
-	for (const FKzOverlapResult& Overlap : Candidates)
+	const FKzTransformSource OriginSource(FTransform(Direction.Rotation(), OutSearch.Origin));
+	for (const FKzOverlapResult& Overlap : Overlaps)
 	{
-		AActor* Candidate = Overlap.Actor.Get();
-		if (!Candidate || Candidate == User)
+		AActor* Actor = Overlap.Actor.Get();
+		if (!Actor || Actor == &User)
 		{
 			continue;
 		}
 
-		const double Score = Combo->TargetScoring.Entries.IsEmpty() ? -Flatten(Candidate->GetActorLocation() - Origin).Size() : UKzTargetScoringLibrary::EvaluateTarget(OriginSource, FKzTransformSource(Candidate), Combo->TargetScoring);
-		if (Score > BestScore)
+		FKzTargetingCandidate& Candidate = OutSearch.Candidates.AddDefaulted_GetRef();
+		Candidate.Actor = Actor;
+		Candidate.Location = Actor->GetActorLocation();
+		Candidate.Score = Scoring.Entries.IsEmpty() ? -Flatten(Candidate.Location - OutSearch.Origin).Size() : UKzTargetScoringLibrary::EvaluateTargetEntries(OriginSource, FKzTransformSource(Actor), Scoring, &Candidate.Entries);
+		if (!OutSearch.Candidates.IsValidIndex(OutSearch.Best) || Candidate.Score > OutSearch.Candidates[OutSearch.Best].Score)
 		{
-			BestScore = Score;
-			Best = Candidate;
+			OutSearch.Best = OutSearch.Candidates.Num() - 1;
 		}
 	}
-
-	if (CVarDrawTargeting.GetValueOnGameThread())
-	{
-		DrawDebugShape(User->GetWorld(), Transform.GetLocation(), Transform.GetRotation(), Shape, Best ? FColor::Red : FColor::Yellow, false, 1.0f);
-	}
-	return Best;
+	return true;
 }
+
+#if WITH_GAMEPLAY_DEBUGGER
+const FKzTargetingRecord* UKzComboInstance::FindTargetingRecord(const AActor* User)
+{
+	return TargetingRecords.Find(User);
+}
+#endif
 
 bool UKzComboInstance::GetTargetingShape(const FKzComboNode_Attack& Attack, const UKzSensorComponent* Sensor, const FTransform& UserTransform, const FVector& Direction, FKzShapeInstance& OutShape, FTransform& OutTransform)
 {

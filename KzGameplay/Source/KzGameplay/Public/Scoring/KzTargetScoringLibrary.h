@@ -7,6 +7,13 @@
 #include "KzTargetScoringProfile.h"
 #include "KzTargetScoringLibrary.generated.h"
 
+/** What one entry of a profile gave a target: its scorer's raw score, and what it added after its curve and weight. */
+struct FKzTargetScoreBreakdown
+{
+	float Raw = 0.0f;
+	float Added = 0.0f;
+};
+
 /**
  * Utility library to evaluate targets using scoring profiles.
  */
@@ -25,4 +32,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "KzGameplay|Scoring")
 	static float EvaluateTarget(const FKzTransformSource& Origin, const FKzTransformSource& Target, const FKzTargetScoringProfile& Profile);
+
+	/** EvaluateTarget, also giving what each entry of the profile added, in its order, such as for a debugger. */
+	static float EvaluateTargetEntries(const FKzTransformSource& Origin, const FKzTransformSource& Target, const FKzTargetScoringProfile& Profile, TArray<FKzTargetScoreBreakdown>* OutEntries);
 };

@@ -6,6 +6,8 @@
 #include "Combat/KzCombatTypes.h"
 #include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
+#include "Math/Geometry/KzShapeInstance.h"
+#include "Scoring/KzTargetScoringLibrary.h"
 #include "Tickable.h"
 #include "KzComboInstance.generated.h"
 
@@ -20,7 +22,6 @@ class USceneComponent;
 class USkeletalMeshComponent;
 struct FKzComboBranchContext;
 struct FKzComboNode_Attack;
-struct FKzShapeInstance;
 
 /** Who plays a combo, and with what. */
 USTRUCT(BlueprintType)
@@ -52,6 +53,39 @@ struct KZGAMEPLAY_API FKzComboContext
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> Target;
 };
+
+/** One target an attack weighed: where it was, its score, and what each entry of the combo's Target Scoring added to it. */
+struct FKzTargetingCandidate
+{
+	TWeakObjectPtr<AActor> Actor;
+	FVector Location = FVector::ZeroVector;
+	double Score = 0.0;
+	TArray<FKzTargetScoreBreakdown> Entries;
+};
+
+/** An attack's search for a target: where it looked, from where and towards where, whom it weighed and the best of them. */
+struct FKzTargetingSearch
+{
+	FKzShapeInstance Shape;
+	FTransform Transform;
+	FVector Origin = FVector::ZeroVector;
+	FVector Direction = FVector::ZeroVector;
+	TArray<FKzTargetingCandidate> Candidates;
+	int32 Best = INDEX_NONE;
+};
+
+#if WITH_GAMEPLAY_DEBUGGER
+/** The last search of a user's attacks, kept for the gameplay debugger: the combo and attack it was for, the target the context gave, and when. */
+struct FKzTargetingRecord
+{
+	FKzTargetingSearch Search;
+	bool bSearched = false;
+	TWeakObjectPtr<UKzComboGraph> Combo;
+	int32 Node = INDEX_NONE;
+	TWeakObjectPtr<AActor> GivenTarget;
+	double Time = 0.0;
+};
+#endif
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzOnComboHit, const FKzComboHit&, Hit);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzOnComboEnded, bool, bInterrupted);
@@ -114,6 +148,14 @@ public:
 	 * the direction pressed. False with neither.
 	 */
 	static bool GetTargetingShape(const FKzComboNode_Attack& Attack, const UKzSensorComponent* Sensor, const FTransform& UserTransform, const FVector& Direction, FKzShapeInstance& OutShape, FTransform& OutTransform);
+
+	/** Queries the sensor with the attack's targeting shape turned to Direction and scores what it finds by Scoring, or by distance without entries. */
+	static bool SearchTargets(UKzSensorComponent& Sensor, const FKzComboNode_Attack& Attack, const FKzTargetScoringProfile& Scoring, const AActor& User, const FVector& Direction, FKzTargetingSearch& OutSearch);
+
+#if WITH_GAMEPLAY_DEBUGGER
+	/** The last search of User's attacks, if it attacked. */
+	static const FKzTargetingRecord* FindTargetingRecord(const AActor* User);
+#endif
 
 private:
 	/** Plays an attack node in place of the one playing; a node that plays nothing ends the combo. */
