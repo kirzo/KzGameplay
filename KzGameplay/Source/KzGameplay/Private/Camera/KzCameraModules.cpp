@@ -587,17 +587,38 @@ UKzCameraModule_Arm::UKzCameraModule_Arm()
 
 FKzCameraPose UKzCameraModule_Arm::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
 {
-	// Forwards or back along the resting view until the focus is Length deep.
+	// Forwards or back along the resting view until the focus is Length deep, but no farther than MaxDistance from where the camera hangs.
 	const FVector Forward = Context.Rest.Vector();
 
+	double Travel = FVector::DotProduct(Pose.Focus - Pose.Location, Forward) - Length;
+	if (MaxDistance > 0.0f)
+	{
+		Travel = FMath::Clamp(Travel, -static_cast<double>(MaxDistance), static_cast<double>(MaxDistance));
+	}
+
+	Origin = Pose.Location;
+
 	FKzCameraPose Result = Pose;
-	Result.Location += Forward * (FVector::DotProduct(Pose.Focus - Pose.Location, Forward) - Length);
+	Result.Location += Forward * Travel;
 	return Result;
 }
 
 void UKzCameraModule_Arm::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
 {
-	DrawDebugLine(GetWorld(), Pose.Location, Pose.Location + Context.Rest.Vector() * Length, FColor(0, 128, 255), false, -1.0f, SDPG_Foreground, DebugThickness);
+	const UWorld* World = GetWorld();
+	const FVector Forward = Context.Rest.Vector();
+
+	DrawDebugLine(World, Pose.Location, Pose.Location + Forward * Length, FColor(0, 128, 255), false, -1.0f, SDPG_Foreground, DebugThickness);
+
+	// How far the arm may move the camera, around where it hangs.
+	if (MaxDistance > 0.0f)
+	{
+		const FVector Back = Origin - Forward * MaxDistance;
+		const FVector Front = Origin + Forward * MaxDistance;
+		DrawDebugLine(World, Back, Front, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground, DebugThickness * 2.0f);
+		DrawDebugPoint(World, Back, 8.0f, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground);
+		DrawDebugPoint(World, Front, 8.0f, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground);
+	}
 }
 
 UKzCameraModule_LookAt::UKzCameraModule_LookAt()

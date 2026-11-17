@@ -355,10 +355,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arm", meta = (ClampMin = "0", ForceUnits = "Centimeters"))
 	float Length = 800.0f;
 
+	/**
+	 * Farthest the arm moves the camera from where it hangs (the spline, with a follower), forwards or back.
+	 * Within it the camera keeps Length from the focus; past it, the target gets closer or farther. 0 means no limit.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arm", meta = (ClampMin = "0", ForceUnits = "Centimeters"))
+	float MaxDistance = 0.0f;
+
 	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
+
+private:
+	/** Where the camera hung before the arm moved it, for the debug drawing. */
+	FVector Origin = FVector::ZeroVector;
 };
 
 UCLASS(meta = (DisplayName = "Look At"))
