@@ -10,7 +10,7 @@
 
 class UKzComboGraph;
 
-/** How attacks pick their target: the last attack's search, or live, whom an attack would pick now with the stick as it is. */
+/** How attacks pick their target: live, whom an attack would pick now with the stick as it is, or the last attack's search. */
 class FKzTargetingDebuggerCategory : public FGameplayDebuggerCategory
 {
 public:
@@ -24,7 +24,7 @@ public:
 private:
 	void ToggleLive();
 
-	bool bLive = false;
+	bool bLive = true;
 
 	/** Whose targeting it shows: the selected actor, or the player's pawn. */
 	TWeakObjectPtr<AActor> User;
