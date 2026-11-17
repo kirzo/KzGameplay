@@ -86,9 +86,22 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Cancel Window")
 	bool bAbilities = true;
 
+	/**
+	 * How long before it opens a press of an ability it lets in is kept, to cut as soon as it opens. Not from before the action started: a new
+	 * ability lets go of what was pressed. Moving needs none, since the stick is held.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Cancel Window", meta = (EditCondition = "bAbilities"))
+	FKzAnimTime InputBuffer = FKzAnimTime(2.0f, EKzAnimTimeUnit::Frames);
+
 	/** Moving the stick stops the montage, and the action playing it ends, so the character walks off. Works in any montage, and even while Input.Move is blocked. */
 	UPROPERTY(EditAnywhere, Category = "Cancel Window")
 	bool bMovement = false;
+
+	/** InputBuffer in seconds, frames counting at the frame rate of the animation it is in. */
+	float GetInputBuffer() const;
+
+	/** Tries again the press Owner's blocked abilities left within InputBuffer, once the ability playing the window has let them in. */
+	void ReplayInput(const AActor* Owner) const;
 
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 	virtual FString GetNotifyName_Implementation() const override;

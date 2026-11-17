@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzCombatNotifies.h"
+#include "Abilities/KzAbilitySystemComponent.h"
 #include "Abilities/KzGameplayAbility_HitReaction.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
@@ -116,6 +117,19 @@ UKzAnimNotifyState_CancelWindow::UKzAnimNotifyState_CancelWindow()
 #if WITH_EDITORONLY_DATA
 	NotifyColor = FColor(70, 130, 220);
 #endif
+}
+
+float UKzAnimNotifyState_CancelWindow::GetInputBuffer() const
+{
+	return InputBuffer.ToSeconds(GetTypedOuter<UAnimSequenceBase>());
+}
+
+void UKzAnimNotifyState_CancelWindow::ReplayInput(const AActor* Owner) const
+{
+	if (UKzAbilitySystemComponent* ASC = Cast<UKzAbilitySystemComponent>(UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Owner)))
+	{
+		ASC->ReplayKeptInput(GetInputBuffer());
+	}
 }
 
 void UKzAnimNotifyState_CancelWindow::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)

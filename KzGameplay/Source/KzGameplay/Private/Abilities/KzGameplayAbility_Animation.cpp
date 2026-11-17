@@ -85,6 +85,12 @@ void UKzGameplayAbility_Animation::OnAnimationNotify(const UKzAnimationNotifySta
 	{
 		CancelWindows = FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0);
 		SetCancelBlocked(CancelableBy, CancelWindows == 0);
+
+		// Last, since what it lets in may end this ability right here
+		if (bBegin)
+		{
+			Window->ReplayInput(GetAvatarActorFromActorInfo());
+		}
 	}
 }
 

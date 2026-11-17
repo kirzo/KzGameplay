@@ -50,10 +50,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combo")
 	FGameplayTagContainer CancelableBy;
 
+	virtual void PreActivate(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, FOnGameplayAbilityEnded::FDelegate* OnGameplayAbilityEndedDelegate, const FGameplayEventData* TriggerEventData = nullptr) override;
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 private:
+	/** The avatar's tags as it pressed, before activating cancelled anything, which the first attack's branches read. */
+	FGameplayTagContainer StartTags;
+
 	UFUNCTION()
 	void OnInputPressed(FGameplayTag Input);
 

@@ -229,7 +229,11 @@ FKzComboBranchContext UKzComboInstance::MakeBranchContext() const
 	const UKzAnimNotifyState_ComboWindow* Window = ComboWindows.IsEmpty() ? nullptr : ComboWindows.Last().Get();
 	Branch.Window = Window ? Window->Window : FGameplayTag();
 	Branch.bHit = bHit;
-	if (const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
+	if (Node == INDEX_NONE && !Context.StartTags.IsEmpty())
+	{
+		Branch.AttackerTags = Context.StartTags;
+	}
+	else if (const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Context.User))
 	{
 		Branch.AttackerTags = ASC->GetOwnedGameplayTags();
 	}
@@ -286,6 +290,12 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 		if (CancelWindow->bAbilities)
 		{
 			SetCancelWindows(FMath::Max(CancelWindows + (bBegin ? 1 : -1), 0));
+
+			// Last, since what it lets in may cut the combo right here
+			if (bBegin)
+			{
+				CancelWindow->ReplayInput(Context.User);
+			}
 		}
 		return;
 	}

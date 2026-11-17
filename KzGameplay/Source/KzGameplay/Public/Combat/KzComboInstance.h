@@ -52,6 +52,13 @@ struct KZGAMEPLAY_API FKzComboContext
 	/** The target, for drivers that already know it; it takes the place of the user's Sensor.Targeting sensor. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> Target;
+
+	/**
+	 * The user's tags as the combo starts, for the first attack's branches, such as State.Dodging from a dodge that starting the combo already
+	 * cancelled. Empty reads them from the user's ability system.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "Combo")
+	FGameplayTagContainer StartTags;
 };
 
 /** One target an attack weighed: where it was, its score, and what each entry of the combo's Target Scoring added to it. */

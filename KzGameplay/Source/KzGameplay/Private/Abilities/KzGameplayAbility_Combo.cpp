@@ -19,6 +19,14 @@ UKzGameplayAbility_Combo::UKzGameplayAbility_Combo()
 	ActivationOwnedTags.AddTag(KzTags::Combat::State_Attacking);
 }
 
+void UKzGameplayAbility_Combo::PreActivate(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, FOnGameplayAbilityEnded::FDelegate* OnGameplayAbilityEndedDelegate, const FGameplayEventData* TriggerEventData)
+{
+	// Activating cancels what its Cancel Abilities with Tag name, and their tags with them, such as State.Dodging from the dodge it cuts.
+	const UAbilitySystemComponent* ASC = ActorInfo ? ActorInfo->AbilitySystemComponent.Get() : nullptr;
+	StartTags = ASC ? ASC->GetOwnedGameplayTags() : FGameplayTagContainer();
+	Super::PreActivate(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
+}
+
 void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -46,6 +54,7 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 	Context.User = Avatar;
 	Context.Item = Item;
 	Context.ObjectTypes = ObjectTypes;
+	Context.StartTags = StartTags;
 	if (Melee && Equipped)
 	{
 		Context.Weapon = Equipped->SpawnedActor ? Equipped->SpawnedActor->GetRootComponent() : Equipped->SpawnedComponent.Get();

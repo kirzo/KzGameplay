@@ -44,6 +44,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GAS|Input")
 	void AbilityInputTagReleased(const FGameplayTag& InputTag);
 
+	/**
+	 * Tries again the last press whose abilities were all blocked, if it came no longer than Buffer ago in the avatar's own time; it is used up
+	 * either way. A Cancel Window calls it as it opens, so a press a moment early still cuts.
+	 */
+	void ReplayKeptInput(float Buffer);
+
+	virtual bool GetShouldTick() const override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void NotifyAbilityActivated(const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability) override;
+
 protected:
 	virtual void OnGiveAbility(FGameplayAbilitySpec& AbilitySpec) override;
 	virtual void OnRemoveAbility(FGameplayAbilitySpec& AbilitySpec) override;
@@ -63,4 +73,16 @@ protected:
 
 	/** Callback executed when a tag that might cancel an ability changes. */
 	virtual void CancelTagChanged(const FGameplayTag Tag, int32 NewCount);
+
+private:
+	/** Activates what the input activates, by its own spec or by event. True if anything did; OutTried, if anything tried. */
+	bool ActivateFromInput(const FGameplayTag& InputTag, bool& bOutTried);
+
+	/** Keeps a press for ReplayKeptInput, or lets it go with none, ticking only while one is kept. */
+	void KeepInput(const FGameplayTag& InputTag);
+
+	FGameplayTag KeptInput;
+
+	/** How long ago it was pressed, in the avatar's own time. */
+	float KeptAge = 0.0f;
 };

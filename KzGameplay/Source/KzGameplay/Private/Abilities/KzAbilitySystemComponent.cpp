@@ -3,6 +3,12 @@
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "Abilities/KzGameplayAbility.h"
 
+namespace
+{
+	/** No Input Buffer reaches this far back: past it, a kept press is let go, and the component stops ticking for it. */
+	constexpr float MaxKeptInputAge = 1.0f;
+}
+
 UKzAbilitySystemComponent::UKzAbilitySystemComponent()
 {
 }
@@ -24,49 +30,68 @@ void UKzAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 	// Announce it before any routing, so tasks hear their input whether or not a spec consumes it
 	OnAbilityInputTag.Broadcast(InputTag, true);
 
-	bool bWantsEvent = false;
-
-	ABILITYLIST_SCOPE_LOCK();
-	for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
+	bool bHeard = false;
 	{
-		if (const UKzGameplayAbility* KzAbility = Cast<UKzGameplayAbility>(Spec.Ability))
+		ABILITYLIST_SCOPE_LOCK();
+		for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
 		{
-			const EKzAbilityInputPolicy Policy = KzAbility->GetInputPolicy(InputTag);
-			if (Policy != EKzAbilityInputPolicy::None)
+			const UKzGameplayAbility* KzAbility = Cast<UKzGameplayAbility>(Spec.Ability);
+			const EKzAbilityInputPolicy Policy = KzAbility ? KzAbility->GetInputPolicy(InputTag) : EKzAbilityInputPolicy::None;
+			if (Policy == EKzAbilityInputPolicy::None || Policy == EKzAbilityInputPolicy::TriggerEvent)
 			{
-				const bool bActivatesFromInput = (Policy == EKzAbilityInputPolicy::ActivateAndListen);
+				continue;
+			}
 
-				if (Policy == EKzAbilityInputPolicy::TriggerEvent)
+			// If it reaches here, it inherently has listening permissions (ListenOnly or ActivateAndListen)
+			Spec.InputPressed = true;
+
+			if (Spec.IsActive())
+			{
+				bHeard = true;
+				if (Spec.Ability->bReplicateInputDirectly && !IsOwnerActorAuthoritative())
 				{
-					bWantsEvent = true;
-					continue;
+					ServerSetInputPressed(Spec.Handle);
 				}
 
-				// If it reaches here, it inherently has listening permissions (ListenOnly or ActivateAndListen)
-				Spec.InputPressed = true;
+				AbilitySpecInputPressed(Spec);
 
-				if (Spec.IsActive())
-				{
-					if (Spec.Ability->bReplicateInputDirectly && !IsOwnerActorAuthoritative())
-					{
-						ServerSetInputPressed(Spec.Handle);
-					}
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
+				const FGameplayAbilityActivationInfo& ActivationInfo = Instances.IsEmpty() ? Spec.ActivationInfo : Instances.Last()->GetCurrentActivationInfoRef();
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-					AbilitySpecInputPressed(Spec);
+				InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, ActivationInfo.GetActivationPredictionKey());
+			}
+		}
+	}
 
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					TArray<UGameplayAbility*> Instances = Spec.GetAbilityInstances();
-					const FGameplayAbilityActivationInfo& ActivationInfo = Instances.IsEmpty() ? Spec.ActivationInfo : Instances.Last()->GetCurrentActivationInfoRef();
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	// A press only blocked abilities wanted waits a moment, in case a Cancel Window opens for them
+	bool bTried = false;
+	if (!ActivateFromInput(InputTag, bTried) && bTried && !bHeard)
+	{
+		KeepInput(InputTag);
+	}
+}
 
-					InvokeReplicatedEvent(EAbilityGenericReplicatedEvent::InputPressed, Spec.Handle, ActivationInfo.GetActivationPredictionKey());
-
-				}
-				else if (bActivatesFromInput)
-				{
-					// It's inactive, but it has permission to activate!
-					TryActivateAbility(Spec.Handle);
-				}
+bool UKzAbilitySystemComponent::ActivateFromInput(const FGameplayTag& InputTag, bool& bOutTried)
+{
+	bOutTried = false;
+	bool bActivated = false;
+	bool bWantsEvent = false;
+	{
+		ABILITYLIST_SCOPE_LOCK();
+		for (FGameplayAbilitySpec& Spec : ActivatableAbilities.Items)
+		{
+			const UKzGameplayAbility* KzAbility = Cast<UKzGameplayAbility>(Spec.Ability);
+			const EKzAbilityInputPolicy Policy = KzAbility ? KzAbility->GetInputPolicy(InputTag) : EKzAbilityInputPolicy::None;
+			if (Policy == EKzAbilityInputPolicy::TriggerEvent)
+			{
+				bWantsEvent = true;
+			}
+			else if (Policy == EKzAbilityInputPolicy::ActivateAndListen && !Spec.IsActive())
+			{
+				bOutTried = true;
+				bActivated |= TryActivateAbility(Spec.Handle);
 			}
 		}
 	}
@@ -80,7 +105,62 @@ void UKzAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& Input
 		Payload.Target = GetAvatarActor();
 		Payload.EventTag = InputTag;
 
-		HandleGameplayEvent(InputTag, &Payload);
+		bOutTried = true;
+		bActivated |= HandleGameplayEvent(InputTag, &Payload) > 0;
+	}
+	return bActivated;
+}
+
+void UKzAbilitySystemComponent::ReplayKeptInput(float Buffer)
+{
+	const FGameplayTag InputTag = KeptInput;
+	const bool bInTime = KeptAge <= Buffer;
+	KeepInput(FGameplayTag());
+
+	bool bTried = false;
+	if (InputTag.IsValid() && bInTime)
+	{
+		ActivateFromInput(InputTag, bTried);
+	}
+}
+
+void UKzAbilitySystemComponent::KeepInput(const FGameplayTag& InputTag)
+{
+	KeptInput = InputTag;
+	KeptAge = 0.0f;
+	UpdateShouldTick();
+}
+
+bool UKzAbilitySystemComponent::GetShouldTick() const
+{
+	return Super::GetShouldTick() || KeptInput.IsValid();
+}
+
+void UKzAbilitySystemComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!KeptInput.IsValid())
+	{
+		return;
+	}
+
+	// In the avatar's own time, so a hit stop holds the buffer; an owner's dilation already comes in DeltaTime
+	const AActor* Avatar = GetAvatarActor_Direct();
+	KeptAge += DeltaTime * (Avatar && Avatar != GetOwner() ? Avatar->CustomTimeDilation : 1.0f);
+	if (KeptAge > MaxKeptInputAge)
+	{
+		KeepInput(FGameplayTag());
+	}
+}
+
+void UKzAbilitySystemComponent::NotifyAbilityActivated(const FGameplayAbilitySpecHandle Handle, UGameplayAbility* Ability)
+{
+	Super::NotifyAbilityActivated(Handle, Ability);
+
+	// A new action starts: what was pressed before it is not for its Cancel Windows
+	if (KeptInput.IsValid())
+	{
+		KeepInput(FGameplayTag());
 	}
 }
 

@@ -109,19 +109,33 @@ namespace
 		return Notify->IsA<UKzAnimNotifyState_CancelWindow>() ? Notify->GetNotifyName() : Notify->GetClass()->GetDisplayNameText().ToString();
 	}
 
-	/**
-	 * From when a press is kept for a Combo Window, as the game keeps it: its Input Buffer before it opens, but not before the Combo Windows ahead
-	 * of it close, nor the Hit Windows unless it buffers during them.
-	 */
-	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow)
+	bool IsAbilityCancelWindow(const FKzAnimationNotifySpan& Span)
 	{
-		const UKzAnimNotifyState_ComboWindow* Window = Cast<UKzAnimNotifyState_ComboWindow>(ComboWindow.Notify);
-		const bool bClipHitWindows = Window && !Window->bBufferDuringHitWindows;
-		float Start = FMath::Max(ComboWindow.Start - (Window ? Window->GetInputBuffer() : 0.0f), 0.0f);
+		const UKzAnimNotifyState_CancelWindow* Window = Cast<UKzAnimNotifyState_CancelWindow>(Span.Notify);
+		return Window && Window->bAbilities;
+	}
+
+	/**
+	 * From when a press is kept for a window, as the game keeps it: its Input Buffer before it opens, but not before the windows of its kind ahead
+	 * of it close, which took the presses themselves, nor before the attack starts. A Combo Window's neither before the Hit Windows close, unless it
+	 * buffers during them.
+	 */
+	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& BufferedWindow)
+	{
+		const UKzAnimNotifyState_ComboWindow* ComboWindow = Cast<UKzAnimNotifyState_ComboWindow>(BufferedWindow.Notify);
+		const UKzAnimNotifyState_CancelWindow* CancelWindow = IsAbilityCancelWindow(BufferedWindow) ? Cast<UKzAnimNotifyState_CancelWindow>(BufferedWindow.Notify) : nullptr;
+		const bool bClipHitWindows = ComboWindow && !ComboWindow->bBufferDuringHitWindows;
+		const float Buffer = ComboWindow ? ComboWindow->GetInputBuffer() : CancelWindow ? CancelWindow->GetInputBuffer() : 0.0f;
+		float Start = FMath::Max(BufferedWindow.Start - Buffer, 0.0f);
 		for (const FKzAnimationNotifySpan& Span : Spans)
 		{
-			const bool bAhead = &Span != &ComboWindow && Span.Start < ComboWindow.Start;
-			if (bAhead && Span.Notify && ((bClipHitWindows && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>()) || IsComboWindow(Span)))
+			if (&Span == &BufferedWindow || Span.Start >= BufferedWindow.Start || !Span.Notify)
+			{
+				continue;
+			}
+
+			const bool bClips = ComboWindow ? IsComboWindow(Span) || (bClipHitWindows && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>()) : IsAbilityCancelWindow(Span);
+			if (bClips)
 			{
 				Start = FMath::Max(Start, Span.End);
 			}
@@ -309,8 +323,8 @@ namespace
 					const FLinearColor Color = Span.Notify ? FLinearColor(Span.Notify->NotifyColor) : FLinearColor::Gray;
 					Band(Start, End, Top, Color.CopyWithNewOpacity(0.7f));
 
-					// The input buffer leads into a Combo Window, fainter.
-					const float BufferStart = IsComboWindow(Span) ? ToX(Step.Start + GetBufferStart(Step.Notifies, Span)) : Start;
+					// The input buffer leads into a Combo Window or a Cancel Window open to abilities, fainter.
+					const float BufferStart = IsComboWindow(Span) || IsAbilityCancelWindow(Span) ? ToX(Step.Start + GetBufferStart(Step.Notifies, Span)) : Start;
 					if (BufferStart < Start)
 					{
 						Band(BufferStart, Start, Top, Color.CopyWithNewOpacity(0.25f));
