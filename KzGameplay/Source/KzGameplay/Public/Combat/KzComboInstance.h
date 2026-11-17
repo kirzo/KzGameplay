@@ -191,10 +191,11 @@ private:
 	/** The last Hit Window that opened, whose reaction, damage and tags its hits take. */
 	TWeakObjectPtr<const UKzAnimNotifyState_HitWindow> HitWindow;
 
-	/** A press that came with no Combo Window or Hit Window open, and when, in case the next Combo Window opens within its InputBuffer. */
+	/** A press that came with no Combo Window open, when, and whether a Hit Window was open then or since, for the next Combo Window's InputBuffer. */
 	FGameplayTag KeptInput;
 	FVector KeptDirection = FVector::ZeroVector;
 	double KeptAt = 0.0;
+	bool bKeptInHitWindow = false;
 
 	TWeakObjectPtr<AActor> Target;
 

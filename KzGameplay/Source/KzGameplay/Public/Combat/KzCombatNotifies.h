@@ -54,11 +54,15 @@ public:
 	FGameplayTag Window;
 
 	/**
-	 * How long before it opens a press is kept, to chain as soon as it opens. Never from before the Hit Windows and Combo Windows ahead of it
-	 * close. Zero takes only presses inside it.
+	 * How long before it opens a press is kept, to chain as soon as it opens. Never from before the Combo Windows ahead of it close. Zero takes
+	 * only presses inside it.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Combo Window")
 	FKzAnimTime InputBuffer = FKzAnimTime(2.0f, EKzAnimTimeUnit::Frames);
+
+	/** The Input Buffer takes presses during, or before, the Hit Windows ahead of it. Off, it starts once they close. */
+	UPROPERTY(EditAnywhere, Category = "Combo Window")
+	bool bBufferDuringHitWindows = true;
 
 	/** InputBuffer in seconds, frames counting at the frame rate of the animation it is in. */
 	float GetInputBuffer() const;

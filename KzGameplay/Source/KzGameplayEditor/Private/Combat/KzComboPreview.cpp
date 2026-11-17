@@ -109,15 +109,19 @@ namespace
 		return Notify->IsA<UKzAnimNotifyState_CancelWindow>() ? Notify->GetNotifyName() : Notify->GetClass()->GetDisplayNameText().ToString();
 	}
 
-	/** From when a press is kept for a Combo Window, as the game keeps it: its Input Buffer before it opens, but not before the Hit Windows and Combo Windows ahead of it close. */
+	/**
+	 * From when a press is kept for a Combo Window, as the game keeps it: its Input Buffer before it opens, but not before the Combo Windows ahead
+	 * of it close, nor the Hit Windows unless it buffers during them.
+	 */
 	float GetBufferStart(const TArray<FKzAnimationNotifySpan>& Spans, const FKzAnimationNotifySpan& ComboWindow)
 	{
 		const UKzAnimNotifyState_ComboWindow* Window = Cast<UKzAnimNotifyState_ComboWindow>(ComboWindow.Notify);
+		const bool bClipHitWindows = Window && !Window->bBufferDuringHitWindows;
 		float Start = FMath::Max(ComboWindow.Start - (Window ? Window->GetInputBuffer() : 0.0f), 0.0f);
 		for (const FKzAnimationNotifySpan& Span : Spans)
 		{
 			const bool bAhead = &Span != &ComboWindow && Span.Start < ComboWindow.Start;
-			if (bAhead && Span.Notify && (Span.Notify->IsA<UKzAnimNotifyState_HitWindow>() || IsComboWindow(Span)))
+			if (bAhead && Span.Notify && ((bClipHitWindows && Span.Notify->IsA<UKzAnimNotifyState_HitWindow>()) || IsComboWindow(Span)))
 			{
 				Start = FMath::Max(Start, Span.End);
 			}

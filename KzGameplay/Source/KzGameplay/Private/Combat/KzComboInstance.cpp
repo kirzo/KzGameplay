@@ -136,13 +136,10 @@ void UKzComboInstance::Press(FGameplayTag Input, FVector Direction)
 		return;
 	}
 
-	// The buffer starts once the Hit Windows close.
-	if (HitWindows == 0)
-	{
-		KeptInput = Input;
-		KeptDirection = Direction;
-		KeptAt = Clock;
-	}
+	KeptInput = Input;
+	KeptDirection = Direction;
+	KeptAt = Clock;
+	bKeptInHitWindow = HitWindows > 0;
 }
 
 void UKzComboInstance::Stop(float BlendOut)
@@ -244,7 +241,7 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 			HitWindows++;
 			bOpenedHitWindow = true;
 			HitWindow = Window;
-			KeptInput = FGameplayTag();
+			bKeptInHitWindow = true;
 			HitActors.Reset();
 			PreviousParents.Init(TOptional<FTransform>(), PreviousParents.Num());
 			SweepHitboxes();
@@ -270,7 +267,7 @@ void UKzComboInstance::OnNotify(const UKzAnimationNotifyState* Notify, bool bBeg
 		{
 			const FGameplayTag Input = KeptInput;
 			KeptInput = FGameplayTag();
-			if (Clock - KeptAt <= ComboWindow->GetInputBuffer())
+			if (Clock - KeptAt <= ComboWindow->GetInputBuffer() && (ComboWindow->bBufferDuringHitWindows || !bKeptInHitWindow))
 			{
 				Chain(Input, KeptDirection);
 			}
