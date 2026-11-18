@@ -1,7 +1,6 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraRigComponent.h"
-#include "Algo/Reverse.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/KzCameraModule.h"
 #include "Camera/KzCameraVolume.h"
@@ -68,24 +67,6 @@ void UKzCameraRigComponent::PushLayer(UObject* Source, const FKzCameraLayerSetti
 	if (!Source) return;
 
 	FLayer Layer;
-
-	// Pushed again while blending out: it blends back in from where it is.
-	if (const FLayer* Existing = Layers.Find(Source))
-	{
-		Layer.Alpha = Existing->Alpha;
-		Layer.Blend = Existing->Blend;
-	}
-
-	Layer.Source = Source;
-	Layer.BlendTime = Settings.bOverrideBlendTime ? Settings.BlendTime : DefaultBlendTime;
-	Layer.bClearPrevious = Settings.bClearPrevious;
-	Layer.Order = ++LastLayerOrder;
-
-	if (bSnap)
-	{
-		Layer.Blend = 1.0f;
-	}
-
 	for (UKzCameraModule* Module : Settings.Modules)
 	{
 		if (Module)
@@ -94,27 +75,17 @@ void UKzCameraRigComponent::PushLayer(UObject* Source, const FKzCameraLayerSetti
 		}
 	}
 
-	Layers.Push(Layer, Source, Settings.Priority);
+	Layers.Push(Source, MoveTemp(Layer), Settings.Priority, Settings.bOverrideBlendTime ? Settings.BlendTime : DefaultBlendTime, Settings.bClearPrevious, bSnap);
 }
 
 void UKzCameraRigComponent::PopLayer(UObject* Source, bool bSnap)
 {
-	if (FLayer* Layer = Layers.Find(Source))
-	{
-		Layer->bRemoving = true;
-		if (bSnap)
-		{
-			Layer->Blend = 0.0f;
-		}
-	}
+	Layers.Pop(Source, bSnap);
 }
 
 void UKzCameraRigComponent::SetLayerAlpha(UObject* Source, float Alpha)
 {
-	if (FLayer* Layer = Layers.Find(Source))
-	{
-		Layer->Alpha = FMath::Clamp(Alpha, 0.0f, 1.0f);
-	}
+	Layers.SetAlpha(Source, Alpha);
 }
 
 AActor* UKzCameraRigComponent::GetTarget() const
@@ -184,13 +155,13 @@ void UKzCameraRigComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	{
 		UpdateVolumes(Context.TargetLocation, bSnap);
 	}
-	UpdateLayerBlends(DeltaTime, bSnap);
+	Layers.Update(DeltaTime, bSnap);
 
 	// Focus: what the camera follows.
 	FKzCameraPose Pose;
 	Pose.Focus = Context.TargetLocation;
 	Pose.FieldOfView = FieldOfView;
-	EvaluateStages(EKzCameraStage::Track, EKzCameraStage::Smooth, Context, Pose, GetOrderedLayers());
+	EvaluateStages(EKzCameraStage::Track, EKzCameraStage::Smooth, Context, Pose, Layers.GetOrdered());
 
 	// A driven follower takes the focus onto its spline and moves the root; the markers it crosses may add or remove layers.
 	if (SplineFollower && SplineFollower->Mode == EKzSplineFollowMode::Driven && Context.Target)
@@ -200,7 +171,7 @@ void UKzCameraRigComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		Context.Reference = Context.Anchor;
 	}
 
-	const TArray<FLayer*> OrderedLayers = GetOrderedLayers();
+	const TArray<FLayer*> OrderedLayers = Layers.GetOrdered();
 
 	// Anchor: where the camera hangs from, keeping its authored offset.
 	const FTransform HangingTransform = Context.CameraRelative * Context.Anchor;
@@ -233,8 +204,7 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 	Registry->ForEach<AKzCameraVolume>([&](AKzCameraVolume* Volume)
 	{
 		const float Alpha = Volume->GetAlpha(TargetLocation);
-		const FLayer* Layer = Layers.Find(Volume);
-		const bool bActive = Layer && !Layer->bRemoving;
+		const bool bActive = Layers.IsActive(Volume);
 
 		// A progressive volume already blends in space, so it adds no time blend on top.
 		const bool bVolumeSnap = bSnap || Volume->bProgressive;
@@ -252,46 +222,6 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 			PopLayer(Volume, bVolumeSnap);
 		}
 	});
-}
-
-void UKzCameraRigComponent::UpdateLayerBlends(float DeltaTime, bool bSnap)
-{
-	Layers.ForEach([DeltaTime, bSnap](FLayer& Layer)
-	{
-		const float TargetBlend = Layer.bRemoving ? 0.0f : 1.0f;
-		Layer.Blend = bSnap || Layer.BlendTime <= 0.0f ? TargetBlend : FMath::FInterpConstantTo(Layer.Blend, TargetBlend, DeltaTime, 1.0f / Layer.BlendTime);
-	});
-
-	Layers.RemoveAll([](const FLayer& Layer)
-	{
-		return !Layer.Source.IsValid() || (Layer.bRemoving && Layer.Blend <= 0.0f);
-	});
-}
-
-TArray<UKzCameraRigComponent::FLayer*> UKzCameraRigComponent::GetOrderedLayers()
-{
-	TArray<FLayer*> OrderedLayers = Layers.GetSortedElements();
-	Algo::Reverse(OrderedLayers);
-	UpdateLayerWeights(OrderedLayers);
-	return OrderedLayers;
-}
-
-void UKzCameraRigComponent::UpdateLayerWeights(const TArray<FLayer*>& InLayers)
-{
-	TArray<FLayer*> NewestFirst = InLayers;
-	NewestFirst.Sort([](const FLayer& A, const FLayer& B) { return A.Order > B.Order; });
-
-	float Visible = 1.0f;
-	for (FLayer* Layer : NewestFirst)
-	{
-		const float OwnWeight = Layer->Alpha * FMath::SmoothStep(0.0f, 1.0f, Layer->Blend);
-		Layer->Weight = OwnWeight * Visible;
-
-		if (Layer->bClearPrevious)
-		{
-			Visible *= 1.0f - OwnWeight;
-		}
-	}
 }
 
 void UKzCameraRigComponent::EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const

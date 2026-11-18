@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
-#include "Containers/KzPriorityStack.h"
+#include "Containers/KzBlendLayers.h"
 #include "Camera/KzCameraTypes.h"
 #include "UObject/ObjectKey.h"
 #include "KzCameraRigComponent.generated.h"
@@ -87,26 +87,12 @@ public:
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 private:
-	struct FLayer
+	struct FLayer : Kz::FBlendLayer
 	{
-		TWeakObjectPtr<UObject> Source;
 		TArray<TObjectPtr<UKzCameraModule>> Modules;
-		float Alpha = 1.0f;
-		float Blend = 0.0f;
-		float BlendTime = 0.0f;
-
-		/** Alpha and blend, minus what newer clearing layers hide. */
-		float Weight = 0.0f;
-
-		/** When it was activated, for clearing layers. */
-		uint64 Order = 0;
-
-		bool bClearPrevious = false;
-		bool bRemoving = false;
 	};
 
-	Kz::TPriorityStack<FLayer, false, TObjectKey<UObject>, false> Layers;
-	uint64 LastLayerOrder = 0;
+	Kz::TBlendLayers<FLayer> Layers;
 
 	TWeakObjectPtr<UKzSplineFollowerComponent> Follower;
 	TWeakObjectPtr<UCameraComponent> Camera;
@@ -123,15 +109,6 @@ private:
 
 	/** Adds, scales and removes the layers of the camera volumes for the target's location. */
 	void UpdateVolumes(const FVector& TargetLocation, bool bSnap);
-
-	/** Advances the time blends and drops the layers that finished blending out or lost their source. */
-	void UpdateLayerBlends(float DeltaTime, bool bSnap);
-
-	/** The layers from the lowest priority to the highest, with their weights up to date. */
-	TArray<FLayer*> GetOrderedLayers();
-
-	/** Newest first, each clearing layer hides the ones activated before it by its own weight. */
-	static void UpdateLayerWeights(const TArray<FLayer*>& InLayers);
 
 	/** Runs every kind of module whose stage is between First and Last, by stage and then in the order they first appear. */
 	void EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const;
