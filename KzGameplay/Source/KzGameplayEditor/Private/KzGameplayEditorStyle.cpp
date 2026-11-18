@@ -97,6 +97,27 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Pair[1], TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	}
 
+	// Lighting: the profile, and the rig and volume placed in the level
+	for (const TCHAR* Lighting : { TEXT("LightingProfile"), TEXT("LightingRig"), TEXT("LightingVolume") })
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.Kz%s"), Lighting), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Lighting, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+		Set(*FString::Printf(TEXT("ClassThumbnail.Kz%s"), Lighting), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + Lighting + TEXT("Color"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
+	}
+
+	// Lighting modules wear the icon of the engine actor they stand for
+	const TCHAR* const LightingModules[][2] = {
+		{ TEXT("KzLightingModule_Sun"), TEXT("DirectionalLight") },
+		{ TEXT("KzLightingModule_SkyLight"), TEXT("SkyLight") },
+		{ TEXT("KzLightingModule_HeightFog"), TEXT("ExponentialHeightFog") },
+		{ TEXT("KzLightingModule_SkyAtmosphere"), TEXT("SkyAtmosphere") },
+		{ TEXT("KzLightingModule_VolumetricCloud"), TEXT("VolumetricCloud") },
+	};
+	for (const auto& Pair : LightingModules)
+	{
+		Set(*FString::Printf(TEXT("ClassIcon.%s"), Pair[0]), new FSlateVectorImageBrush(FPaths::EngineContentDir() / TEXT("Editor/Slate/Starship/AssetIcons") / Pair[1] + TEXT("_16.svg"), FVector2D(16.0f, 16.0f)));
+	}
+	Set("ClassIcon.KzLightingModule_MaterialParameters", new FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Editor/Slate/Icons/AssetIcons/MaterialParameterCollection_16x.png"), FVector2D(16.0f, 16.0f)));
+
 	// Combo graph nodes, on their title: an attack is the Melee Weapon's sword
 	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	Set("KzGameplay.Combo.Node.Attack", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/MeleeWeapon"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
