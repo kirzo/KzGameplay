@@ -27,6 +27,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "KzLighting",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "KzGameplayEditor",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit"
