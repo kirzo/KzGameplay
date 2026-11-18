@@ -23,6 +23,7 @@
 #include "Combat/KzComboNodeBodies.h"
 #include "Combat/KzComboGraph.h"
 #include "Factions/KzFactionSettings.h"
+#include "KzLightingProfile.h"
 #include "Engagement/KzEngagementComponent.h"
 #include "Engagement/KzEngagementVisualizer.h"
 #include "Factories/ItemDefinitionActorFactory.h"
@@ -173,6 +174,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzCapabilitySet, FKzArrayAssetEditor>(KzAssetCategoryBit, INVTEXT("Capability Set"), FColor::FromHex("#E76F51"), { INVTEXT("Gameplay") }, CapabilityTabs);
 
 	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
+	RegisterAssetTypeAction<UKzLightingProfile>(KzAssetCategoryBit, INVTEXT("Lighting Profile"), FColor::FromHex("#F5C542"), { INVTEXT("Lighting") });
 	KzAnimationPreview::RegisterMontagePreview();
 	KzComboNodeBodies::Register();
 

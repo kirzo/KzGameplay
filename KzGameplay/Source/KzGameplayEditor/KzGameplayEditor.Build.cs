@@ -20,6 +20,7 @@ public class KzGameplayEditor : ModuleRules
 				"Core",
 				"KzLib",
 				"KzAI",
+				"KzLighting",
 				"CoreUObject",
 				"Engine",
 				"GameplayTags",
