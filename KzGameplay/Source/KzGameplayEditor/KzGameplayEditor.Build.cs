@@ -41,7 +41,12 @@ public class KzGameplayEditor : ModuleRules
 				"ApplicationCore",
 				"BlueprintGraph",
 				"ToolWidgets",
-				"AdvancedPreviewScene"
+				"AdvancedPreviewScene",
+				"ContentBrowser",
+				"MovieScene",
+				"MovieSceneTools",
+				"Sequencer",
+				"SequencerCore"
 			});
 	}
 }

@@ -11,6 +11,8 @@
 #include "Customizations/KzHitDirectionCustomization.h"
 #include "Customizations/KzAnimTimeCustomization.h"
 #include "Customizations/KzLightingRigCustomization.h"
+#include "Sequencer/KzLightingTrackEditor.h"
+#include "ISequencerModule.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Combat/KzCombatTypes.h"
 
@@ -182,6 +184,9 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
 	RegisterClassLayout<AKzLightingRig, FKzLightingRigCustomization>();
+
+	ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	LightingTrackEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FKzLightingTrackEditor::CreateTrackEditor));
 	RegisterPropertyLayout<FKzHitDirection, FKzHitDirectionCustomization>();
 	RegisterPropertyLayout<FKzAnimTime, FKzAnimTimeCustomization>();
 
@@ -201,6 +206,11 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 void FKzGameplayEditorModule::OnShutdownModule()
 {
+	if (ISequencerModule* SequencerModule = FModuleManager::GetModulePtr<ISequencerModule>(TEXT("Sequencer")))
+	{
+		SequencerModule->UnRegisterTrackEditor(LightingTrackEditorHandle);
+	}
+
 	KzAnimationPreview::Unregister(UKzAnimationSource_MontageBase::StaticClass());
 	KzComboNodeBodies::Unregister();
 	FKzGameplayEditorStyle::Shutdown();
