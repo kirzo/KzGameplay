@@ -215,7 +215,7 @@ void AKzLightingRig::UpdateVolumes(const FVector& Location, bool bSnap)
 
 	Registry->ForEach<AKzLightingVolume>([&](AKzLightingVolume* Volume)
 	{
-		const float Alpha = Volume->bUnbound ? 1.0f : Volume->GetAlpha(Location);
+		const float Alpha = (Volume->bUnbound ? 1.0f : Volume->GetAlpha(Location)) * Volume->Weight;
 		const bool bActive = Layers.IsActive(Volume);
 
 		// A progressive volume already blends in space, so it adds no time blend on top.
@@ -228,6 +228,9 @@ void AKzLightingRig::UpdateVolumes(const FVector& Location, bool bSnap)
 				PushLayer(Volume, Volume->Layer, bVolumeSnap);
 			}
 			SetLayerAlpha(Volume, Alpha);
+
+			// Read every frame, so Sequencer can key it.
+			Layers.Find(Volume)->Profile = Volume->Layer.Profile;
 		}
 		else if (bActive)
 		{

@@ -39,7 +39,8 @@ struct KZLIGHTING_API FKzLightingLayerSettings
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lighting")
+	/** Keyable in Sequencer, on a volume. */
+	UPROPERTY(EditAnywhere, Interp, BlueprintReadWrite, Category = "Lighting")
 	TObjectPtr<UKzLightingProfile> Profile = nullptr;
 
 	/** Higher goes on top. Among equals, the latest activated. */
