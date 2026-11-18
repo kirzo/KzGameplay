@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "GameplayTagContainer.h"
 #include "KzCombatSettings.generated.h"
 
 /** Which way a hit shakes a mesh. */
@@ -27,9 +28,18 @@ class KZGAMEPLAY_API UKzCombatSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+	UKzCombatSettings();
+
 	virtual FName GetCategoryName() const override { return TEXT("Plugins"); }
 
 	static const UKzCombatSettings* Get() { return GetDefault<UKzCombatSettings>(); }
+
+	/**
+	 * The ways a blow can travel that Hit Windows pick by tag, in the hit's frame: X along the ground from the attacker to the target, Y to the
+	 * attacker's right of that line, Z up. Only the direction counts, so (1, -0.2, 0) pushes mostly away and a little to the attacker's left.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Hit Directions", meta = (Categories = "HitDirection", ForceInlineRow))
+	TMap<FGameplayTag, FVector> HitDirections;
 
 	/** Which way a hit shakes the mesh: along the hit, or as the first local player's camera sees it, so a hit into the screen still shows. */
 	UPROPERTY(Config, EditAnywhere, Category = "Mesh Shake")

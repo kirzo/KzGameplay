@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
+#include "Combat/KzCombatTags.h"
 #include "Engine/HitResult.h"
 #include "GameplayTagContainer.h"
 #include "Serialization/StructuredArchive.h"
@@ -32,30 +33,32 @@ enum class EKzHitResult : uint8
 	Hit
 };
 
-/** Common ways a blow travels, in its hit's frame: X along the ground from the attacker to the target, Y to the attacker's right of that line, Z up. */
+/** Where a blow's direction comes from. */
 UENUM(BlueprintType)
-enum class EKzHitDirectionPreset : uint8
+enum class EKzHitDirectionMode : uint8
 {
-	/** Straight through the target, away from the attacker: a thrust or a kick. */
-	Thrust,
+	/** One of the project's Hit Directions, by tag, in Project Settings -> Plugins -> Kz Combat. */
+	Preset,
 
-	/** Across the target from the attacker's right to its left, which comes in on the target's left when they face each other. */
-	RightToLeft UMETA(DisplayName = "Right To Left"),
-
-	/** Across the target from the attacker's left to its right, which comes in on the target's right when they face each other. */
-	LeftToRight UMETA(DisplayName = "Left To Right"),
-
-	/** Downward, such as a blow from above. */
-	Overhead,
-
-	/** Upward. */
-	Uppercut,
-
-	/** Along the hitbox's own motion as it hits, for hitboxes that follow the weapon. A thrust if it barely moves. */
+	/** Along the hitbox's own motion as it hits, for hitboxes that follow the weapon. Straight through the target if it barely moves. */
 	HitboxMotion UMETA(DisplayName = "Hitbox Motion"),
 
-	/** The vector as set. */
+	/** Its own vector. */
 	Custom
+};
+
+/** Only to load hit directions saved before the presets moved to Project Settings, as the preset each had then. */
+UENUM()
+enum class EKzHitDirectionPreset : uint8
+{
+	Thrust,
+	RightToLeft,
+	LeftToRight,
+	Overhead,
+	Uppercut,
+	HitboxMotion,
+	Custom,
+	None
 };
 
 /** Which way a blow travels, which the target's reaction follows: the side it staggers from, how it turns, and where it is pushed. */
@@ -65,20 +68,39 @@ struct KZGAMEPLAY_API FKzHitDirection
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Direction")
-	EKzHitDirectionPreset Preset = EKzHitDirectionPreset::Thrust;
+	EKzHitDirectionMode Mode = EKzHitDirectionMode::Preset;
+
+	/** The project's Hit Direction it plays with Mode Preset. One missing there plays straight through the target. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Direction", meta = (Categories = "HitDirection"))
+	FGameplayTag PresetTag = KzTags::Combat::HitDirection_Thrust;
 
 	/**
-	 * In the hit's frame: X along the ground from the attacker to the target, Y to the attacker's right of that line, Z up. Only its direction counts. Used
-	 * by Custom; a preset shows its own here and plays that.
+	 * Custom's own, in the hit's frame: X along the ground from the attacker to the target, Y to the attacker's right of that line, Z up. Only its
+	 * direction counts. Picking a preset copies the preset's here, so Custom starts from it.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Direction")
 	FVector Vector = FVector::ForwardVector;
 
-	/** A preset's vector in the hit's frame. Hitbox Motion and Custom have none of their own: a thrust. */
-	static FVector GetPresetVector(EKzHitDirectionPreset InPreset);
+	/** The project's vector for a Hit Direction tag, or null if it has none. */
+	static const FVector* FindPreset(const FGameplayTag& Tag);
 
 	/** In the world, normalized, for a blow from Attacker on Target whose hitbox moved by Motion as it hit. */
 	FVector ToWorld(const FVector& Attacker, const FVector& Target, const FVector& Motion) const;
+
+	void PostSerialize(const FArchive& Ar);
+
+private:
+	UPROPERTY()
+	EKzHitDirectionPreset Preset_DEPRECATED = EKzHitDirectionPreset::None;
+};
+
+template<>
+struct TStructOpsTypeTraits<FKzHitDirection> : public TStructOpsTypeTraitsBase2<FKzHitDirection>
+{
+	enum
+	{
+		WithPostSerialize = true
+	};
 };
 
 /** How a hit shakes the target's mesh back and forth, fading out, around the attack's Hit Stop. */

@@ -3,14 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "IPropertyTypeCustomization.h"
 
 class IPropertyHandle;
-enum class EKzHitDirectionPreset : uint8;
+class SWidget;
+enum class EKzHitDirectionMode : uint8;
+struct FKzHitDirection;
 
 /**
- * A hit direction as its preset in one row, with the vector under it: greyed with the preset's own, editable for Custom, hidden for Hitbox Motion.
- * Picking a preset writes its vector, so Custom starts from the last one picked.
+ * A hit direction as one dropdown: the project's Hit Directions from Project Settings, then Hitbox Motion and Custom. Under it, a preset's vector
+ * greyed as Project Settings has it, or Custom's own to edit. Picking a preset copies its vector, so Custom starts from the last one picked.
  */
 class FKzHitDirectionCustomization : public IPropertyTypeCustomization
 {
@@ -21,11 +24,16 @@ public:
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& Utils) override;
 
 private:
-	/** False too while the selection mixes presets. */
-	bool IsPreset(EKzHitDirectionPreset Preset) const;
+	/** The direction edited, or null while the selection mixes different ones. */
+	const FKzHitDirection* GetSingle() const;
 
-	void OnPresetChanged();
+	bool IsMode(EKzHitDirectionMode Mode) const;
+	FText GetSelectedText() const;
+	TSharedRef<SWidget> MakeMenu();
+	void Select(EKzHitDirectionMode Mode, FGameplayTag Tag);
 
-	TSharedPtr<IPropertyHandle> PresetHandle;
+	TSharedPtr<IPropertyHandle> StructHandle;
+	TSharedPtr<IPropertyHandle> ModeHandle;
+	TSharedPtr<IPropertyHandle> PresetTagHandle;
 	TSharedPtr<IPropertyHandle> VectorHandle;
 };

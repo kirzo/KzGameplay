@@ -33,6 +33,12 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Direction_Left, "Direction.Left", "The hit came from the left.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Direction_Right, "Direction.Right", "The hit came from the right.");
 
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitDirection_Thrust, "HitDirection.Thrust", "A Hit Direction preset: straight through the target, away from the attacker, such as a thrust or a kick.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitDirection_RightToLeft, "HitDirection.RightToLeft", "A Hit Direction preset: a blow from the attacker's right to its left.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitDirection_LeftToRight, "HitDirection.LeftToRight", "A Hit Direction preset: a blow from the attacker's left to its right.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitDirection_Overhead, "HitDirection.Overhead", "A Hit Direction preset: downward, such as a blow from above.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitDirection_Uppercut, "HitDirection.Uppercut", "A Hit Direction preset: upward.");
+
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_Damage, "Data.Damage", "Set By Caller magnitude of a combo hit's damage effect.");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(GameplayCue_Hit, "GameplayCue.Hit", "A hit landing, as an attack's Impact Cue on the target: particles and sound by surface, and the camera shake and rumble of taking it.");

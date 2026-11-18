@@ -76,9 +76,22 @@ UKzAnimNotifyState_HitWindow::UKzAnimNotifyState_HitWindow()
 FString UKzAnimNotifyState_HitWindow::GetNotifyName_Implementation() const
 {
 	TArray<FString> Parts;
-	if (Direction.Preset != EKzHitDirectionPreset::Thrust)
+	if (Direction.Mode != EKzHitDirectionMode::Preset)
 	{
-		Parts.Add(UEnum::GetDisplayValueAsText(Direction.Preset).ToString());
+		Parts.Add(UEnum::GetDisplayValueAsText(Direction.Mode).ToString());
+	}
+	else
+	{
+		// One missing from Project Settings plays straight through the target: worth seeing on the timeline
+		const FString Name = FName::NameToDisplayString(Direction.PresetTag.GetTagLeafName().ToString(), false);
+		if (!FKzHitDirection::FindPreset(Direction.PresetTag))
+		{
+			Parts.Add(Name + TEXT(" (missing)"));
+		}
+		else if (Direction.PresetTag != KzTags::Combat::HitDirection_Thrust)
+		{
+			Parts.Add(Name);
+		}
 	}
 	if (!FMath::IsNearlyEqual(DamageMultiplier, 1.0f))
 	{
