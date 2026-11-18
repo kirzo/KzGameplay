@@ -14,7 +14,8 @@ public class KzLighting : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"KzLib"
+				"KzLib",
+				"MovieScene"
 			}
 			);
 	}
