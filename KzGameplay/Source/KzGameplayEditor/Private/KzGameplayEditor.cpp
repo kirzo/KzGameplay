@@ -10,6 +10,7 @@
 #include "Customizations/KzFactionSettingsCustomization.h"
 #include "Customizations/KzHitDirectionCustomization.h"
 #include "Customizations/KzAnimTimeCustomization.h"
+#include "Customizations/KzLightingRigCustomization.h"
 #include "Animation/KzAnimationNotifyState.h"
 #include "Combat/KzCombatTypes.h"
 
@@ -24,6 +25,7 @@
 #include "Combat/KzComboGraph.h"
 #include "Factions/KzFactionSettings.h"
 #include "KzLightingProfile.h"
+#include "KzLightingRig.h"
 #include "Engagement/KzEngagementComponent.h"
 #include "Engagement/KzEngagementVisualizer.h"
 #include "Factories/ItemDefinitionActorFactory.h"
@@ -179,6 +181,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 	KzComboNodeBodies::Register();
 
 	RegisterClassLayout<UKzFactionSettings, FKzFactionSettingsCustomization>();
+	RegisterClassLayout<AKzLightingRig, FKzLightingRigCustomization>();
 	RegisterPropertyLayout<FKzHitDirection, FKzHitDirectionCustomization>();
 	RegisterPropertyLayout<FKzAnimTime, FKzAnimTimeCustomization>();
 
