@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Combat/KzCombatTags.h"
+#include "Curves/CurveFloat.h"
 #include "Engine/HitResult.h"
 #include "GameplayTagContainer.h"
 #include "Serialization/StructuredArchive.h"
@@ -100,6 +101,46 @@ struct TStructOpsTypeTraits<FKzHitDirection> : public TStructOpsTypeTraitsBase2<
 	enum
 	{
 		WithPostSerialize = true
+	};
+};
+
+/** A freeze of both sides of a hit, or a slowdown, which can let go of them along a curve rather than all at once. */
+USTRUCT(BlueprintType)
+struct KZGAMEPLAY_API FKzHitStop
+{
+	GENERATED_BODY()
+
+	FKzHitStop() = default;
+
+	explicit FKzHitStop(float InDuration)
+		: Duration(InDuration)
+	{
+	}
+
+	/** How long it lasts, in the world's time; zero has none. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Stop", meta = (ClampMin = "0", Units = "Seconds"))
+	float Duration = 0.0f;
+
+	/**
+	 * How fast those it holds move along it: X from 0 to 1 through the Hit Stop, Y from 0, frozen, to 1, their own speed. Such as 0 most of the way
+	 * and then rising to 1, so they come back to speed. Without keys, Kz Combat's Hit Stop Curve, and without one either, frozen to the end.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Stop")
+	FRuntimeFloatCurve Curve;
+
+	/** Holds Actor for Duration along its curve. */
+	void Apply(AActor* Actor) const;
+
+	/** Hit stops were floats, the duration alone: they load into Duration. */
+	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+};
+
+template<>
+struct TStructOpsTypeTraits<FKzHitStop> : public TStructOpsTypeTraitsBase2<FKzHitStop>
+{
+	enum
+	{
+		WithStructuredSerializeFromMismatchedTag = true
 	};
 };
 

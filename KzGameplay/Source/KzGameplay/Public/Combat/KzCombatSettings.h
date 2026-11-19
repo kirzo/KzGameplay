@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Curves/CurveFloat.h"
 #include "Engine/DeveloperSettings.h"
 #include "GameplayTagContainer.h"
 #include "KzCombatSettings.generated.h"
@@ -39,6 +40,10 @@ public:
 	/** Attacks hurt those whose faction their attacker sees as friendly too. Off, a hitbox passes through allies; neutrals and enemies are hit either way. */
 	UPROPERTY(Config, EditAnywhere, Category = "Hits")
 	bool bFriendlyFire = false;
+
+	/** How hit stops without a curve of their own let go: X from 0 to 1 through the Hit Stop, speed from 0, frozen, to 1 on Y. Without keys, frozen to the end. */
+	UPROPERTY(Config, EditAnywhere, Category = "Hits")
+	FRuntimeFloatCurve HitStopCurve;
 
 	/**
 	 * The ways a blow can travel that Hit Windows pick by tag, in the hit's frame: X along the ground from the attacker to the target, Y to the

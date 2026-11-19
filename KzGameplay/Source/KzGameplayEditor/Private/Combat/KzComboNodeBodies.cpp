@@ -260,9 +260,9 @@ namespace
 		{
 			AddChip(FText::FromName(Tag.GetTagLeafName()));
 		}
-		if (Attack->HitStop > 0.0f)
+		if (Attack->HitStop.Duration > 0.0f)
 		{
-			AddChip(FText::Format(LOCTEXT("HitStop", "Hit stop {0} s"), FText::AsNumber(Attack->HitStop)));
+			AddChip(FText::Format(LOCTEXT("HitStop", "Hit stop {0} s"), FText::AsNumber(Attack->HitStop.Duration)));
 		}
 		if (!Attack->bFaceTarget)
 		{

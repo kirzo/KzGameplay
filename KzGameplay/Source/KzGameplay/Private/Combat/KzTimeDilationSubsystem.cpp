@@ -5,13 +5,40 @@
 
 namespace
 {
-	// Zero would stop the actor's tick from moving anything on, timers included.
+	// A frozen actor still ticks this slowly, a millisecond each second: a zero delta breaks what divides by it, such as an AnimBlueprint's turn rate.
 	constexpr float MinDilation = 0.001f;
+}
+
+float UKzTimeDilationSubsystem::FRequest::GetDilation() const
+{
+	const float Value = Curve.IsEmpty() || Duration <= 0.0f ? Dilation : Curve.Eval(FMath::Clamp(1.0f - TimeLeft / Duration, 0.0f, 1.0f));
+	return FMath::Clamp(Value, MinDilation, 1.0f);
 }
 
 void UKzTimeDilationSubsystem::Dilate(AActor* Actor, float Dilation, float Duration)
 {
-	if (!Actor || Duration <= 0.0f || Dilation >= 1.0f)
+	if (Dilation >= 1.0f)
+	{
+		return;
+	}
+
+	FRequest Request;
+	Request.Dilation = Dilation;
+	Request.Duration = Duration;
+	AddRequest(Actor, MoveTemp(Request));
+}
+
+void UKzTimeDilationSubsystem::DilateAlong(AActor* Actor, const FRichCurve& Curve, float Duration)
+{
+	FRequest Request;
+	Request.Curve = Curve;
+	Request.Duration = Duration;
+	AddRequest(Actor, MoveTemp(Request));
+}
+
+void UKzTimeDilationSubsystem::AddRequest(AActor* Actor, FRequest&& Request)
+{
+	if (!Actor || Request.Duration <= 0.0f)
 	{
 		return;
 	}
@@ -24,17 +51,19 @@ void UKzTimeDilationSubsystem::Dilate(AActor* Actor, float Dilation, float Durat
 		Dilated = &Actors.Add(Actor, MoveTemp(New));
 	}
 
-	FRequest Request;
-	Request.Dilation = FMath::Max(Dilation, MinDilation);
-	Request.TimeLeft = Duration;
-	Dilated->Requests.Add(Request);
+	Request.TimeLeft = Request.Duration;
+	Dilated->Requests.Add(MoveTemp(Request));
+	Apply(*Actor, *Dilated);
+}
 
+void UKzTimeDilationSubsystem::Apply(AActor& Actor, const FDilated& Dilated)
+{
 	float Slowest = 1.0f;
-	for (const FRequest& Each : Dilated->Requests)
+	for (const FRequest& Request : Dilated.Requests)
 	{
-		Slowest = FMath::Min(Slowest, Each.Dilation);
+		Slowest = FMath::Min(Slowest, Request.GetDilation());
 	}
-	Actor->CustomTimeDilation = Dilated->BaseDilation * Slowest;
+	Actor.CustomTimeDilation = Dilated.BaseDilation * Slowest;
 }
 
 void UKzTimeDilationSubsystem::Tick(float DeltaTime)
@@ -49,7 +78,6 @@ void UKzTimeDilationSubsystem::Tick(float DeltaTime)
 		}
 
 		FDilated& Dilated = It.Value();
-		float Slowest = 1.0f;
 		for (int32 Index = Dilated.Requests.Num() - 1; Index >= 0; --Index)
 		{
 			FRequest& Request = Dilated.Requests[Index];
@@ -58,13 +86,9 @@ void UKzTimeDilationSubsystem::Tick(float DeltaTime)
 			{
 				Dilated.Requests.RemoveAtSwap(Index);
 			}
-			else
-			{
-				Slowest = FMath::Min(Slowest, Request.Dilation);
-			}
 		}
 
-		Actor->CustomTimeDilation = Dilated.BaseDilation * Slowest;
+		Apply(*Actor, Dilated);
 		if (Dilated.Requests.IsEmpty())
 		{
 			It.RemoveCurrent();

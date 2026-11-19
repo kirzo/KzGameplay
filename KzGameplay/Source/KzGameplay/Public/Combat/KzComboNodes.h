@@ -230,9 +230,9 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (EditCondition = "bOverrideTargetShape", EditConditionHides))
 	FKzShapeInstance TargetShape = FKzShapeInstance::Make<FKzWedge>();
 
-	/** How long attacker and target freeze when it hits. */
-	UPROPERTY(EditAnywhere, Category = "Impact", meta = (ClampMin = "0", Units = "Seconds"))
-	float HitStop = 0.0f;
+	/** How long attacker and target freeze when it hits, and how they come back to speed. */
+	UPROPERTY(EditAnywhere, Category = "Impact")
+	FKzHitStop HitStop;
 
 	/** How the target's mesh shakes along the hit: how far, when through the Hit Stop, how long and how fast. */
 	UPROPERTY(EditAnywhere, Category = "Impact")

@@ -38,7 +38,6 @@ namespace
 	TMap<TObjectKey<AActor>, FKzTargetingRecord> TargetingRecords;
 #endif
 
-	constexpr float HitStopDilation = 0.01f;
 	constexpr int32 MaxBranchSteps = 16;
 
 	FVector Flatten(const FVector& Vector)
@@ -423,7 +422,7 @@ void UKzComboInstance::SweepHitboxes()
 				const bool bSuperArmor = HitASC && HitASC->HasMatchingGameplayTag(KzTags::Combat::State_SuperArmor);
 				if (ComboHit.Result == EKzHitResult::Hit && !bSuperArmor)
 				{
-					Attack->HitShake.Shake(HitActor, ComboHit.Direction, Attack->HitStop);
+					Attack->HitShake.Shake(HitActor, ComboHit.Direction, Attack->HitStop.Duration);
 				}
 				OnHit.Broadcast(ComboHit);
 
@@ -647,38 +646,39 @@ void UKzComboInstance::SetWarp(const UKzAnimationNotifyState* Notify, float Dura
 
 void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)
 {
-	UWorld* World = GetWorld();
-	UKzTimeDilationSubsystem* TimeDilation = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
 	const FKzComboNode_Attack* Attack = GetAttack();
-	if (!TimeDilation || !Attack)
+	if (!Attack)
 	{
 		return;
 	}
 
 	const UKzItemFragment_Defense* Defense = Hit.Defense.Item ? Hit.Defense.Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
-	float HitStop = 0.0f;
+	const FKzHitStop* HitStop = nullptr;
 	switch (Hit.Result)
 	{
 	case EKzHitResult::Hit:
-		HitStop = Attack->HitStop;
+		HitStop = &Attack->HitStop;
 		break;
 	case EKzHitResult::Blocked:
 	case EKzHitResult::GuardBroken:
-		HitStop = Defense ? Defense->BlockHitStop : 0.0f;
+		HitStop = Defense ? &Defense->BlockHitStop : nullptr;
 		break;
 	case EKzHitResult::Parried:
-		HitStop = Defense ? Defense->ParryHitStop : 0.0f;
+		HitStop = Defense ? &Defense->ParryHitStop : nullptr;
 		if (Defense)
 		{
-			TimeDilation->Dilate(Context.User, Defense->ParrySlowDilation, Defense->ParrySlowDuration);
+			Defense->ParrySlow.Apply(Context.User);
 		}
 		break;
 	default:
 		break;
 	}
 
-	TimeDilation->Dilate(Context.User, HitStopDilation, HitStop);
-	TimeDilation->Dilate(&HitActor, HitStopDilation, HitStop);
+	if (HitStop)
+	{
+		HitStop->Apply(Context.User);
+		HitStop->Apply(&HitActor);
+	}
 }
 
 void UKzComboInstance::SetCancelWindows(int32 Count)
