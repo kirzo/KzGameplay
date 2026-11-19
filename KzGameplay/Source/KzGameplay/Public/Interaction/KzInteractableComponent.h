@@ -120,6 +120,13 @@ public:
 	float ApproachAngle = 90.0f;
 
 	/**
+	 * How far beyond its shape an interactor counts as nearby: close enough to notice this, as an icon over someone to talk to, not to
+	 * use it. Nearby holds from that outer edge inwards, focus included. 0: no nearby zone. Read when the component activates.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (ClampMin = "0", Units = "Centimeters"))
+	float NearbyMargin = 0.0f;
+
+	/**
 	 * The default result returned if no components or the owner actor implements UKzInteractableInterface.
 	 * Set to 'Completed' to allow this component to trigger its InteractionAction autonomously.
 	 */
@@ -181,6 +188,14 @@ public:
 	/** Fired when an interactor stops looking at this component (Local/Client only). */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
 	FOnInteractableFocusDelegate OnEndFocus;
+
+	/** Fired when an interactor comes within the Nearby Margin, near enough to notice this (Local/Client only). */
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnInteractableFocusDelegate OnBeginNearby;
+
+	/** Fired when an interactor is no longer nearby, or stops scanning (Local/Client only). */
+	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")
+	FOnInteractableFocusDelegate OnEndNearby;
 
 	/** Fired when the interaction has been successfully triggered, on every machine, right after OnInteractionBegun. */
 	UPROPERTY(BlueprintAssignable, Category = "Interaction|Events")

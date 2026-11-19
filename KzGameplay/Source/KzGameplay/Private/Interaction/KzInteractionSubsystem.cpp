@@ -44,6 +44,16 @@ bool FInteractionGridSemantics::IsDynamic(const UKzInteractableComponent* E)
 	return E && E->bIsDynamicInteraction;
 }
 
+FBox FInteractionNearbyGridSemantics::GetBoundingBox(const UKzInteractableComponent* E)
+{
+	return E ? GetShape(E).GetBoundingBox(E->GetComponentTransform()) : FBox(EForceInit::ForceInit);
+}
+
+FKzShapeInstance FInteractionNearbyGridSemantics::GetShape(const UKzInteractableComponent* E)
+{
+	return E ? E->Shape + E->NearbyMargin : FKzShapeInstance();
+}
+
 // =================================================================
 // SUBSYSTEM IMPLEMENTATION
 // =================================================================
@@ -53,6 +63,7 @@ void UKzInteractionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	Registry.SetCellSize(GridCellSize);
+	NearbyRegistry.SetCellSize(GridCellSize);
 }
 
 void UKzInteractionSubsystem::Deinitialize()
@@ -61,6 +72,7 @@ void UKzInteractionSubsystem::Deinitialize()
 	Interactions.Empty();
 
 	Registry.Reset();
+	NearbyRegistry.Reset();
 	Super::Deinitialize();
 }
 
@@ -264,6 +276,10 @@ bool UKzInteractionSubsystem::IsActorInteractingWith(const AActor* Actor, const 
 void UKzInteractionSubsystem::RegisterInteractable(UKzInteractableComponent* Component)
 {
 	Registry.Register(Component);
+	if (Component && Component->NearbyMargin > 0.0f)
+	{
+		NearbyRegistry.Register(Component);
+	}
 }
 
 void UKzInteractionSubsystem::UnregisterInteractable(UKzInteractableComponent* Component)
@@ -272,12 +288,20 @@ void UKzInteractionSubsystem::UnregisterInteractable(UKzInteractableComponent* C
 	EndInteractionsOn(Component, EKzInteractionEndReason::TargetLost);
 
 	Registry.Unregister(Component);
+	NearbyRegistry.Unregister(Component);
 }
 
 TArray<UKzInteractableComponent*> UKzInteractionSubsystem::QueryInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const
 {
 	TArray<UKzInteractableComponent*> Results;
 	Registry.Query(Results, QueryShape, ShapePosition, ShapeRotation);
+	return Results;
+}
+
+TArray<UKzInteractableComponent*> UKzInteractionSubsystem::QueryNearbyInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const
+{
+	TArray<UKzInteractableComponent*> Results;
+	NearbyRegistry.Query(Results, QueryShape, ShapePosition, ShapeRotation);
 	return Results;
 }
 
@@ -333,6 +357,7 @@ void UKzInteractionSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	Registry.TickDynamics();
+	NearbyRegistry.TickDynamics();
 
 	TimeUntilValidation -= DeltaTime;
 	if (TimeUntilValidation <= 0.0f)

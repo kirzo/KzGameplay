@@ -23,6 +23,13 @@ struct FInteractionGridSemantics
 	static bool IsDynamic(const UKzInteractableComponent* E);
 };
 
+/** The interactables with a Nearby Margin, each shape grown by it: where an interactor notices them without being able to use them. */
+struct FInteractionNearbyGridSemantics : FInteractionGridSemantics
+{
+	static FBox GetBoundingBox(const UKzInteractableComponent* E);
+	static FKzShapeInstance GetShape(const UKzInteractableComponent* E);
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnKzInteractionBegun, const FKzInteraction&, Interaction);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnKzInteractionEnded, const FKzInteraction&, Interaction, EKzInteractionEndReason, Reason);
 
@@ -43,6 +50,9 @@ private:
 
 	/** Dual static/dynamic spatial registry of all interactables. */
 	Kz::TSpatialRegistry<UKzInteractableComponent*, FInteractionGridSemantics> Registry;
+
+	/** The interactables with a Nearby Margin, by their grown shapes. */
+	Kz::TSpatialRegistry<UKzInteractableComponent*, FInteractionNearbyGridSemantics> NearbyRegistry;
 
 	/** Every live interaction, keyed by handle. Weak pointers throughout, so it needs no reflection. */
 	TMap<FKzInteractionHandle, FKzInteraction> Interactions;
@@ -141,6 +151,9 @@ public:
 	 * @return A list of candidate interactables.
 	 */
 	TArray<UKzInteractableComponent*> QueryInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const;
+
+	/** The interactables with a Nearby Margin whose shape, grown by it, overlaps the given one. */
+	TArray<UKzInteractableComponent*> QueryNearbyInteractables(const FKzShapeInstance& QueryShape, const FVector& ShapePosition, const FQuat& ShapeRotation) const;
 
 	/** Returns all registered interactables in the world. */
 	const TSet<UKzInteractableComponent*>& GetAllRegisteredInteractables() const

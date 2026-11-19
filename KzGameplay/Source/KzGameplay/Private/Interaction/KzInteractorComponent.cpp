@@ -67,6 +67,7 @@ void UKzInteractorComponent::StopScanning()
 			CurrentFocus.Reset();
 			OnCurrentInteractableChanged.Broadcast(nullptr, OldInteractable);
 		}
+		ClearNearby();
 	}
 }
 
@@ -84,6 +85,7 @@ void UKzInteractorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 
 	GetWorld()->GetTimerManager().ClearTimer(ScanTimerHandle);
+	ClearNearby();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -117,18 +119,7 @@ void UKzInteractorComponent::PerformScan()
 		DebugInfo.bIsBest = false;
 #endif
 
-		FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
-		FilterRequirement.SetContextProperty(TEXT("Interactor"), this);
-		FilterRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
-		if (!FScriptableRequirement::EvaluateRequirement(this, FilterRequirement))
-		{
-#if WITH_GAMEPLAY_DEBUGGER
-			LastDebugCandidates.Add(DebugInfo); // Saved as Failed
-#endif
-			continue;
-		}
-
-		if (!Candidate->CanInteract(this))
+		if (!PassesFilters(Candidate))
 		{
 #if WITH_GAMEPLAY_DEBUGGER
 			LastDebugCandidates.Add(DebugInfo); // Saved as Failed
@@ -197,6 +188,72 @@ void UKzInteractorComponent::PerformScan()
 	// Polled every scan rather than only on focus change: what blocks an interaction can appear or clear
 	// while the player stands still, and the prompt has to follow
 	UpdateFocusAvailability();
+
+	UpdateNearby(*Subsystem, WorldTransform);
+}
+
+bool UKzInteractorComponent::PassesFilters(UKzInteractableComponent* Candidate)
+{
+	FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
+	FilterRequirement.SetContextProperty(TEXT("Interactor"), this);
+	FilterRequirement.SetContextProperty(TEXT("Interactable"), Candidate);
+	return FScriptableRequirement::EvaluateRequirement(this, FilterRequirement) && Candidate->CanInteract(this);
+}
+
+void UKzInteractorComponent::UpdateNearby(const UKzInteractionSubsystem& Subsystem, const FTransform& WorldTransform)
+{
+	TSet<TWeakObjectPtr<UKzInteractableComponent>> NowNearby;
+	for (UKzInteractableComponent* Candidate : Subsystem.QueryNearbyInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation()))
+	{
+		if (PassesFilters(Candidate))
+		{
+			NowNearby.Add(Candidate);
+		}
+	}
+
+	// Swapped before telling anyone: a listener may stop the scan, which clears the set
+	const TSet<TWeakObjectPtr<UKzInteractableComponent>> Previous = MoveTemp(NearbyInteractables);
+	NearbyInteractables = NowNearby;
+	for (const TWeakObjectPtr<UKzInteractableComponent>& Left : Previous)
+	{
+		if (Left.IsValid() && !NowNearby.Contains(Left))
+		{
+			Left->OnEndNearby.Broadcast(this);
+		}
+	}
+	for (const TWeakObjectPtr<UKzInteractableComponent>& Came : NowNearby)
+	{
+		if (Came.IsValid() && !Previous.Contains(Came))
+		{
+			Came->OnBeginNearby.Broadcast(this);
+		}
+	}
+}
+
+void UKzInteractorComponent::ClearNearby()
+{
+	const TSet<TWeakObjectPtr<UKzInteractableComponent>> Previous = MoveTemp(NearbyInteractables);
+	NearbyInteractables.Reset();
+	for (const TWeakObjectPtr<UKzInteractableComponent>& Left : Previous)
+	{
+		if (Left.IsValid())
+		{
+			Left->OnEndNearby.Broadcast(this);
+		}
+	}
+}
+
+TArray<UKzInteractableComponent*> UKzInteractorComponent::GetNearbyInteractables() const
+{
+	TArray<UKzInteractableComponent*> Nearby;
+	for (const TWeakObjectPtr<UKzInteractableComponent>& Each : NearbyInteractables)
+	{
+		if (Each.IsValid())
+		{
+			Nearby.Add(Each.Get());
+		}
+	}
+	return Nearby;
 }
 
 void UKzInteractorComponent::UpdateFocusAvailability()

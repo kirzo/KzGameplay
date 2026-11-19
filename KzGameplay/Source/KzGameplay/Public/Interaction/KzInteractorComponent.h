@@ -136,6 +136,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UKzInteractableComponent* GetCurrentFocus() const { return CurrentFocus.Get(); }
 
+	/** The interactables near enough to notice at the last scan: within their shape grown by their Nearby Margin. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	TArray<UKzInteractableComponent*> GetNearbyInteractables() const;
+
 	/**
 	 * Starts an interaction with the current focus.
 	 * On a client without authority this asks the server and returns Pending: the real outcome arrives
@@ -213,6 +217,17 @@ protected:
 
 	/** Re-evaluates the focus availability and reports it if it changed. */
 	void UpdateFocusAvailability();
+
+	/** Whether a candidate passes the Filter Requirement and its own rules, for the focus and for being nearby alike. */
+	bool PassesFilters(UKzInteractableComponent* Candidate);
+
+	/** Finds the interactables nearby now and tells those that came and left. */
+	void UpdateNearby(const class UKzInteractionSubsystem& Subsystem, const FTransform& WorldTransform);
+
+	/** Leaves every interactable nearby, telling each. */
+	void ClearNearby();
+
+	TSet<TWeakObjectPtr<UKzInteractableComponent>> NearbyInteractables;
 
 	/** Our live interaction, owned by the subsystem. We keep the handle, never the state. */
 	FKzInteractionHandle CurrentInteraction;
