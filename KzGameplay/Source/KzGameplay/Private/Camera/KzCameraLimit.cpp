@@ -4,7 +4,6 @@
 #include "Components/BillboardComponent.h"
 #include "Components/KzShapeComponent.h"
 #include "Core/KzRegistrySubsystem.h"
-#include "Engine/CollisionProfile.h"
 #include "Engine/Texture2D.h"
 #include "Math/Geometry/Shapes/KzBox.h"
 #include "UObject/ConstructorHelpers.h"
@@ -15,7 +14,6 @@ AKzCameraLimit::AKzCameraLimit()
 
 	ShapeComponent = CreateDefaultSubobject<UKzShapeComponent>(TEXT("Shape"));
 	ShapeComponent->Shape.InitializeAs<FKzBox>(FVector(200.0f));
-	ShapeComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	RootComponent = ShapeComponent;
 
 	SetCanBeDamaged(false);
