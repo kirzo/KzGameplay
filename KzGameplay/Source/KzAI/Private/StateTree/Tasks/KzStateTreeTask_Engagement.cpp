@@ -2,6 +2,8 @@
 
 #include "StateTree/Tasks/KzStateTreeTask_Engagement.h"
 #include "StateTreeExecutionContext.h"
+#include "Combat/KzCombat.h"
+#include "Combat/KzCombatSubsystem.h"
 #include "Engagement/KzEngagementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "NavigationSystem.h"
@@ -37,6 +39,24 @@ EStateTreeRunStatus FKzStateTreeTask_EngageTarget::Tick(FStateTreeExecutionConte
 	{
 		Engagement->Engage(InstanceData.Actor, InstanceData.Weight, InstanceData.PreferredArea);
 	}
+
+	// With attacks, it fights in its combat while it has a target
+	APawn* Pawn = Cast<APawn>(InstanceData.Actor);
+	UKzCombatSubsystem* Subsystem = Pawn && InstanceData.Attacks && InstanceData.Target ? UKzCombatSubsystem::Get(Pawn) : nullptr;
+	UKzCombat* Combat = Subsystem ? Subsystem->GetCombatFor(Pawn) : nullptr;
+	if (Combat != InstanceData.Combat.Get())
+	{
+		if (UKzCombat* Previous = InstanceData.Combat.Get())
+		{
+			Previous->Leave(Pawn);
+		}
+		InstanceData.Combat = Combat;
+	}
+
+	if (Combat)
+	{
+		Combat->Join(Pawn, InstanceData.Target, InstanceData.Attacks);
+	}
 	return EStateTreeRunStatus::Running;
 }
 
@@ -48,6 +68,12 @@ void FKzStateTreeTask_EngageTarget::ExitState(FStateTreeExecutionContext& Contex
 		Engagement->Disengage(InstanceData.Actor);
 	}
 	InstanceData.Engagement.Reset();
+
+	if (UKzCombat* Combat = InstanceData.Combat.Get())
+	{
+		Combat->Leave(Cast<APawn>(InstanceData.Actor));
+	}
+	InstanceData.Combat.Reset();
 }
 
 //----------------------------------------------------------------------//

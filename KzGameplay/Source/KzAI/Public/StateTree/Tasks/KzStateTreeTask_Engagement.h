@@ -7,6 +7,8 @@
 #include "GameplayTagContainer.h"
 #include "KzStateTreeTask_Engagement.generated.h"
 
+class UKzAttackSet;
+class UKzCombat;
 class UKzEngagementComponent;
 
 USTRUCT()
@@ -29,12 +31,18 @@ struct FKzStateTreeTask_EngageTargetInstanceData
 	UPROPERTY(EditAnywhere, Category = "Parameter")
 	FGameplayTag PreferredArea;
 
+	/** The attacks its combat can give it. None keeps it out of combats: it places itself, but is never given an attack. */
+	UPROPERTY(EditAnywhere, Category = "Parameter")
+	TObjectPtr<UKzAttackSet> Attacks = nullptr;
+
 	TWeakObjectPtr<UKzEngagementComponent> Engagement;
+	TWeakObjectPtr<UKzCombat> Combat;
 };
 
 /**
- * Joins the engagement of the target, so the pawn counts there with its weight and preferred area, and leaves it on exit. Meant as a global
- * task after Find Target: it moves to a new target's engagement on AI.Target.Changed, as it only works on events.
+ * Joins the engagement of the target, so the pawn counts there with its weight and preferred area, and with Attacks, the pawn's combat,
+ * which gives it attacks; it leaves both on exit or without a target. Meant as a global task after Find Target: it moves to a new target's
+ * engagement on AI.Target.Changed, as it only works on events.
  */
 USTRUCT(meta = (DisplayName = "Engage Target", Category = "KzAI|Engagement"))
 struct KZAI_API FKzStateTreeTask_EngageTarget : public FStateTreeTaskCommonBase
