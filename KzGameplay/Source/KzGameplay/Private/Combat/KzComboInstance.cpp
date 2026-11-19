@@ -13,6 +13,8 @@
 #include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/KzShapeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -24,6 +26,7 @@
 #include "KzDrawDebugHelpers.h"
 #include "Kismet/KzSystemLibrary.h"
 #include "Math/Geometry/Shapes/KzBox.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Sensors/KzSensorTags.h"
@@ -31,7 +34,7 @@
 
 namespace
 {
-	TAutoConsoleVariable<bool> CVarDrawHitboxes(TEXT("kz.Combo.DrawHitboxes"), false, TEXT("Draws combo hitboxes as they sweep: green, red where they hit."));
+	TAutoConsoleVariable<bool> CVarDrawHitboxes(TEXT("kz.Combo.DrawHitboxes"), false, TEXT("Draws combo hitboxes as they sweep: green, red where they touch something, named at the point: actor, component, object type and physical material."));
 
 #if WITH_GAMEPLAY_DEBUGGER
 	/** Per user, the last search of its attacks. */
@@ -392,6 +395,15 @@ void UKzComboInstance::SweepHitboxes()
 			if (CVarDrawHitboxes.GetValueOnGameThread())
 			{
 				DrawDebugShape(World, Current.GetLocation(), Current.GetRotation(), Hitbox.Shape, Hits.IsEmpty() ? FColor::Green : FColor::Red, false, 1.0f);
+
+				// What it touched, whether or not it takes the hit, such as an ally: actor, component, object type and physical material
+				for (const FHitResult& Hit : Hits)
+				{
+					const UPrimitiveComponent* Touched = Hit.GetComponent();
+					const FName ObjectType = Touched ? UCollisionProfile::Get()->ReturnChannelNameFromContainerIndex(Touched->GetCollisionObjectType()) : NAME_None;
+					DrawDebugPoint(World, Hit.ImpactPoint, 10.0f, FColor::Red, false, 2.0f);
+					DrawDebugString(World, Hit.ImpactPoint, FString::Printf(TEXT("%s | %s | %s | %s"), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Touched), *ObjectType.ToString(), *GetNameSafe(Hit.PhysMaterial.Get())), nullptr, FColor::Red, 2.0f);
+				}
 			}
 #endif
 
