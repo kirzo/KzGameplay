@@ -45,10 +45,6 @@ struct KZGAMEPLAY_API FKzComboContext
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<USceneComponent> Weapon;
 
-	/** What hitboxes hit; empty hits every dynamic object, such as pawns, physics bodies and destructibles. */
-	UPROPERTY(BlueprintReadWrite, Category = "Combo")
-	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-
 	/** The target, for drivers that already know it; it takes the place of the user's Sensor.Targeting sensor. */
 	UPROPERTY(BlueprintReadWrite, Category = "Combo")
 	TObjectPtr<AActor> Target;

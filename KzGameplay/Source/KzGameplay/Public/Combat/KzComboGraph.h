@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzGraph.h"
 #include "Scoring/KzTargetScoringProfile.h"
@@ -23,6 +24,13 @@ public:
 	/** The inputs that start and chain attacks, such as Input.Attack, or Input.Attack.Light and Input.Attack.Heavy. Each has its own Entry, and gives each attack an output. */
 	UPROPERTY(EditAnywhere, Category = "Combo", meta = (Categories = "Input"))
 	TArray<FGameplayTag> Inputs;
+
+	/**
+	 * What its attacks' hitboxes hit, by object type: pawns unless changed. An attack can hit others of its own. Empty hits every dynamic object,
+	 * moving scenery included.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Combo")
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes = { ObjectTypeQuery3 };
 
 	/**
 	 * Picks among the targets of the user's Sensor.Targeting sensor, whose shape, or the attack's own, turns to the direction pressed. Empty takes

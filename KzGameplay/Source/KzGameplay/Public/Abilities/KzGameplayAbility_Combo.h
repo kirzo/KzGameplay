@@ -42,10 +42,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Combo|Unarmed")
 	TSubclassOf<UGameplayEffect> UnarmedDamageEffect;
 
-	/** What hitboxes hit; empty hits every dynamic object. */
-	UPROPERTY(EditDefaultsOnly, Category = "Combo")
-	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-
 	/** Abilities that may cut the combo only inside an attack's Cancel Windows, such as dodging and blocking. */
 	UPROPERTY(EditDefaultsOnly, Category = "Combo")
 	FGameplayTagContainer CancelableBy;

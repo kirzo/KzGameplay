@@ -53,7 +53,6 @@ void UKzGameplayAbility_Combo::ActivateAbility(const FGameplayAbilitySpecHandle 
 	Context.Mesh = ActorInfo->SkeletalMeshComponent.Get();
 	Context.User = Avatar;
 	Context.Item = Item;
-	Context.ObjectTypes = ObjectTypes;
 	Context.StartTags = StartTags;
 	if (Melee && Equipped)
 	{

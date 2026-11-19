@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/KzCombatTypes.h"
+#include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzGraphNode.h"
 #include "Math/Geometry/KzShapeInstance.h"
@@ -209,6 +210,13 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 
 	UPROPERTY(EditAnywhere, Category = "Attack")
 	TArray<FKzComboHitbox> Hitboxes;
+
+	/** Hits other object types than the combo's, such as a strike that only reaches ghosts. */
+	UPROPERTY(EditAnywhere, Category = "Attack")
+	bool bOverrideObjectTypes = false;
+
+	UPROPERTY(EditAnywhere, Category = "Attack", meta = (EditCondition = "bOverrideObjectTypes", EditConditionHides))
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 
 	/** Turns to the target, or to the direction pressed without one, until the first Hit Window opens. */
 	UPROPERTY(EditAnywhere, Category = "Attack")

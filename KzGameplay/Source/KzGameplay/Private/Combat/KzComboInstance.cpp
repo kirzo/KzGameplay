@@ -331,10 +331,11 @@ void UKzComboInstance::SweepHitboxes()
 		return;
 	}
 
+	const TArray<TEnumAsByte<EObjectTypeQuery>>& ObjectTypes = Attack->bOverrideObjectTypes ? Attack->ObjectTypes : Combo->ObjectTypes;
 	FCollisionObjectQueryParams ObjectQuery(FCollisionObjectQueryParams::AllDynamicObjects);
-	if (!Context.ObjectTypes.IsEmpty())
+	if (!ObjectTypes.IsEmpty())
 	{
-		ObjectQuery = FCollisionObjectQueryParams(Context.ObjectTypes);
+		ObjectQuery = FCollisionObjectQueryParams(ObjectTypes);
 	}
 
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(KzComboSweep), false);
