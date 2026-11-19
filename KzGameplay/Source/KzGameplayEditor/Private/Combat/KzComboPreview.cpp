@@ -1193,7 +1193,7 @@ void FKzComboPreview::MoveGizmo(const FVector& Drag, const FRotator& Rotation)
 		return;
 	}
 
-	const FTransform ParentTransform = Parent->GetSocketTransform(Hitbox.Socket);
+	const FTransform ParentTransform = Hitbox.GetParentTransform(*Parent);
 	FTransform World = Hitbox.Offset * ParentTransform;
 	World.AddToTranslation(Drag);
 	World.SetRotation(Rotation.Quaternion() * World.GetRotation());
@@ -1254,7 +1254,7 @@ void FKzComboPreview::RecordTrails()
 		}
 
 		// The parent rather than the hitbox, so the trail follows the hitbox as the gizmo moves it.
-		const FTransform ParentTransform = Parent->GetSocketTransform(Hitbox.Socket);
+		const FTransform ParentTransform = Hitbox.GetParentTransform(*Parent);
 
 		// One sample per frame of the animation, the latest kept, so playing the window again does not pile them up.
 		TArray<FTrailSample>& Trail = Trails[Index];

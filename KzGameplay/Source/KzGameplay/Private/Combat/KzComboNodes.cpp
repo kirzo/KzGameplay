@@ -34,9 +34,20 @@ USceneComponent* FKzComboHitbox::FindParent(USkeletalMeshComponent* AnimatedMesh
 	return Found ? *Found : nullptr;
 }
 
+FTransform FKzComboHitbox::GetParentTransform(const USceneComponent& Parent) const
+{
+	FTransform Transform = Parent.GetSocketTransform(Socket);
+	const USceneComponent* Holder = Parent.GetAttachParent();
+	if (AttachTo == EKzComboHitboxAttach::Avatar && Socket.IsNone() && Holder)
+	{
+		Transform.SetRotation(Holder->GetComponentQuat());
+	}
+	return Transform;
+}
+
 FTransform FKzComboHitbox::GetTransform(const USceneComponent& Parent) const
 {
-	return Offset * Parent.GetSocketTransform(Socket);
+	return Offset * GetParentTransform(Parent);
 }
 
 FTransform FKzComboHitbox::GetTransform(const FTransform& From, const FTransform& To, float Alpha) const

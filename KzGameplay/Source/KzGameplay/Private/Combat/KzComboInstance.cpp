@@ -371,7 +371,7 @@ void UKzComboInstance::SweepHitboxes()
 			continue;
 		}
 
-		const FTransform To = Parent->GetSocketTransform(Hitbox.Socket);
+		const FTransform To = Hitbox.GetParentTransform(*Parent);
 		const FTransform From = PreviousParents[Index].Get(To);
 		PreviousParents[Index] = To;
 

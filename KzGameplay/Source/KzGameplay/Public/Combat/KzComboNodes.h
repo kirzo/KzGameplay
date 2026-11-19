@@ -174,6 +174,12 @@ struct KZGAMEPLAY_API FKzComboHitbox
 	/** What it hangs from: the animated mesh, or the weapon's root, or the component named Component when the weapon is an actor. */
 	USceneComponent* FindParent(USkeletalMeshComponent* AnimatedMesh, USceneComponent* WeaponRoot) const;
 
+	/**
+	 * The frame it hangs in: Parent's at Socket. On the avatar without a socket, the mesh's place with the facing of what the mesh hangs from, such as
+	 * the capsule, so meshes imported along different axes share hitboxes.
+	 */
+	FTransform GetParentTransform(const USceneComponent& Parent) const;
+
 	/** Where it is, hanging from Parent. */
 	FTransform GetTransform(const USceneComponent& Parent) const;
 
