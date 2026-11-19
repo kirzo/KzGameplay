@@ -3,8 +3,10 @@
 #include "Combat/KzCombatLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Combat/KzCombatSettings.h"
 #include "Combat/KzCombatTags.h"
 #include "Equipment/KzEquipmentComponent.h"
+#include "Factions/KzFactionLibrary.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PawnMovementComponent.h"
@@ -118,6 +120,11 @@ namespace
 EKzHitResult UKzCombatLibrary::ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags, FKzHitDefense& OutDefense)
 {
 	OutDefense = FKzHitDefense();
+	if (Attacker && Target && !UKzCombatSettings::Get()->bFriendlyFire && UKzFactionLibrary::GetAttitude(Attacker, Target) == EKzAttitude::Friendly)
+	{
+		return EKzHitResult::Ignored;
+	}
+
 	const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
 	if (!ASC || !Attacker)
 	{

@@ -17,8 +17,9 @@ class KZGAMEPLAY_API UKzCombatLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * How Target takes a hit from Attacker: State.Invulnerable, State.Parrying and State.Blocking in that order, the last two only within the angle of an
-	 * equipped item with the Defense fragment, which OutDefense names. Targets without an ability system are always hit.
+	 * How Target takes a hit from Attacker: ignored if Attacker's faction sees it as friendly, unless Kz Combat allows friendly fire; then
+	 * State.Invulnerable, State.Parrying and State.Blocking in that order, the last two only within the angle of an equipped item with the Defense
+	 * fragment, which OutDefense names. Other targets without an ability system are always hit.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	static EKzHitResult ResolveHit(const AActor* Attacker, const AActor* Target, const FGameplayTagContainer& AttackTags, FKzHitDefense& OutDefense);

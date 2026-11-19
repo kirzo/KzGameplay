@@ -36,6 +36,10 @@ public:
 
 	static const UKzCombatSettings* Get() { return GetDefault<UKzCombatSettings>(); }
 
+	/** Attacks hurt those whose faction their attacker sees as friendly too. Off, a hitbox passes through allies; neutrals and enemies are hit either way. */
+	UPROPERTY(Config, EditAnywhere, Category = "Hits")
+	bool bFriendlyFire = false;
+
 	/**
 	 * The ways a blow can travel that Hit Windows pick by tag, in the hit's frame: X along the ground from the attacker to the target, Y to the
 	 * attacker's right of that line, Z up. Only the direction counts, so (1, -0.2, 0) pushes mostly away and a little to the attacker's left.
