@@ -7,6 +7,8 @@
 #include "GameplayTagContainer.h"
 #include "KzCombatSettings.generated.h"
 
+class UKzCombatConfig;
+
 /** Which way a hit shakes a mesh. */
 UENUM(BlueprintType)
 enum class EKzShakeSpace : uint8
@@ -44,4 +46,8 @@ public:
 	/** Which way a hit shakes the mesh: along the hit, or as the first local player's camera sees it, so a hit into the screen still shows. */
 	UPROPERTY(Config, EditAnywhere, Category = "Mesh Shake")
 	EKzShakeSpace ShakeSpace = EKzShakeSpace::Hit;
+
+	/** How a combat hands out attacks when nothing brings its own, such as enemies fighting outside an encounter. */
+	UPROPERTY(Config, EditAnywhere, Category = "Attack Tickets")
+	TSoftObjectPtr<UKzCombatConfig> DefaultCombatConfig;
 };
