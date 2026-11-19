@@ -234,11 +234,29 @@ bool UKzInteractableComponent::GetInteractionSpot(FKzTransformSource& OutSpot) c
 	return true;
 }
 
+bool UKzInteractableComponent::CanBeApproachedFrom(const FVector& Location) const
+{
+	if (!bLimitApproach)
+	{
+		return true;
+	}
+
+	const FVector Way = (Location - GetComponentLocation()).GetSafeNormal();
+	return (GetForwardVector() | Way) >= FMath::Cos(FMath::DegreesToRadians(ApproachAngle));
+}
+
 bool UKzInteractableComponent::CanInteract(UKzInteractorComponent* Interactor) const
 {
 	if (!Interactor) return false;
 
 	if (IsInteractionFull() && !HasInteractor(Interactor))
+	{
+		return false;
+	}
+
+	// From where its owner stands, not from where its reach is: that can lie past the very thing it reaches for
+	const AActor* Instigator = Interactor->GetOwner();
+	if (Instigator && !CanBeApproachedFrom(Instigator->GetActorLocation()))
 	{
 		return false;
 	}

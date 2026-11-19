@@ -8,6 +8,19 @@
 #include "Interaction/KzInteractableComponent.h"
 #include "Engine/World.h"
 
+namespace
+{
+	/** The front of an interactable that limits its approach, as an arrow out of it. */
+	void DrawFront(const UWorld* World, const UKzInteractableComponent& Interactable, const FColor& Color)
+	{
+		if (Interactable.bLimitApproach)
+		{
+			const FVector Location = Interactable.GetComponentLocation();
+			DrawDebugDirectionalArrow(World, Location, Location + Interactable.GetForwardVector() * 40.0f, 15.0f, Color, false, 0.0f, SDPG_World, 1.5f);
+		}
+	}
+}
+
 FKzGameplayDebuggerCategory::FKzGameplayDebuggerCategory()
 {
 	bShowOnlyWithDebugActor = false;
@@ -62,6 +75,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 			CanvasContext.Printf(TEXT("  {magenta}Magenta {white}= Full (Max Capacity)"));
 			CanvasContext.Printf(TEXT("  {orange}Orange {white}= Dynamic"));
 			CanvasContext.Printf(TEXT("  {cyan}Cyan {white}= Static"));
+			CanvasContext.Printf(TEXT("  {white}Arrow = Front (Limited Approach)"));
 
 			for (UKzInteractableComponent* Interactable : AllInteractables)
 			{
@@ -78,6 +92,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 					}
 
 					DrawDebugShape(World, Interactable->GetComponentLocation(), Interactable->GetComponentQuat(), Interactable->Shape, DrawColor, false, 0.0f, SDPG_World, 1.0f);
+					DrawFront(World, *Interactable, DrawColor);
 				}
 			}
 		}
@@ -118,6 +133,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 		// ======= DRAW THE INTERACTABLE =======
 		// If the pointer is still valid, draw its bounds or specific shape
 		DrawDebugShape(World, InteractableComp->GetComponentLocation(), InteractableComp->GetComponentQuat(), InteractableComp->Shape, DrawColor, false, 0.0f, SDPG_World, 2.0f);
+		DrawFront(World, *InteractableComp, DrawColor);
 
 		// If you want to show extra details on the 2D panel for the winning target:
 		if (Cand.bIsBest)

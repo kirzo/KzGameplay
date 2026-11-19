@@ -109,6 +109,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	bool bIsDynamicInteraction = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (InlineEditConditionToggle))
+	bool bLimitApproach = false;
+
+	/**
+	 * How far off this component's forward whoever comes at it may be: an interactor, or anything else a game aims at it. For what has a
+	 * front, as a lever on a wall or a ring on one face of a crate, which nobody reaches from behind. Off, it is reached from any side.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bLimitApproach", ClampMin = "0", ClampMax = "180", Units = "Degrees"))
+	float ApproachAngle = 90.0f;
+
 	/**
 	 * The default result returned if no components or the owner actor implements UKzInteractableInterface.
 	 * Set to 'Completed' to allow this component to trigger its InteractionAction autonomously.
@@ -200,6 +210,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	bool GetInteractionSpot(FKzTransformSource& OutSpot) const;
+
+	/** Whether Location is within the approach angle of this component's forward, or its approach is not limited. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool CanBeApproachedFrom(const FVector& Location) const;
 
 	/** Evaluates if the given interactor can interact with this component. */
 	virtual bool CanInteract(class UKzInteractorComponent* Interactor) const;
