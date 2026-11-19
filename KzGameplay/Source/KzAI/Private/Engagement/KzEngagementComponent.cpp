@@ -4,6 +4,7 @@
 #include "AIController.h"
 #include "Combat/KzCombatTags.h"
 #include "DrawDebugHelpers.h"
+#include "KzAITags.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayTagAssetInterface.h"
@@ -76,6 +77,7 @@ UKzEngagementComponent::UKzEngagementComponent()
 
 	Settings.Areas = { Close, Far };
 	Settings.ExemptTags.AddTag(KzTags::Combat::State_Attacking);
+	Settings.ExemptTags.AddTag(KzTags::AI::State_AttackGranted);
 }
 
 void UKzEngagementComponent::Engage(AActor* Attacker, float Weight, FGameplayTag PreferredArea)

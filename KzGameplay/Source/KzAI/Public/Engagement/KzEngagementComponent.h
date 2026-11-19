@@ -75,7 +75,7 @@ struct KZAI_API FKzEngagementSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Engagement", meta = (ClampMin = "0", Units = "Centimeters"))
 	float MinSeparation = 120.0f;
 
-	/** Attackers with any of these are never asked to make room, such as State.Attacking. */
+	/** Attackers with any of these are never asked to make room, such as State.Attacking, or State.AttackGranted on the way to an attack. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Engagement")
 	FGameplayTagContainer ExemptTags;
 
