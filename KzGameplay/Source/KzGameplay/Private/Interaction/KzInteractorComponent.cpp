@@ -103,8 +103,8 @@ void UKzInteractorComponent::PerformScan()
 
 	// Query the grid (broad and narrow phase are done internally)
 	FTransform WorldTransform = GetComponentTransform();
-	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(GetQueryShape(), WorldTransform.GetLocation(), WorldTransform.GetRotation());
-	ApplyHysteresis(Candidates, FocusInRange, &FInteractionGridSemantics::GetShape, WorldTransform);
+	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	KeepInRange(Candidates, FocusInRange, &FInteractionGridSemantics::GetShape, *Subsystem, WorldTransform);
 
 	UKzInteractableComponent* BestCandidate = nullptr;
 	float BestScore = -1.0f;
@@ -190,22 +190,23 @@ void UKzInteractorComponent::PerformScan()
 	UpdateNearby(*Subsystem, WorldTransform);
 }
 
-FKzShapeInstance UKzInteractorComponent::GetQueryShape() const
+void UKzInteractorComponent::KeepInRange(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
+	TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const UKzInteractionSubsystem& Subsystem,
+	const FTransform& WorldTransform) const
 {
-	return Hysteresis > 0.0f ? Shape + Hysteresis : Shape;
-}
-
-void UKzInteractorComponent::ApplyHysteresis(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
-	TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const FTransform& WorldTransform) const
-{
-	// Only the band the growth added needs a second look, and only for what wasn't in range already
+	// Coming in took a real overlap, which the grid tested; what was in already needs only one test of its own, against its grown shape
 	if (Hysteresis > 0.0f)
 	{
-		Found.RemoveAll([&](UKzInteractableComponent* Candidate)
+		for (const TWeakObjectPtr<UKzInteractableComponent>& Was : InRange)
 		{
-			return !InRange.Contains(Candidate) && !Kz::GJK::Intersect(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation(),
-				CandidateShape(Candidate), Candidate->GetComponentLocation(), Candidate->GetComponentQuat());
-		});
+			UKzInteractableComponent* Candidate = Was.Get();
+			if (Candidate && !Found.Contains(Candidate) && Subsystem.GetAllRegisteredInteractables().Contains(Candidate)
+				&& Kz::GJK::Intersect(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation(),
+					CandidateShape(Candidate) + Hysteresis, Candidate->GetComponentLocation(), Candidate->GetComponentQuat()))
+			{
+				Found.Add(Candidate);
+			}
+		}
 	}
 
 	InRange.Reset();
@@ -231,8 +232,8 @@ bool UKzInteractorComponent::PassesFilters(UKzInteractableComponent* Candidate)
 
 void UKzInteractorComponent::UpdateNearby(const UKzInteractionSubsystem& Subsystem, const FTransform& WorldTransform)
 {
-	TArray<UKzInteractableComponent*> Found = Subsystem.QueryNearbyInteractables(GetQueryShape(), WorldTransform.GetLocation(), WorldTransform.GetRotation());
-	ApplyHysteresis(Found, NearbyInRange, &FInteractionNearbyGridSemantics::GetShape, WorldTransform);
+	TArray<UKzInteractableComponent*> Found = Subsystem.QueryNearbyInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	KeepInRange(Found, NearbyInRange, &FInteractionNearbyGridSemantics::GetShape, Subsystem, WorldTransform);
 
 	TSet<TWeakObjectPtr<UKzInteractableComponent>> NowNearby;
 	UKzInteractableComponent* BestNearby = nullptr;

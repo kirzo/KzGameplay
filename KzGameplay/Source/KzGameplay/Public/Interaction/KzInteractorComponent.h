@@ -77,8 +77,8 @@ public:
 	float ScanRate;
 
 	/**
-	 * How far an interactable already in range, for the focus or nearby, may drift out before it is out, so turning on an edge doesn't
-	 * flicker it in and out. Coming in still takes a real overlap. 0: none. Our shape grows by it, so a Point shape gets none.
+	 * How far beyond an interactable's shape, or its nearby zone, we may drift once it is in range before it is out, so turning on an edge
+	 * doesn't flicker it in and out. Coming in still takes a real overlap. 0: none. The interactable's shape grows by it, so a Point gets none.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Settings", meta = (ClampMin = "0", Units = "Centimeters"))
 	float Hysteresis = 0.0f;
@@ -238,15 +238,13 @@ protected:
 	/** Leaves every interactable nearby, telling each. */
 	void ClearNearby();
 
-	/** The grids are queried with our shape grown by Hysteresis, so what may stay in range is found too. */
-	FKzShapeInstance GetQueryShape() const;
-
 	/**
-	 * Keeps of what a grown query found only what was already in range or overlaps our own shape now, by the shape the grid tests the
-	 * candidate with, and remembers the result as in range.
+	 * Adds to what a grid found what was in range at the last scan, is still registered and still overlaps the shape the grid tests it
+	 * with grown by Hysteresis, then remembers the result as in range.
 	 */
-	void ApplyHysteresis(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
-		TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const FTransform& WorldTransform) const;
+	void KeepInRange(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
+		TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const class UKzInteractionSubsystem& Subsystem,
+		const FTransform& WorldTransform) const;
 
 	/** How well a candidate suits us by the Scoring Profile. */
 	float ScoreCandidate(UKzInteractableComponent* Candidate);

@@ -25,12 +25,26 @@ namespace
 	const FColor NearbyColor = FColorList::Orchid;
 	const FColor HysteresisColor = FColorList::Turquoise;
 
-	/** The shape an interactable is noticed from: its own grown by its Nearby Margin, thicker while the interactor is nearby. */
-	void DrawNearbyZone(const UWorld* World, const UKzInteractableComponent& Interactable, bool bNearby)
+	/** How far beyond Zone an interactable in range stays in range for the interactor. */
+	void DrawHysteresisBand(const UWorld* World, const UKzInteractableComponent& Interactable, const FKzShapeInstance& Zone, float Hysteresis)
+	{
+		if (Hysteresis > 0.0f)
+		{
+			DrawDebugShape(World, Interactable.GetComponentLocation(), Interactable.GetComponentQuat(), Zone + Hysteresis, HysteresisColor, false, 0.0f, SDPG_World, 1.0f);
+		}
+	}
+
+	/** The shape an interactable is noticed from: its own grown by its Nearby Margin, thicker and with its band while the interactor is nearby. */
+	void DrawNearbyZone(const UWorld* World, const UKzInteractableComponent& Interactable, bool bNearby, float Hysteresis)
 	{
 		if (Interactable.NearbyMargin > 0.0f)
 		{
-			DrawDebugShape(World, Interactable.GetComponentLocation(), Interactable.GetComponentQuat(), Interactable.Shape + Interactable.NearbyMargin, NearbyColor, false, 0.0f, SDPG_World, bNearby ? 2.0f : 1.0f);
+			const FKzShapeInstance Zone = Interactable.Shape + Interactable.NearbyMargin;
+			DrawDebugShape(World, Interactable.GetComponentLocation(), Interactable.GetComponentQuat(), Zone, NearbyColor, false, 0.0f, SDPG_World, bNearby ? 2.0f : 1.0f);
+			if (bNearby)
+			{
+				DrawHysteresisBand(World, Interactable, Zone, Hysteresis);
+			}
 		}
 	}
 }
@@ -115,7 +129,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 
 					DrawDebugShape(World, Interactable->GetComponentLocation(), Interactable->GetComponentQuat(), Interactable->Shape, DrawColor, false, 0.0f, SDPG_World, 1.0f);
 					DrawFront(World, *Interactable, DrawColor);
-					DrawNearbyZone(World, *Interactable, false);
+					DrawNearbyZone(World, *Interactable, false, 0.0f);
 				}
 			}
 		}
@@ -133,21 +147,13 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 	CanvasContext.Printf(TEXT("{turquoise}Hysteresis: {white}%.0f cm"), Interactor->Hysteresis);
 	CanvasContext.Printf(TEXT("{orchid}Nearby: {yellow}%d{white}, shown: %s"), NearbyData.Num(), NearbyFocus.IsValid() ? *GetNameSafe(NearbyFocus->GetOwner()) : TEXT("none"));
 
-	const FVector InteractorLocation = Interactor->GetComponentLocation();
-	const FQuat InteractorRotation = Interactor->GetComponentQuat();
-	DrawDebugShape(World, InteractorLocation, InteractorRotation, Interactor->Shape, FColor::Blue, false, 0.0f, SDPG_World, 2.0f);
-
-	// How far what is in range may drift before it is out
-	if (Interactor->Hysteresis > 0.0f)
-	{
-		DrawDebugShape(World, InteractorLocation, InteractorRotation, Interactor->Shape + Interactor->Hysteresis, HysteresisColor, false, 0.0f, SDPG_World, 1.0f);
-	}
+	DrawDebugShape(World, Interactor->GetComponentLocation(), Interactor->GetComponentQuat(), Interactor->Shape, FColor::Blue, false, 0.0f, SDPG_World, 2.0f);
 
 	for (const TWeakObjectPtr<UKzInteractableComponent>& Nearby : NearbyData)
 	{
 		if (const UKzInteractableComponent* NearbyComp = Nearby.Get())
 		{
-			DrawNearbyZone(World, *NearbyComp, true);
+			DrawNearbyZone(World, *NearbyComp, true, Interactor->Hysteresis);
 			if (Nearby == NearbyFocus)
 			{
 				DrawDebugString(World, NearbyComp->GetComponentLocation() + FVector(0, 0, 60.0f), TEXT("Nearby, shown"), nullptr, NearbyColor, 0.0f);
@@ -179,9 +185,10 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 		// If the pointer is still valid, draw its bounds or specific shape
 		DrawDebugShape(World, InteractableComp->GetComponentLocation(), InteractableComp->GetComponentQuat(), InteractableComp->Shape, DrawColor, false, 0.0f, SDPG_World, 2.0f);
 		DrawFront(World, *InteractableComp, DrawColor);
+		DrawHysteresisBand(World, *InteractableComp, InteractableComp->Shape, Interactor->Hysteresis);
 		if (!NearbyData.Contains(Cand.Interactable))
 		{
-			DrawNearbyZone(World, *InteractableComp, false);
+			DrawNearbyZone(World, *InteractableComp, false, Interactor->Hysteresis);
 		}
 
 		// If you want to show extra details on the 2D panel for the winning target:
