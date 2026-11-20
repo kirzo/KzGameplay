@@ -7,6 +7,7 @@
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractableComponent.h"
 #include "Engine/World.h"
+#include "Math/ColorList.h"
 
 namespace
 {
@@ -17,6 +18,19 @@ namespace
 		{
 			const FVector Location = Interactable.GetComponentLocation();
 			DrawDebugDirectionalArrow(World, Location, Location + Interactable.GetForwardVector() * 40.0f, 15.0f, Color, false, 0.0f, SDPG_World, 1.5f);
+		}
+	}
+
+	// From the color list, so the panel's {orchid} and {turquoise} match the lines
+	const FColor NearbyColor = FColorList::Orchid;
+	const FColor HysteresisColor = FColorList::Turquoise;
+
+	/** The shape an interactable is noticed from: its own grown by its Nearby Margin, thicker while the interactor is nearby. */
+	void DrawNearbyZone(const UWorld* World, const UKzInteractableComponent& Interactable, bool bNearby)
+	{
+		if (Interactable.NearbyMargin > 0.0f)
+		{
+			DrawDebugShape(World, Interactable.GetComponentLocation(), Interactable.GetComponentQuat(), Interactable.Shape + Interactable.NearbyMargin, NearbyColor, false, 0.0f, SDPG_World, bNearby ? 2.0f : 1.0f);
 		}
 	}
 }
@@ -44,6 +58,8 @@ void FKzGameplayDebuggerCategory::CollectData(APlayerController* OwnerPC, AActor
 {
 	Interactor = nullptr;
 	CandidatesData.Empty();
+	NearbyData.Empty();
+	NearbyFocus = nullptr;
 
 	if (DebugActor)
 	{
@@ -51,6 +67,11 @@ void FKzGameplayDebuggerCategory::CollectData(APlayerController* OwnerPC, AActor
 		{
 			Interactor = InteractorComp;
 			CandidatesData = Interactor->LastDebugCandidates;
+			for (UKzInteractableComponent* Nearby : Interactor->GetNearbyInteractables())
+			{
+				NearbyData.Add(Nearby);
+			}
+			NearbyFocus = Interactor->GetNearbyFocus();
 		}
 	}
 }
@@ -75,6 +96,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 			CanvasContext.Printf(TEXT("  {magenta}Magenta {white}= Full (Max Capacity)"));
 			CanvasContext.Printf(TEXT("  {orange}Orange {white}= Dynamic"));
 			CanvasContext.Printf(TEXT("  {cyan}Cyan {white}= Static"));
+			CanvasContext.Printf(TEXT("  {orchid}Orchid {white}= Nearby Margin"));
 			CanvasContext.Printf(TEXT("  {white}Arrow = Front (Limited Approach)"));
 
 			for (UKzInteractableComponent* Interactable : AllInteractables)
@@ -93,6 +115,7 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 
 					DrawDebugShape(World, Interactable->GetComponentLocation(), Interactable->GetComponentQuat(), Interactable->Shape, DrawColor, false, 0.0f, SDPG_World, 1.0f);
 					DrawFront(World, *Interactable, DrawColor);
+					DrawNearbyZone(World, *Interactable, false);
 				}
 			}
 		}
@@ -107,8 +130,30 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 	// Draw 2D Info on the left panel
 	CanvasContext.Printf(TEXT("{green}Interaction Debug for: {white}%s"), *GetNameSafe(Interactor->GetOwner()));
 	CanvasContext.Printf(TEXT("Candidates Evaluated: {yellow}%d"), CandidatesData.Num());
+	CanvasContext.Printf(TEXT("{turquoise}Hysteresis: {white}%.0f cm"), Interactor->Hysteresis);
+	CanvasContext.Printf(TEXT("{orchid}Nearby: {yellow}%d{white}, shown: %s"), NearbyData.Num(), NearbyFocus.IsValid() ? *GetNameSafe(NearbyFocus->GetOwner()) : TEXT("none"));
 
-	DrawDebugShape(World, Interactor->GetComponentLocation(), Interactor->GetComponentQuat(), Interactor->Shape, FColor::Blue, false, 0.0f, SDPG_World, 2.0f);
+	const FVector InteractorLocation = Interactor->GetComponentLocation();
+	const FQuat InteractorRotation = Interactor->GetComponentQuat();
+	DrawDebugShape(World, InteractorLocation, InteractorRotation, Interactor->Shape, FColor::Blue, false, 0.0f, SDPG_World, 2.0f);
+
+	// How far what is in range may drift before it is out
+	if (Interactor->Hysteresis > 0.0f)
+	{
+		DrawDebugShape(World, InteractorLocation, InteractorRotation, Interactor->Shape + Interactor->Hysteresis, HysteresisColor, false, 0.0f, SDPG_World, 1.0f);
+	}
+
+	for (const TWeakObjectPtr<UKzInteractableComponent>& Nearby : NearbyData)
+	{
+		if (const UKzInteractableComponent* NearbyComp = Nearby.Get())
+		{
+			DrawNearbyZone(World, *NearbyComp, true);
+			if (Nearby == NearbyFocus)
+			{
+				DrawDebugString(World, NearbyComp->GetComponentLocation() + FVector(0, 0, 60.0f), TEXT("Nearby, shown"), nullptr, NearbyColor, 0.0f);
+			}
+		}
+	}
 
 	for (const FKzInteractionDebugCandidate& Cand : CandidatesData)
 	{
@@ -134,6 +179,10 @@ void FKzGameplayDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplay
 		// If the pointer is still valid, draw its bounds or specific shape
 		DrawDebugShape(World, InteractableComp->GetComponentLocation(), InteractableComp->GetComponentQuat(), InteractableComp->Shape, DrawColor, false, 0.0f, SDPG_World, 2.0f);
 		DrawFront(World, *InteractableComp, DrawColor);
+		if (!NearbyData.Contains(Cand.Interactable))
+		{
+			DrawNearbyZone(World, *InteractableComp, false);
+		}
 
 		// If you want to show extra details on the 2D panel for the winning target:
 		if (Cand.bIsBest)

@@ -25,6 +25,8 @@ public:
 protected:
 	TWeakObjectPtr<UKzInteractorComponent> Interactor;
 	TArray<FKzInteractionDebugCandidate> CandidatesData;
+	TArray<TWeakObjectPtr<UKzInteractableComponent>> NearbyData;
+	TWeakObjectPtr<UKzInteractableComponent> NearbyFocus;
 
 	/** Toggles the global rendering of all interactables in the subsystem. */
 	void ToggleShowAllInteractables();
