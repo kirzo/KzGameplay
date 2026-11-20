@@ -17,6 +17,12 @@ class KZGAMEPLAY_API UKzInputTrigger_YieldToInteraction : public UInputTrigger
 {
 	GENERATED_BODY()
 
+public:
+#if WITH_EDITOR
+	/** Warns when the action this trigger sits on consumes input, which the trigger can't work with. */
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+#endif
+
 protected:
 	virtual ETriggerState UpdateState_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue ModifiedValue, float DeltaTime) override;
 
