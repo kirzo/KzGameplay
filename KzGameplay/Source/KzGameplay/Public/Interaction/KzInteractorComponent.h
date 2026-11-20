@@ -77,6 +77,13 @@ public:
 	float ScanRate;
 
 	/**
+	 * How far an interactable already in range, for the focus or nearby, may drift out before it is out, so turning on an edge doesn't
+	 * flicker it in and out. Coming in still takes a real overlap. 0: none. Our shape grows by it, so a Point shape gets none.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Settings", meta = (ClampMin = "0", Units = "Centimeters"))
+	float Hysteresis = 0.0f;
+
+	/**
 	 * Hard Filters: If the interactable doesn't pass these requirements, it is immediately discarded.
 	 * (e.g., Line of Sight check, Require specific Gameplay Tags).
 	 */
@@ -139,6 +146,10 @@ public:
 	/** The interactables near enough to notice at the last scan: within their shape grown by their Nearby Margin. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	TArray<UKzInteractableComponent*> GetNearbyInteractables() const;
+
+	/** The best of them by the Scoring Profile while nothing is focused, null otherwise: what a prompt shows before anything can be used. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	UKzInteractableComponent* GetNearbyFocus() const { return NearbyFocus.Get(); }
 
 	/**
 	 * Starts an interaction with the current focus.
@@ -227,7 +238,25 @@ protected:
 	/** Leaves every interactable nearby, telling each. */
 	void ClearNearby();
 
+	/** The grids are queried with our shape grown by Hysteresis, so what may stay in range is found too. */
+	FKzShapeInstance GetQueryShape() const;
+
+	/**
+	 * Keeps of what a grown query found only what was already in range or overlaps our own shape now, by the shape the grid tests the
+	 * candidate with, and remembers the result as in range.
+	 */
+	void ApplyHysteresis(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
+		TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const FTransform& WorldTransform) const;
+
+	/** How well a candidate suits us by the Scoring Profile. */
+	float ScoreCandidate(UKzInteractableComponent* Candidate);
+
 	TSet<TWeakObjectPtr<UKzInteractableComponent>> NearbyInteractables;
+	TWeakObjectPtr<UKzInteractableComponent> NearbyFocus;
+
+	/** What the last scan had in range, before filters, for the focus and for nearby: Hysteresis keeps them while they drift out. */
+	TSet<TWeakObjectPtr<UKzInteractableComponent>> FocusInRange;
+	TSet<TWeakObjectPtr<UKzInteractableComponent>> NearbyInRange;
 
 	/** Our live interaction, owned by the subsystem. We keep the handle, never the state. */
 	FKzInteractionHandle CurrentInteraction;

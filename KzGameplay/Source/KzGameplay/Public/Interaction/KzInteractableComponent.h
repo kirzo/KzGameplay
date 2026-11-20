@@ -78,6 +78,14 @@ public:
 	FText PromptText;
 
 	/**
+	 * How far beyond its shape, whatever it is, an interactor counts as nearby: close enough to notice this, as an icon over someone to
+	 * talk to or a greyed prompt, not to use it. Nearby holds from that outer edge inwards, focus included. 0: no nearby zone. Read when
+	 * the component activates.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (ClampMin = "0", Units = "Centimeters"))
+	float NearbyMargin = 0.0f;
+
+	/**
 	 * The maximum number of simultaneous interactors allowed.
 	 * 1 = Single user (Default). 0 or less = Unlimited interactors.
 	 */
@@ -118,13 +126,6 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bLimitApproach", ClampMin = "0", ClampMax = "180", Units = "Degrees"))
 	float ApproachAngle = 90.0f;
-
-	/**
-	 * How far beyond its shape an interactor counts as nearby: close enough to notice this, as an icon over someone to talk to, not to
-	 * use it. Nearby holds from that outer edge inwards, focus included. 0: no nearby zone. Read when the component activates.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (ClampMin = "0", Units = "Centimeters"))
-	float NearbyMargin = 0.0f;
 
 	/**
 	 * The default result returned if no components or the owner actor implements UKzInteractableInterface.

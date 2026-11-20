@@ -4,6 +4,7 @@
 #include "Interaction/KzInteractionSubsystem.h"
 #include "Interaction/KzInteractionTags.h"
 #include "Scoring/KzTargetScoringLibrary.h"
+#include "Collision/KzGJK.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "Net/UnrealNetwork.h"
 
@@ -102,12 +103,11 @@ void UKzInteractorComponent::PerformScan()
 
 	// Query the grid (broad and narrow phase are done internally)
 	FTransform WorldTransform = GetComponentTransform();
-	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	TArray<UKzInteractableComponent*> Candidates = Subsystem->QueryInteractables(GetQueryShape(), WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	ApplyHysteresis(Candidates, FocusInRange, &FInteractionGridSemantics::GetShape, WorldTransform);
 
 	UKzInteractableComponent* BestCandidate = nullptr;
 	float BestScore = -1.0f;
-
-	const FKzTransformSource AsTransformSource = FKzTransformSource(this);
 
 	for (UKzInteractableComponent* Candidate : Candidates)
 	{
@@ -127,9 +127,7 @@ void UKzInteractorComponent::PerformScan()
 			continue;
 		}
 
-		const FKzTransformSource CandidateTransformSource = Candidate->bRequiresInteractionSpot ? Candidate->InteractionSpot.ToTransformSource(Candidate) : FKzTransformSource(Candidate);
-
-		float Score = UKzTargetScoringLibrary::EvaluateTarget(AsTransformSource, CandidateTransformSource, ScoringProfile);
+		const float Score = ScoreCandidate(Candidate);
 
 #if WITH_GAMEPLAY_DEBUGGER
 		DebugInfo.bPassedFilters = true;
@@ -192,6 +190,37 @@ void UKzInteractorComponent::PerformScan()
 	UpdateNearby(*Subsystem, WorldTransform);
 }
 
+FKzShapeInstance UKzInteractorComponent::GetQueryShape() const
+{
+	return Hysteresis > 0.0f ? Shape + Hysteresis : Shape;
+}
+
+void UKzInteractorComponent::ApplyHysteresis(TArray<UKzInteractableComponent*>& Found, TSet<TWeakObjectPtr<UKzInteractableComponent>>& InRange,
+	TFunctionRef<FKzShapeInstance(const UKzInteractableComponent*)> CandidateShape, const FTransform& WorldTransform) const
+{
+	// Only the band the growth added needs a second look, and only for what wasn't in range already
+	if (Hysteresis > 0.0f)
+	{
+		Found.RemoveAll([&](UKzInteractableComponent* Candidate)
+		{
+			return !InRange.Contains(Candidate) && !Kz::GJK::Intersect(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation(),
+				CandidateShape(Candidate), Candidate->GetComponentLocation(), Candidate->GetComponentQuat());
+		});
+	}
+
+	InRange.Reset();
+	for (UKzInteractableComponent* Candidate : Found)
+	{
+		InRange.Add(Candidate);
+	}
+}
+
+float UKzInteractorComponent::ScoreCandidate(UKzInteractableComponent* Candidate)
+{
+	const FKzTransformSource CandidateTransformSource = Candidate->bRequiresInteractionSpot ? Candidate->InteractionSpot.ToTransformSource(Candidate) : FKzTransformSource(Candidate);
+	return UKzTargetScoringLibrary::EvaluateTarget(FKzTransformSource(this), CandidateTransformSource, ScoringProfile);
+}
+
 bool UKzInteractorComponent::PassesFilters(UKzInteractableComponent* Candidate)
 {
 	FilterRequirement.SetContextProperty(TEXT("Instigator"), GetOwner());
@@ -202,14 +231,31 @@ bool UKzInteractorComponent::PassesFilters(UKzInteractableComponent* Candidate)
 
 void UKzInteractorComponent::UpdateNearby(const UKzInteractionSubsystem& Subsystem, const FTransform& WorldTransform)
 {
+	TArray<UKzInteractableComponent*> Found = Subsystem.QueryNearbyInteractables(GetQueryShape(), WorldTransform.GetLocation(), WorldTransform.GetRotation());
+	ApplyHysteresis(Found, NearbyInRange, &FInteractionNearbyGridSemantics::GetShape, WorldTransform);
+
 	TSet<TWeakObjectPtr<UKzInteractableComponent>> NowNearby;
-	for (UKzInteractableComponent* Candidate : Subsystem.QueryNearbyInteractables(Shape, WorldTransform.GetLocation(), WorldTransform.GetRotation()))
+	UKzInteractableComponent* BestNearby = nullptr;
+	float BestScore = -1.0f;
+	for (UKzInteractableComponent* Candidate : Found)
 	{
 		if (PassesFilters(Candidate))
 		{
 			NowNearby.Add(Candidate);
+
+			// Scored only while nothing is focused, the only time it is shown
+			if (!CurrentFocus.IsValid())
+			{
+				const float Score = ScoreCandidate(Candidate);
+				if (Score > BestScore)
+				{
+					BestScore = Score;
+					BestNearby = Candidate;
+				}
+			}
 		}
 	}
+	NearbyFocus = BestNearby;
 
 	// Swapped before telling anyone: a listener may stop the scan, which clears the set
 	const TSet<TWeakObjectPtr<UKzInteractableComponent>> Previous = MoveTemp(NearbyInteractables);
@@ -232,6 +278,11 @@ void UKzInteractorComponent::UpdateNearby(const UKzInteractionSubsystem& Subsyst
 
 void UKzInteractorComponent::ClearNearby()
 {
+	// Leaving the scan forgets what was in range too: when it resumes, coming in takes a real overlap again
+	FocusInRange.Reset();
+	NearbyInRange.Reset();
+	NearbyFocus.Reset();
+
 	const TSet<TWeakObjectPtr<UKzInteractableComponent>> Previous = MoveTemp(NearbyInteractables);
 	NearbyInteractables.Reset();
 	for (const TWeakObjectPtr<UKzInteractableComponent>& Left : Previous)

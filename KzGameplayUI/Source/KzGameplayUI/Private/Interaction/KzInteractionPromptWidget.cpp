@@ -42,6 +42,8 @@ void UKzInteractionPromptWidget::NativeConstruct()
 	Anchor = nullptr;
 	bPromptShown = false;
 	bShownAvailable = true;
+	bShownNearby = false;
+	KeysVisibility = Keys ? Keys->GetVisibility() : ESlateVisibility::Visible;
 	Prompt->SetVisibility(ESlateVisibility::Collapsed);
 }
 
@@ -68,29 +70,39 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 	}
 
 	UKzInteractorComponent* InteractorComponent = Interactor.Get();
-	UKzInteractableComponent* Focus = InteractorComponent && !InteractorComponent->IsInteractingContinuously() ? InteractorComponent->GetCurrentFocus() : nullptr;
-	const bool bShow = Focus != nullptr;
-	const bool bAvailable = !Focus || InteractorComponent->IsFocusAvailable();
-	const bool bFocusChanged = Focus != Shown.Get() || bShow != bPromptShown;
+	const bool bFree = InteractorComponent && !InteractorComponent->IsInteractingContinuously();
+	UKzInteractableComponent* Focus = bFree ? InteractorComponent->GetCurrentFocus() : nullptr;
 
-	// On every new focus, even if empty, and when Prompt Text changes; formatting with the arguments only then, not every frame
-	if (Focus && PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(Focus->PromptText)))
+	// Before anything can be used, what is near enough to notice
+	UKzInteractableComponent* Target = Focus ? Focus : (bFree ? InteractorComponent->GetNearbyFocus() : nullptr);
+	const bool bNearby = !Focus && Target;
+	const bool bShow = Target != nullptr;
+	const bool bAvailable = Focus ? InteractorComponent->IsFocusAvailable() : !bNearby;
+	const bool bFocusChanged = Target != Shown.Get() || bShow != bPromptShown || bNearby != bShownNearby;
+
+	// On every new target, even if empty, and when Prompt Text changes; formatting with the arguments only then, not every frame
+	if (Target && PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(Target->PromptText)))
 	{
-		ShownPromptText = Focus->PromptText;
-		PromptText->SetText(Focus->GetPromptText(InteractorComponent));
+		ShownPromptText = Target->PromptText;
+		PromptText->SetText(Target->GetPromptText(InteractorComponent));
 	}
 
 	if (bFocusChanged || bAvailable != bShownAvailable)
 	{
-		Shown = Focus;
+		Shown = Target;
 		bShownAvailable = bAvailable;
-		if (Focus)
+		bShownNearby = bNearby;
+		if (Target)
 		{
-			Anchor = Focus;
+			Anchor = Target;
 		}
 		if (PromptText)
 		{
 			PromptText->SetIsEnabled(bAvailable);
+		}
+		if (Keys)
+		{
+			Keys->SetVisibility(bNearby ? ESlateVisibility::Hidden : KeysVisibility);
 		}
 
 		if (bShow != bPromptShown)
@@ -105,7 +117,7 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 				OnHidePrompt();
 			}
 		}
-		OnPromptChanged(Focus, bAvailable, Focus ? InteractorComponent->GetFocusUnavailableReason() : FGameplayTag());
+		OnPromptChanged(Target, bAvailable, Focus ? InteractorComponent->GetFocusUnavailableReason() : FGameplayTag());
 
 		// This tick runs mid-paint: unmeasured, Prompt would be laid out this frame with the size of its last content, or none
 		const TSharedPtr<SWidget> PromptWidget = Prompt->GetCachedWidget();

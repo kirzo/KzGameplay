@@ -22,9 +22,10 @@ enum class EKzInteractionPromptPlacement : uint8
 };
 
 /**
- * The owning player's interaction prompt: shows the Prompt Text of the interactable their pawn's interactor focuses, and hides while
- * there is none or an interaction is running. Make it full screen, with Prompt in a Canvas Panel, whose anchors Placement sets, also
- * in the designer. The keys go inside Prompt, as a KzInputKeysWidget, a KzTextBlock with {Input.Interact} or a KzInputIcon with an Input Tag.
+ * The owning player's interaction prompt: shows the Prompt Text of the interactable their pawn's interactor focuses or, before anything
+ * is focused, of the best one nearby, greyed and without keys. Hides while there is neither or an interaction is running. Make it full
+ * screen, with Prompt in a Canvas Panel, whose anchors Placement sets, also in the designer. The keys go inside Prompt, as a
+ * KzInputKeysWidget, a KzTextBlock with {Input.Interact} or a KzInputIcon with an Input Tag, named Keys.
  */
 UCLASS(Abstract)
 class KZGAMEPLAYUI_API UKzInteractionPromptWidget : public UUserWidget
@@ -35,14 +36,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void SetPlacement(EKzInteractionPromptPlacement NewPlacement);
 
+	/** Whether the prompt shows something only nearby, not focused yet. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsShowingNearby() const { return bShownNearby; }
+
 protected:
-	/** Placed by Placement, and collapsed while there is nothing focused. */
+	/** Placed by Placement, and collapsed while there is nothing to show. */
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidget))
 	TObjectPtr<UWidget> Prompt;
 
-	/** Gets the interactable's Prompt Text with its arguments ({Item}...), and is disabled while the interactable cannot be used. */
+	/** Gets the interactable's Prompt Text with its arguments ({Item}...), and is disabled while the interactable cannot be used or is only nearby. */
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PromptText;
+
+	/** Hidden while the prompt shows something only nearby, keeping its space so nothing moves when it gets focused. */
+	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> Keys;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	EKzInteractionPromptPlacement Placement = EKzInteractionPromptPlacement::World;
@@ -71,7 +80,7 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Interaction")
 	void OnHidePrompt();
 
-	/** The prompt changed: another interactable, none, or the same one becoming usable or not, with why not. */
+	/** The prompt changed: another interactable, none, the same one getting focused, or becoming usable or not, with why not. Nearby only, it is not available. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Interaction")
 	void OnPromptChanged(UKzInteractableComponent* Interactable, bool bAvailable, FGameplayTag Reason);
 
@@ -86,7 +95,7 @@ private:
 	TWeakObjectPtr<APawn> InteractorPawn;
 	TWeakObjectPtr<UKzInteractorComponent> Interactor;
 
-	/** The focused interactable the prompt shows, if any. */
+	/** The interactable the prompt shows, focused or nearby, if any. */
 	TWeakObjectPtr<UKzInteractableComponent> Shown;
 
 	/** The last interactable shown, which Prompt follows while visible, also while it animates out. */
@@ -95,7 +104,11 @@ private:
 	/** Kept apart from Shown: an interactable destroyed while shown still has to hide the prompt. */
 	bool bPromptShown = false;
 	bool bShownAvailable = true;
+	bool bShownNearby = false;
 
-	/** The focused interactable's Prompt Text as last formatted, to format it again only when it changes. */
+	/** What Keys is when shown, as laid out. */
+	ESlateVisibility KeysVisibility = ESlateVisibility::Visible;
+
+	/** The shown interactable's Prompt Text as last formatted, to format it again only when it changes. */
 	FText ShownPromptText;
 };
