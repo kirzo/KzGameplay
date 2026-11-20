@@ -8,6 +8,8 @@
 #include "Items/KzItemFragment.h"
 #include "KzItemFragment_Defense.generated.h"
 
+class UKzHitStop;
+
 /**
  * An item its holder defends with, such as a shield: without one equipped, State.Blocking and State.Parrying stop nothing.
  * While equipped it gives Equipment.Defense.Block and Equipment.Defense.Parry, for the abilities that need them.
@@ -30,9 +32,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Block", meta = (Categories = "GameplayCue"))
 	FGameplayTag GuardBreakCue;
 
-	/** How long holder and attacker freeze when it blocks, and how they come back to speed; zero does not freeze. */
+	/** How holder and attacker freeze when it blocks; none, they don't. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Block")
-	FKzHitStop BlockHitStop = FKzHitStop(0.05f);
+	TObjectPtr<const UKzHitStop> BlockHitStop;
 
 	/** How wide in front of its holder it parries; zero does not parry. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parry", meta = (ClampMin = "0", ClampMax = "360", Units = "Degrees"))
@@ -41,15 +43,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parry", meta = (Categories = "GameplayCue"))
 	FGameplayTag ParryCue;
 
-	/** How long holder and attacker freeze when it parries, and how they come back to speed; zero does not freeze. */
+	/** How holder and attacker freeze when it parries; none, they don't. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parry")
-	FKzHitStop ParryHitStop = FKzHitStop(0.1f);
+	TObjectPtr<const UKzHitStop> ParryHitStop;
 
-	/** How the parried attacker moves afterwards, freeze included, leaving the holder a moment to strike back: 0.3 of its speed for 0.6 s unless changed. */
+	/**
+	 * How the parried attacker moves afterwards, leaving the holder a moment to strike back, such as a Hit Stop on the Instigator that holds it at 0.7
+	 * for 0.6 s. Alongside Parry Hit Stop, the slower of the two holds it.
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Parry")
-	FKzHitStop ParrySlow = FKzHitStop(0.6f);
-
-	UKzItemFragment_Defense();
+	TObjectPtr<const UKzHitStop> ParrySlow;
 
 	virtual void GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const override;
 	virtual void GetEquippedTags(FGameplayTagContainer& OutTags) const override;

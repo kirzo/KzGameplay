@@ -18,6 +18,7 @@ class UKzAnimNotifyState_HitWindow;
 class UKzComboGraph;
 class UKzItemDefinition;
 class UKzSensorComponent;
+class UKzTimeStop;
 class USceneComponent;
 class USkeletalMeshComponent;
 struct FKzComboBranchContext;
@@ -188,8 +189,11 @@ private:
 	/** Opens a Warp Window, or closes the open one with null: one with a Height takes the attacker off the ground, and closing it lands it. */
 	void SetWarp(const UKzAnimationNotifyState* Notify, float Duration);
 
-	/** Freezes attacker and target for the hit's Hit Stop, the attack's or the defending item's, and slows a parried attacker. */
-	void DilateTime(const FKzComboHit& Hit, AActor& HitActor);
+	/**
+	 * Stops time for an impact, the hits of one sweep: the attack's Hit Stop and Slow Motion, On Kill's if any of them died, and the defending items'.
+	 * Those off Repeat In Attack only on the first impact of the attack AttackPlay counts.
+	 */
+	void StopTime(const FKzComboNode_Attack& Attack, int32 AttackPlay, TConstArrayView<FKzComboHit> Impact);
 
 	void SetCancelWindows(int32 Count);
 
@@ -259,4 +263,11 @@ private:
 
 	/** What the Hit Window has hit, so each target takes one hit. */
 	TSet<TWeakObjectPtr<AActor>> HitActors;
+
+	/** Counts the attacks played, so an impact's time stops go to its own attack even once a hit has chained the next. */
+	int32 AttackPlays = 0;
+
+	/** The time stops the attack TimeStopsPlay counts has set off, for those off Repeat In Attack. */
+	int32 TimeStopsPlay = INDEX_NONE;
+	TSet<const UKzTimeStop*> FiredTimeStops;
 };

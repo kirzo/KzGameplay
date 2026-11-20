@@ -11,6 +11,7 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/WorldSettings.h"
 
 UKzCameraRigComponent::UKzCameraRigComponent()
 {
@@ -123,6 +124,14 @@ UCameraComponent* UKzCameraRigComponent::FindCamera()
 void UKzCameraRigComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// In real time: a world slowed down, such as by a slow motion, still has the camera follow at its own pace
+	const AWorldSettings* WorldSettings = GetWorld() ? GetWorld()->GetWorldSettings(false, false) : nullptr;
+	const float WorldDilation = WorldSettings ? WorldSettings->GetEffectiveTimeDilation() : 1.0f;
+	if (WorldDilation > UE_SMALL_NUMBER)
+	{
+		DeltaTime /= WorldDilation;
+	}
 
 	UCameraComponent* CameraComponent = FindCamera();
 	UKzSplineFollowerComponent* SplineFollower = Follower.Get();

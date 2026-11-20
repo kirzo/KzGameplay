@@ -86,6 +86,11 @@ namespace
 			return;
 		}
 
+		// The way the blow travels, for a Kz Burst's mesh shake: from a point behind the impact
+		FGameplayEffectContextHandle Context = ASC->MakeEffectContext();
+		Context.AddInstigator(Attacker, Attacker);
+		Context.AddOrigin(Hit.Hit.ImpactPoint - Hit.Direction);
+
 		FGameplayCueParameters Parameters;
 		Parameters.Location = Hit.Hit.ImpactPoint;
 		Parameters.Normal = Hit.Hit.ImpactNormal;
@@ -95,6 +100,7 @@ namespace
 		Parameters.PhysicalMaterial = Hit.Hit.PhysMaterial.Get();
 		Parameters.RawMagnitude = Damage;
 		Parameters.AggregatedSourceTags = Hit.AttackTags;
+		Parameters.EffectContext = Context;
 		ASC->ExecuteGameplayCue(Cue, Parameters);
 	}
 

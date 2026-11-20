@@ -2,6 +2,8 @@
 
 #include "Abilities/KzAbilitySystemComponent.h"
 #include "Abilities/KzGameplayAbility.h"
+#include "Combat/KzTimeDilationSubsystem.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -161,6 +163,13 @@ void UKzAbilitySystemComponent::NotifyAbilityActivated(const FGameplayAbilitySpe
 	if (KeptInput.IsValid())
 	{
 		KeepInput(FGameplayTag());
+	}
+
+	// Before it plays, so it starts at full speed: such as a dodge out of a hit stop
+	UKzTimeDilationSubsystem* TimeDilation = GetWorld() ? GetWorld()->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
+	if (TimeDilation && Ability)
+	{
+		TimeDilation->Cancel(GetAvatarActor_Direct(), Ability->GetAssetTags());
 	}
 }
 

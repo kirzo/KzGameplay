@@ -9,6 +9,7 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Combat/KzCombatLibrary.h"
+#include "Combat/KzTimeDilationSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Curves/CurveFloat.h"
 #include "Engine/CollisionProfile.h"
@@ -33,9 +34,9 @@ namespace
 	};
 	TMap<TObjectKey<UAbilitySystemComponent>, TMap<FGameplayTag, FKzTagRemoval>> TagRemovals;
 
-	/** Per mesh, how long each window with a Speed Curve has been open on it, in animation time: a montage's notifies do not say. */
-	using FKzDisplacementKey = TPair<TObjectKey<USkeletalMeshComponent>, TObjectKey<UKzAnimNotifyState_Displacement>>;
-	TMap<FKzDisplacementKey, float> DisplacementTimes;
+	/** Per mesh, how long each window that follows a curve has been open on it, in animation time: a montage's notifies do not say. */
+	using FKzWindowKey = TPair<TObjectKey<USkeletalMeshComponent>, TObjectKey<UAnimNotifyState>>;
+	TMap<FKzWindowKey, float> WindowTimes;
 
 	/** The area under the curve from From to To, sampled halfway through Steps equal steps. */
 	float IntegrateCurve(const FRichCurve& Curve, float From, float To, int32 Steps)
@@ -213,7 +214,7 @@ float UKzAnimNotifyState_Displacement::TickShare(const USkeletalMeshComponent* M
 		return FrameDeltaTime / Duration;
 	}
 
-	float& Elapsed = DisplacementTimes.FindOrAdd(FKzDisplacementKey(MeshComp, this));
+	float& Elapsed = WindowTimes.FindOrAdd(FKzWindowKey(MeshComp, this));
 	const float Share = GetShare(Elapsed / Duration, (Elapsed + FrameDeltaTime) / Duration);
 	Elapsed += FrameDeltaTime;
 	return Share;
@@ -222,7 +223,7 @@ float UKzAnimNotifyState_Displacement::TickShare(const USkeletalMeshComponent* M
 void UKzAnimNotifyState_Displacement::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyEnd(MeshComp, Animation, EventReference);
-	DisplacementTimes.Remove(FKzDisplacementKey(MeshComp, this));
+	WindowTimes.Remove(FKzWindowKey(MeshComp, this));
 }
 
 UKzAnimNotifyState_WarpWindow::UKzAnimNotifyState_WarpWindow()
@@ -475,6 +476,52 @@ void UKzAnimNotifyState_RotationWindow::NotifyTick(USkeletalMeshComponent* MeshC
 FString UKzAnimNotifyState_RotationWindow::GetNotifyName_Implementation() const
 {
 	return FString::Printf(TEXT("Rotate %.0f"), TurnRate);
+}
+
+UKzAnimNotifyState_SlowMotionWindow::UKzAnimNotifyState_SlowMotionWindow()
+{
+#if WITH_EDITORONLY_DATA
+	NotifyColor = FColor(110, 170, 210);
+#endif
+}
+
+void UKzAnimNotifyState_SlowMotionWindow::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
+
+	// Only in game: a preview would slow its own editor world
+	UWorld* World = MeshComp ? MeshComp->GetWorld() : nullptr;
+	UKzTimeDilationSubsystem* TimeDilation = World && World->IsGameWorld() ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
+	const FAnimNotifyEvent* Event = EventReference.GetNotify();
+	const float Duration = Event ? Event->GetDuration() : 0.0f;
+	if (!TimeDilation || Duration <= 0.0f)
+	{
+		return;
+	}
+
+	float& Elapsed = WindowTimes.FindOrAdd(FKzWindowKey(MeshComp, this));
+	Elapsed += FrameDeltaTime;
+
+	const FRichCurve* Curve = SlowMotionCurve.GetRichCurveConst();
+	const float Amount = Curve && !Curve->IsEmpty() ? FMath::Clamp(Curve->Eval(Elapsed / Duration), 0.0f, 1.0f) : 1.0f;
+	TimeDilation->SetWorldDilation(this, MeshComp, FMath::Lerp(1.0f, MaxSlomoValue, Amount));
+}
+
+void UKzAnimNotifyState_SlowMotionWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyEnd(MeshComp, Animation, EventReference);
+
+	WindowTimes.Remove(FKzWindowKey(MeshComp, this));
+	UWorld* World = MeshComp ? MeshComp->GetWorld() : nullptr;
+	if (UKzTimeDilationSubsystem* TimeDilation = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr)
+	{
+		TimeDilation->ClearWorldDilation(this, MeshComp);
+	}
+}
+
+FString UKzAnimNotifyState_SlowMotionWindow::GetNotifyName_Implementation() const
+{
+	return FString::Printf(TEXT("Slow Motion %.1f"), MaxSlomoValue);
 }
 
 UKzAnimNotifyState_InputBlockWindow::UKzAnimNotifyState_InputBlockWindow()

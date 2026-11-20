@@ -257,6 +257,28 @@ public:
 	virtual FString GetNotifyName_Implementation() const override;
 };
 
+/** While it lasts, the whole game slows down along its curve, the camera aside, such as to linger on a finishing blow. Only in game. */
+UCLASS(meta = (DisplayName = "Slow Motion Window"))
+class KZGAMEPLAY_API UKzAnimNotifyState_SlowMotionWindow : public UKzAnimationNotifyState
+{
+	GENERATED_BODY()
+
+public:
+	UKzAnimNotifyState_SlowMotionWindow();
+
+	/** How much it slows the game along the window, X from 0 to 1 through it: Y 1 down to Max Slomo Value, 0 not at all. Without keys, all the way. */
+	UPROPERTY(EditAnywhere, Category = "Slow Motion Window")
+	FRuntimeFloatCurve SlowMotionCurve;
+
+	/** The game's speed where the curve reaches 1. Not below 0.1: the window runs on its animation's time, which slows down with the game. */
+	UPROPERTY(EditAnywhere, Category = "Slow Motion Window", meta = (ClampMin = "0.1", ClampMax = "1"))
+	float MaxSlomoValue = 0.3f;
+
+	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
+	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;
+	virtual FString GetNotifyName_Implementation() const override;
+};
+
 /** While it lasts, the mesh's owner ignores these inputs, such as Input.Move so an attack neither steers nor turns. Facing a target and warping still move it. */
 UCLASS(meta = (DisplayName = "Input Block Window"))
 class KZGAMEPLAY_API UKzAnimNotifyState_InputBlockWindow : public UKzAnimationNotifyState

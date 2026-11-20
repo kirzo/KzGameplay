@@ -4,11 +4,6 @@
 #include "Combat/KzCombatTags.h"
 #include "Items/Fragments/KzItemFragment_Equippable.h"
 
-UKzItemFragment_Defense::UKzItemFragment_Defense()
-{
-	ParrySlow.Curve.EditorCurveData.AddKey(0.0f, 0.3f);
-}
-
 void UKzItemFragment_Defense::GetRequiredFragments(TArray<TSubclassOf<UKzItemFragment>>& OutRequired) const
 {
 	OutRequired.Add(UKzItemFragment_Equippable::StaticClass());

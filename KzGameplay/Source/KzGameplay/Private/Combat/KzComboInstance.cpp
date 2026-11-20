@@ -10,7 +10,7 @@
 #include "Combat/KzCombatTags.h"
 #include "Combat/KzComboGraph.h"
 #include "Combat/KzComboNodes.h"
-#include "Combat/KzTimeDilationSubsystem.h"
+#include "Combat/KzTimeStop.h"
 #include "Components/KzShapeComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/World.h"
@@ -24,6 +24,7 @@
 #include "KzDrawDebugHelpers.h"
 #include "Kismet/KzSystemLibrary.h"
 #include "Math/Geometry/Shapes/KzBox.h"
+#include "Misc/ScopeExit.h"
 #include "Scoring/KzTargetScoringLibrary.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Sensors/KzSensorTags.h"
@@ -195,6 +196,7 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 
 	Play = NewPlay;
 	Node = NodeIndex;
+	AttackPlays++;
 	bHit = false;
 	CloseComboWindows();
 	HitWindows = 0;
@@ -362,6 +364,15 @@ void UKzComboInstance::SweepHitboxes()
 	const FKzHitDirection Direction = Window ? Window->Direction : FKzHitDirection();
 
 	const int32 Playing = Node;
+
+	// Time stops once the damage is in, to know who died, and for all this sweep hits at once: one impact.
+	const int32 AttackPlay = AttackPlays;
+	TArray<FKzComboHit, TInlineAllocator<4>> Impact;
+	ON_SCOPE_EXIT
+	{
+		StopTime(*Attack, AttackPlay, Impact);
+	};
+
 	for (int32 Index = 0; Index < Attack->Hitboxes.Num() && PreviousParents.IsValidIndex(Index); ++Index)
 	{
 		const FKzComboHitbox& Hitbox = Attack->Hitboxes[Index];
@@ -416,14 +427,7 @@ void UKzComboInstance::SweepHitboxes()
 
 				HitActors.Add(HitActor);
 				bHit = true;
-				DilateTime(ComboHit, *HitActor);
-				// Super armor keeps the hit stop but not the shake, so the body holds steady through its action.
-				const UAbilitySystemComponent* HitASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
-				const bool bSuperArmor = HitASC && HitASC->HasMatchingGameplayTag(KzTags::Combat::State_SuperArmor);
-				if (ComboHit.Result == EKzHitResult::Hit && !bSuperArmor)
-				{
-					Attack->HitShake.Shake(HitActor, ComboHit.Direction, Attack->HitStop.Duration);
-				}
+				Impact.Add(ComboHit);
 				OnHit.Broadcast(ComboHit);
 
 				// Whoever heard it may have stopped the combo or chained another attack.
@@ -644,40 +648,90 @@ void UKzComboInstance::SetWarp(const UKzAnimationNotifyState* Notify, float Dura
 	}
 }
 
-void UKzComboInstance::DilateTime(const FKzComboHit& Hit, AActor& HitActor)
+void UKzComboInstance::StopTime(const FKzComboNode_Attack& Attack, int32 AttackPlay, TConstArrayView<FKzComboHit> Impact)
 {
-	const FKzComboNode_Attack* Attack = GetAttack();
-	if (!Attack)
+	if (Impact.IsEmpty())
 	{
 		return;
 	}
 
-	const UKzItemFragment_Defense* Defense = Hit.Defense.Item ? Hit.Defense.Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
-	const FKzHitStop* HitStop = nullptr;
-	switch (Hit.Result)
+	if (TimeStopsPlay != AttackPlay)
 	{
-	case EKzHitResult::Hit:
-		HitStop = &Attack->HitStop;
-		break;
-	case EKzHitResult::Blocked:
-	case EKzHitResult::GuardBroken:
-		HitStop = Defense ? &Defense->BlockHitStop : nullptr;
-		break;
-	case EKzHitResult::Parried:
-		HitStop = Defense ? &Defense->ParryHitStop : nullptr;
-		if (Defense)
-		{
-			Defense->ParrySlow.Apply(Context.User);
-		}
-		break;
-	default:
-		break;
+		TimeStopsPlay = AttackPlay;
+		FiredTimeStops.Reset();
 	}
 
-	if (HitStop)
+	// Against what earlier impacts set off, so one off Repeat In Attack still reaches all this one hits
+	TArray<const UKzTimeStop*, TInlineAllocator<4>> Fired;
+	auto CanFire = [this, &Fired](const UKzTimeStop* TimeStop)
 	{
-		HitStop->Apply(Context.User);
-		HitStop->Apply(&HitActor);
+		if (!TimeStop || (!TimeStop->bRepeatInAttack && FiredTimeStops.Contains(TimeStop)))
+		{
+			return false;
+		}
+		Fired.Add(TimeStop);
+		return true;
+	};
+	auto HoldHit = [this, &CanFire](const UKzHitStop* Asset, float HoldDuration, TConstArrayView<AActor*> Targets)
+	{
+		if (CanFire(Asset))
+		{
+			Asset->Apply(Context.User, Targets, HoldDuration);
+		}
+	};
+
+	TArray<AActor*, TInlineAllocator<4>> Receivers;
+	bool bKilled = false;
+	for (const FKzComboHit& Hit : Impact)
+	{
+		AActor* HitActor = Hit.Hit.GetActor();
+		const UKzItemFragment_Defense* Defense = Hit.Defense.Item ? Hit.Defense.Item->FindFragmentByClass<UKzItemFragment_Defense>() : nullptr;
+		switch (Hit.Result)
+		{
+		case EKzHitResult::Hit:
+		{
+			Receivers.Add(HitActor);
+			const UAbilitySystemComponent* ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HitActor);
+			bKilled |= ASC && ASC->HasMatchingGameplayTag(KzTags::Combat::State_Dead);
+			break;
+		}
+		case EKzHitResult::Blocked:
+		case EKzHitResult::GuardBroken:
+			if (Defense && Defense->BlockHitStop)
+			{
+				HoldHit(Defense->BlockHitStop, Defense->BlockHitStop->Duration, MakeArrayView(&HitActor, 1));
+			}
+			break;
+		case EKzHitResult::Parried:
+			if (Defense && Defense->ParryHitStop)
+			{
+				HoldHit(Defense->ParryHitStop, Defense->ParryHitStop->Duration, MakeArrayView(&HitActor, 1));
+			}
+			if (Defense && Defense->ParrySlow)
+			{
+				HoldHit(Defense->ParrySlow, Defense->ParrySlow->Duration, MakeArrayView(&HitActor, 1));
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (!Receivers.IsEmpty())
+	{
+		const FKzHitStopSlot& HitStop = bKilled && Attack.HitStopOnKill.HitStop ? Attack.HitStopOnKill : Attack.HitStopOnHit;
+		HoldHit(HitStop.HitStop, HitStop.GetDuration(), Receivers);
+
+		const FKzSlowMotionSlot& SlowMotion = bKilled && Attack.SlowMotionOnKill.SlowMotion ? Attack.SlowMotionOnKill : Attack.SlowMotionOnHit;
+		if (CanFire(SlowMotion.SlowMotion))
+		{
+			SlowMotion.SlowMotion->Apply(Context.User, SlowMotion.GetDuration());
+		}
+	}
+
+	for (const UKzTimeStop* TimeStop : Fired)
+	{
+		FiredTimeStops.Add(TimeStop);
 	}
 }
 

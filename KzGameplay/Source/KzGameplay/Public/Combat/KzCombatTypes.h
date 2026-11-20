@@ -5,13 +5,9 @@
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "Combat/KzCombatTags.h"
-#include "Curves/CurveFloat.h"
 #include "Engine/HitResult.h"
 #include "GameplayTagContainer.h"
-#include "Serialization/StructuredArchive.h"
 #include "KzCombatTypes.generated.h"
-
-struct FPropertyTag;
 
 class UKzItemDefinition;
 class USceneComponent;
@@ -101,84 +97,6 @@ struct TStructOpsTypeTraits<FKzHitDirection> : public TStructOpsTypeTraitsBase2<
 	enum
 	{
 		WithPostSerialize = true
-	};
-};
-
-/** A freeze of both sides of a hit, or a slowdown, which can let go of them along a curve rather than all at once. */
-USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzHitStop
-{
-	GENERATED_BODY()
-
-	FKzHitStop() = default;
-
-	explicit FKzHitStop(float InDuration)
-		: Duration(InDuration)
-	{
-	}
-
-	/** How long it lasts, in the world's time; zero has none. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Stop", meta = (ClampMin = "0", Units = "Seconds"))
-	float Duration = 0.0f;
-
-	/**
-	 * How fast those it holds move along it: X from 0 to 1 through the Hit Stop, Y from 0, frozen, to 1, their own speed. Such as 0 most of the way
-	 * and then rising to 1, so they come back to speed. Without keys, Kz Combat's Hit Stop Curve, and without one either, frozen to the end.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Stop")
-	FRuntimeFloatCurve Curve;
-
-	/** Holds Actor for Duration along its curve. */
-	void Apply(AActor* Actor) const;
-
-	/** Hit stops were floats, the duration alone: they load into Duration. */
-	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
-};
-
-template<>
-struct TStructOpsTypeTraits<FKzHitStop> : public TStructOpsTypeTraitsBase2<FKzHitStop>
-{
-	enum
-	{
-		WithStructuredSerializeFromMismatchedTag = true
-	};
-};
-
-/** How a hit shakes the target's mesh back and forth, fading out, around the attack's Hit Stop. */
-USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzHitShake
-{
-	GENERATED_BODY()
-
-	/** How far the mesh moves at first; zero does not shake it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Centimeters"))
-	float Amplitude = 0.0f;
-
-	/** When it starts, through the Hit Stop: 0 with the hit, 1 as the Hit Stop ends, 0.3 a third of the way in. Without Hit Stop, with the hit. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", ClampMax = "1"))
-	float Start = 0.0f;
-
-	/** How long it lasts; zero lasts as long as the Hit Stop. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Seconds"))
-	float Duration = 0.0f;
-
-	/** How many times a second it goes back and forth: low sways, high trembles. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hit Shake", meta = (ClampMin = "0", Units = "Hertz"))
-	float Frequency = 30.0f;
-
-	/** Shakes Target along Direction for a hit that froze it for HitStop. */
-	void Shake(AActor* Target, const FVector& Direction, float HitStop) const;
-
-	/** Hit Shake was a float, the amplitude alone: it loads into Amplitude. */
-	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
-};
-
-template<>
-struct TStructOpsTypeTraits<FKzHitShake> : public TStructOpsTypeTraitsBase2<FKzHitShake>
-{
-	enum
-	{
-		WithStructuredSerializeFromMismatchedTag = true
 	};
 };
 

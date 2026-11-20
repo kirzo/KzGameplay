@@ -2,10 +2,6 @@
 
 #include "Combat/KzCombatTypes.h"
 #include "Combat/KzCombatSettings.h"
-#include "Combat/KzMeshShakeSubsystem.h"
-#include "Combat/KzTimeDilationSubsystem.h"
-#include "Engine/World.h"
-#include "UObject/PropertyTag.h"
 
 const FVector* FKzHitDirection::FindPreset(const FGameplayTag& Tag)
 {
@@ -67,51 +63,4 @@ bool FKzHitReactionTargetData::NetSerialize(FArchive& Ar, UPackageMap* Map, bool
 	Ar << Direction;
 	Ar << Knockback;
 	return true;
-}
-
-void FKzHitShake::Shake(AActor* Target, const FVector& Direction, float HitStop) const
-{
-	UKzMeshShakeSubsystem::ShakeMesh(Target, Direction, Amplitude, Duration > 0.0f ? Duration : HitStop, Frequency, Start * HitStop);
-}
-
-bool FKzHitShake::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
-{
-	if (Tag.Type == NAME_FloatProperty)
-	{
-		Slot << Amplitude;
-		return true;
-	}
-	return false;
-}
-
-void FKzHitStop::Apply(AActor* Actor) const
-{
-	UWorld* World = Actor ? Actor->GetWorld() : nullptr;
-	UKzTimeDilationSubsystem* TimeDilation = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
-	if (!TimeDilation || Duration <= 0.0f)
-	{
-		return;
-	}
-
-	const FRichCurve* Own = Curve.GetRichCurveConst();
-	const FRichCurve* Project = UKzCombatSettings::Get()->HitStopCurve.GetRichCurveConst();
-	const FRichCurve* Used = Own && !Own->IsEmpty() ? Own : Project && !Project->IsEmpty() ? Project : nullptr;
-	if (Used)
-	{
-		TimeDilation->DilateAlong(Actor, *Used, Duration);
-	}
-	else
-	{
-		TimeDilation->Dilate(Actor, 0.0f, Duration);
-	}
-}
-
-bool FKzHitStop::SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
-{
-	if (Tag.Type == NAME_FloatProperty)
-	{
-		Slot << Duration;
-		return true;
-	}
-	return false;
 }

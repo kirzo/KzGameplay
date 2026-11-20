@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/KzCombatTypes.h"
+#include "Combat/KzTimeStop.h"
 #include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
 #include "KzGraphNode.h"
@@ -230,17 +231,25 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (EditCondition = "bOverrideTargetShape", EditConditionHides))
 	FKzShapeInstance TargetShape = FKzShapeInstance::Make<FKzWedge>();
 
-	/** How long attacker and target freeze when it hits, and how they come back to speed. */
-	UPROPERTY(EditAnywhere, Category = "Impact")
-	FKzHitStop HitStop;
+	/** How attacker and target freeze when it hits. */
+	UPROPERTY(EditAnywhere, Category = "Hit Stop", meta = (DisplayName = "On Hit"))
+	FKzHitStopSlot HitStopOnHit;
 
-	/** How the target's mesh shakes along the hit: how far, when through the Hit Stop, how long and how fast. */
-	UPROPERTY(EditAnywhere, Category = "Impact")
-	FKzHitShake HitShake;
+	/** Takes On Hit's place when it kills anyone it hits in that instant. Without one, On Hit's still plays. */
+	UPROPERTY(EditAnywhere, Category = "Hit Stop", meta = (DisplayName = "On Kill"))
+	FKzHitStopSlot HitStopOnKill;
+
+	/** How the whole game slows down when it hits. */
+	UPROPERTY(EditAnywhere, Category = "Slow Motion", meta = (DisplayName = "On Hit"))
+	FKzSlowMotionSlot SlowMotionOnHit;
+
+	/** Takes On Hit's place when it kills anyone it hits in that instant. Without one, On Hit's still plays. */
+	UPROPERTY(EditAnywhere, Category = "Slow Motion", meta = (DisplayName = "On Kill"))
+	FKzSlowMotionSlot SlowMotionOnKill;
 
 	/**
-	 * Executed on the target when it hits, at the impact and with the surface hit: particles and sound, and the camera shake and rumble of a
-	 * player taking the blow.
+	 * Executed on the target when it hits, at the impact and with the surface hit: particles and sound, a Kz Burst's mesh shake, and the camera
+	 * shake and rumble of a player taking the blow.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Impact", meta = (Categories = "GameplayCue"))
 	FGameplayTag ImpactCue;

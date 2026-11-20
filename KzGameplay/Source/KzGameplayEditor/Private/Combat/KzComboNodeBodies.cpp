@@ -260,10 +260,17 @@ namespace
 		{
 			AddChip(FText::FromName(Tag.GetTagLeafName()));
 		}
-		if (Attack->HitStop.Duration > 0.0f)
+		auto AddTimeStopChip = [&AddChip](const FText& Format, const UKzTimeStop* Stop, float Duration)
 		{
-			AddChip(FText::Format(LOCTEXT("HitStop", "Hit stop {0} s"), FText::AsNumber(Attack->HitStop.Duration)));
-		}
+			if (Stop && Duration > 0.0f)
+			{
+				AddChip(FText::Format(Format, FText::AsNumber(Duration)), ChipTextColor, FText::FromString(Stop->GetName()));
+			}
+		};
+		AddTimeStopChip(LOCTEXT("HitStop", "Hit stop {0} s"), Attack->HitStopOnHit.HitStop, Attack->HitStopOnHit.GetDuration());
+		AddTimeStopChip(LOCTEXT("KillHitStop", "Kill: hit stop {0} s"), Attack->HitStopOnKill.HitStop, Attack->HitStopOnKill.GetDuration());
+		AddTimeStopChip(LOCTEXT("SlowMotion", "Slow motion {0} s"), Attack->SlowMotionOnHit.SlowMotion, Attack->SlowMotionOnHit.GetDuration());
+		AddTimeStopChip(LOCTEXT("KillSlowMotion", "Kill: slow motion {0} s"), Attack->SlowMotionOnKill.SlowMotion, Attack->SlowMotionOnKill.GetDuration());
 		if (!Attack->bFaceTarget)
 		{
 			AddChip(LOCTEXT("NoFacing", "No turning"), ChipTextColor, LOCTEXT("NoFacingTip", "It does not turn to its target."));
