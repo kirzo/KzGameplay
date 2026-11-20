@@ -146,6 +146,13 @@ public:
 	FScriptableAction InteractionAction;
 
 	/**
+	 * Each interaction lasts as long as its own run of Interaction Action: it ends as Completed when the action finishes, and ending it
+	 * first stops the action. For an interaction that plays something, as a conversation or a cinematic. Makes the interaction Continuous.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	bool bEndWithInteractionAction = false;
+
+	/**
 	 * Runs while each interaction lasts, on every machine: a copy starts when it begins and is stopped when it ends, so a task kept running,
 	 * such as a held pose, lasts exactly as long and undoes itself.
 	 */

@@ -79,9 +79,10 @@ namespace
 	}
 
 	/** Runs a copy of Action for as long as Interaction lasts: its cleanup stops whatever the copy still runs. */
-	void RunWhileInteraction(const FScriptableAction& Action, UObject* Owner, const FScriptableContext& Context, const FKzInteraction& Interaction)
+	UScriptableActionRunner* RunWhileInteraction(const FScriptableAction& Action, UObject* Owner, const FScriptableContext& Context, const FKzInteraction& Interaction)
 	{
-		if (UScriptableActionRunner* Runner = RunInteractionCopy(Action, Owner, Context))
+		UScriptableActionRunner* Runner = RunInteractionCopy(Action, Owner, Context);
+		if (Runner)
 		{
 			TWeakObjectPtr<UScriptableActionRunner> WeakRunner(Runner);
 			Interaction.AddCleanup([WeakRunner]
@@ -92,6 +93,7 @@ namespace
 				}
 			});
 		}
+		return Runner;
 	}
 }
 
@@ -525,7 +527,7 @@ EKzInteractionResult UKzInteractableComponent::EvaluateInteractionResult(UKzInte
 	if (!Interactor) return EKzInteractionResult::Ignored;
 
 	// Continuous > Completed > Ignored: a handler can raise the answer, never lower it
-	EKzInteractionResult FinalResult = DefaultInteractionResult;
+	EKzInteractionResult FinalResult = bEndWithInteractionAction ? EKzInteractionResult::Continuous : DefaultInteractionResult;
 	ForEachHandler([this, Interactor, &FinalResult](UObject* Handler)
 	{
 		const EKzInteractionResult Result = IKzInteractableInterface::Execute_GetInteractionResult(Handler, Interactor, this);
@@ -549,8 +551,11 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 
 	OnInteract.Broadcast(Interactor);
 
-	KzInteraction::FillContext(InteractionAction, Interactor, this);
-	InteractionAction.Run(this);
+	if (!bEndWithInteractionAction)
+	{
+		KzInteraction::FillContext(InteractionAction, Interactor, this);
+		InteractionAction.Run(this);
+	}
 
 	// Ours first, then our groups': copies, since a group's are shared by all its members
 	const FScriptableContext Context = KzInteraction::MakeContext(Interactor, this);
@@ -561,6 +566,26 @@ void UKzInteractableComponent::NotifyInteractionBegun(UKzInteractorComponent* In
 		{
 			RunInteractionCopy(Resolved->InteractionAction, Resolved, Context);
 			RunWhileInteraction(Resolved->WhileAction, Resolved, Context, Interaction);
+		}
+	}
+
+	// Last, so an action that ends at once ends an interaction whose while actions are already running
+	if (bEndWithInteractionAction)
+	{
+		UScriptableActionRunner* Runner = RunWhileInteraction(InteractionAction, this, Context, Interaction);
+		UKzInteractionSubsystem* Subsystem = GetWorld() ? GetWorld()->GetSubsystem<UKzInteractionSubsystem>() : nullptr;
+		if (Subsystem && Subsystem->HasInteractionAuthority())
+		{
+			// Ending it first stops the action, which finishes it, and ending twice does nothing
+			const FKzInteractionHandle Handle = Interaction.Handle;
+			if (Runner && Runner->IsRunning())
+			{
+				Runner->OnFinishedNative.AddWeakLambda(Subsystem, [Subsystem, Handle] { Subsystem->EndInteraction(Handle, EKzInteractionEndReason::Completed); });
+			}
+			else
+			{
+				Subsystem->EndInteraction(Handle, EKzInteractionEndReason::Completed);
+			}
 		}
 	}
 }
