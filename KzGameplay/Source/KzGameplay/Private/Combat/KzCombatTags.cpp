@@ -14,6 +14,10 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Reacting, "State.Reacting", "Playing a hit reaction, from the hit until it ends.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Combo_Window, "Combo.Window", "Root of the names of Combo Windows, which Switch on Window leads by. The attacker has the name while its window is open.");
 
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Kind, "Ability.Kind", "Root of the kinds of action an ability can be, in its Asset Tags, for Cancelable By lists to name them rather than single abilities.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Kind_Attack, "Ability.Kind.Attack", "An ability that attacks, such as a combo.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Ability_Kind_Defense, "Ability.Kind.Defense", "An ability that defends, such as a dodge, a block or a parry.");
+
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Unblockable, "Attack.Unblockable", "Neither blocked nor parried.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Undodgeable, "Attack.Undodgeable", "Hits through State.Invulnerable.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_GuardBreak, "Attack.GuardBreak", "Breaks a block: Reaction.GuardBreak instead of Reaction.Block.");
