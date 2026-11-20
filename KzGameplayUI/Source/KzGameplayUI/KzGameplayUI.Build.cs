@@ -27,7 +27,8 @@ public class KzGameplayUI : ModuleRules
 				"EnhancedInput",
 				"InputCore",
 				"KzGameplay",
-				"KzLib"
+				"KzLib",
+				"SlateCore"
 			}
 			);
 	}

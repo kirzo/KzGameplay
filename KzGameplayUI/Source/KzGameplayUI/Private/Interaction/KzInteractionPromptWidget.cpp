@@ -106,6 +106,14 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 			}
 		}
 		OnPromptChanged(Focus, bAvailable, Focus ? InteractorComponent->GetFocusUnavailableReason() : FGameplayTag());
+
+		// This tick runs mid-paint: unmeasured, Prompt would be laid out this frame with the size of its last content, or none
+		const TSharedPtr<SWidget> PromptWidget = Prompt->GetCachedWidget();
+		if (bShow && PromptWidget)
+		{
+			PromptWidget->MarkPrepassAsDirty();
+			PromptWidget->SlatePrepass(MyGeometry.Scale);
+		}
 	}
 
 	FVector2D Position;
