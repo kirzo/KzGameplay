@@ -80,6 +80,12 @@ public:
 	FGameplayTagContainer GetBoundInputTags() const;
 
 	/**
+	 * Whether a press this ability couldn't take may be kept for a Cancel or Combo Window to try again. An ability with nothing to act on
+	 * at the press says no: tried later, the press would act on what came after it.
+	 */
+	virtual bool CanKeepInput(const FGameplayAbilityActorInfo* ActorInfo) const { return true; }
+
+	/**
 	 * Whether an input is being held right now, for abilities that poll instead of waiting on a task.
 	 * Takes a tag because an ability may bind several, and reports the input itself: it answers the same
 	 * whether or not this ability binds it.

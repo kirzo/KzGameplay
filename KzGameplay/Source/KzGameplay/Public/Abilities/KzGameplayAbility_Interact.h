@@ -21,6 +21,9 @@ class KZGAMEPLAY_API UKzGameplayAbility_Interact : public UKzGameplayAbility
 public:
 	UKzGameplayAbility_Interact();
 
+	/** Only with a focus: a press with nothing to interact with, kept, would pick up whatever came into focus later, as during a dodge. */
+	virtual bool CanKeepInput(const FGameplayAbilityActorInfo* ActorInfo) const override;
+
 protected:
 	virtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const override;
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;

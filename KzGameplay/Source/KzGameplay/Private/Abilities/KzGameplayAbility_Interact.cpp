@@ -16,6 +16,12 @@ UKzGameplayAbility_Interact::UKzGameplayAbility_Interact()
 	InputBindings.Add(Binding);
 }
 
+bool UKzGameplayAbility_Interact::CanKeepInput(const FGameplayAbilityActorInfo* ActorInfo) const
+{
+	const UKzInteractorComponent* Interactor = GetInteractor(ActorInfo);
+	return Interactor && Interactor->GetCurrentFocus();
+}
+
 bool UKzGameplayAbility_Interact::CanActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags, const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const
 {
 	const UKzInteractorComponent* Interactor = GetInteractor(ActorInfo);

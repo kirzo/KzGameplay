@@ -92,7 +92,7 @@ bool UKzAbilitySystemComponent::ActivateFromInput(const FGameplayTag& InputTag, 
 			}
 			else if (Policy == EKzAbilityInputPolicy::ActivateAndListen && !Spec.IsActive())
 			{
-				bOutTried = true;
+				bOutTried |= KzAbility->CanKeepInput(AbilityActorInfo.Get());
 				bActivated |= TryActivateAbility(Spec.Handle);
 			}
 		}
