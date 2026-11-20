@@ -49,7 +49,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> PromptText;
 
-	/** Hidden while the prompt shows something only nearby, keeping its space so nothing moves when it gets focused. */
+	/** Collapsed while the prompt shows something only nearby, so what shows is centered on the interactable. */
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction", meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> Keys;
 

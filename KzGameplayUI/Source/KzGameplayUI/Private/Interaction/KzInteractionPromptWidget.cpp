@@ -103,7 +103,7 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 		}
 		if (Keys)
 		{
-			Keys->SetVisibility(bNearby ? ESlateVisibility::Hidden : KeysVisibility);
+			Keys->SetVisibility(bNearby ? ESlateVisibility::Collapsed : KeysVisibility);
 		}
 
 		if (bShow != bPromptShown)
