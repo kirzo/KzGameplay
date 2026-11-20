@@ -244,8 +244,8 @@ void UKzInteractorComponent::UpdateNearby(const UKzInteractionSubsystem& Subsyst
 		{
 			NowNearby.Add(Candidate);
 
-			// Scored only while nothing is focused, the only time it is shown
-			if (!CurrentFocus.IsValid())
+			// Scored only while nothing is focused, the only time it is shown, and only if it has something to show
+			if (!CurrentFocus.IsValid() && Candidate->ShowsNearbyPrompt())
 			{
 				const float Score = ScoreCandidate(Candidate);
 				if (Score > BestScore)

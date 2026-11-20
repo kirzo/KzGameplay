@@ -147,7 +147,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	TArray<UKzInteractableComponent*> GetNearbyInteractables() const;
 
-	/** The best of them by the Scoring Profile while nothing is focused, null otherwise: what a prompt shows before anything can be used. */
+	/** The best of them with a nearby prompt, by the Scoring Profile, while nothing is focused, null otherwise: what a prompt shows before anything can be used. */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UKzInteractableComponent* GetNearbyFocus() const { return NearbyFocus.Get(); }
 

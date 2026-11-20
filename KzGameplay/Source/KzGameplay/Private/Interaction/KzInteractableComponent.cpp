@@ -300,6 +300,16 @@ bool UKzInteractableComponent::GetAvailability(UKzInteractorComponent* Interacto
 
 FText UKzInteractableComponent::GetPromptText(UKzInteractorComponent* Interactor) const
 {
+	return FormatPrompt(PromptText, Interactor);
+}
+
+FText UKzInteractableComponent::GetNearbyPromptText(UKzInteractorComponent* Interactor) const
+{
+	return FormatPrompt(GetNearbyPromptSource(), Interactor);
+}
+
+FText UKzInteractableComponent::FormatPrompt(const FText& Source, UKzInteractorComponent* Interactor) const
+{
 	FFormatNamedArguments Arguments;
 	UKzInteractableComponent* MutableThis = const_cast<UKzInteractableComponent*>(this);
 	ForEachHandler([Interactor, MutableThis, &Arguments](UObject* Handler)
@@ -311,7 +321,7 @@ FText UKzInteractableComponent::GetPromptText(UKzInteractorComponent* Interactor
 			return true;
 		});
 
-	return Arguments.IsEmpty() ? PromptText : FText::Format(FTextFormat(PromptText), Arguments);
+	return Arguments.IsEmpty() ? Source : FText::Format(FTextFormat(Source), Arguments);
 }
 
 const FKzInteractionAction* UKzInteractableComponent::FindAction(FGameplayTag InputTag) const

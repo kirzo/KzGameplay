@@ -85,6 +85,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (ClampMin = "0", Units = "Centimeters"))
 	float NearbyMargin = 0.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (InlineEditConditionToggle))
+	bool bOverrideNearbyPromptText = false;
+
+	/**
+	 * What a prompt shows while an interactor is only nearby, greyed and without keys, with the same {Arguments} as Prompt Text: words, an
+	 * icon of the theme as {Bonfire}, or both. Empty, no prompt shows until this is focused. Off, Prompt Text shows.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (EditCondition = "bOverrideNearbyPromptText"))
+	FText NearbyPromptText;
+
 	/**
 	 * The maximum number of simultaneous interactors allowed.
 	 * 1 = Single user (Default). 0 or less = Unlimited interactors.
@@ -252,6 +262,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	FText GetPromptText(UKzInteractorComponent* Interactor) const;
 
+	/** The same for what a prompt shows while the interactor is only nearby: Nearby Prompt Text if overridden, Prompt Text otherwise. */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	FText GetNearbyPromptText(UKzInteractorComponent* Interactor) const;
+
+	/** The unformatted text a prompt shows while only nearby. */
+	const FText& GetNearbyPromptSource() const { return bOverrideNearbyPromptText ? NearbyPromptText : PromptText; }
+
+	/** Whether a prompt shows anything while the interactor is only nearby. */
+	bool ShowsNearbyPrompt() const { return !GetNearbyPromptSource().IsEmpty(); }
+
 	/** The action fired by an input, or null if this interactable offers none for it. */
 	const FKzInteractionAction* FindAction(FGameplayTag InputTag) const;
 
@@ -325,6 +345,9 @@ public:
 	void StopAllInteractions(EKzInteractionEndReason Reason = EKzInteractionEndReason::Interrupted);
 
 private:
+	/** Source with the arguments the owner and sibling handlers give it. */
+	FText FormatPrompt(const FText& Source, UKzInteractorComponent* Interactor) const;
+
 	/** When each instigator last ran each action, for cooldowns: several at once each keep their own pace. */
 	TMap<TPair<TWeakObjectPtr<UKzInteractorComponent>, FGameplayTag>, double> LastActionTimes;
 

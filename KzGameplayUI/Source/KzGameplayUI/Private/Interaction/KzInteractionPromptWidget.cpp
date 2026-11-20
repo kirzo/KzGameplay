@@ -80,11 +80,12 @@ void UKzInteractionPromptWidget::NativeTick(const FGeometry& MyGeometry, float I
 	const bool bAvailable = Focus ? InteractorComponent->IsFocusAvailable() : !bNearby;
 	const bool bFocusChanged = Target != Shown.Get() || bShow != bPromptShown || bNearby != bShownNearby;
 
-	// On every new target, even if empty, and when Prompt Text changes; formatting with the arguments only then, not every frame
-	if (Target && PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(Target->PromptText)))
+	// On every new target, even if empty, and when its text changes; formatting with the arguments only then, not every frame
+	const FText* SourceText = Target ? (bNearby ? &Target->GetNearbyPromptSource() : &Target->PromptText) : nullptr;
+	if (SourceText && PromptText && (bFocusChanged || !ShownPromptText.IdenticalTo(*SourceText)))
 	{
-		ShownPromptText = Target->PromptText;
-		PromptText->SetText(Target->GetPromptText(InteractorComponent));
+		ShownPromptText = *SourceText;
+		PromptText->SetText(bNearby ? Target->GetNearbyPromptText(InteractorComponent) : Target->GetPromptText(InteractorComponent));
 	}
 
 	if (bFocusChanged || bAvailable != bShownAvailable)
