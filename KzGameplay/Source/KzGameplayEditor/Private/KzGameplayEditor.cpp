@@ -183,8 +183,8 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterAssetTypeAction<UKzComboGraph, FKzComboEditor>(KzAssetCategoryBit, INVTEXT("Combo"), FColor::FromHex("#C8553D"), { INVTEXT("Combat") });
 	RegisterAssetTypeAction<UKzCombatConfig>(KzAssetCategoryBit, INVTEXT("Combat Config"), FColor::FromHex("#E8893B"), { INVTEXT("Combat") });
 	RegisterAssetTypeAction<UKzAttackSet>(KzAssetCategoryBit, INVTEXT("Attack Set"), FColor::FromHex("#D9663F"), { INVTEXT("Combat") });
-	RegisterAssetTypeAction<UKzHitStop>(KzAssetCategoryBit, INVTEXT("Hit Stop"), FColor::FromHex("#E0A43A"), { INVTEXT("Combat") });
-	RegisterAssetTypeAction<UKzSlowMotion>(KzAssetCategoryBit, INVTEXT("Slow Motion"), FColor::FromHex("#6FA8C8"), { INVTEXT("Combat") });
+	RegisterAssetTypeAction<UKzHitStop>(KzAssetCategoryBit, INVTEXT("Hit Stop"), FColor::FromHex("#E3A23B"), { INVTEXT("Combat") });
+	RegisterAssetTypeAction<UKzSlowMotion>(KzAssetCategoryBit, INVTEXT("Slow Motion"), FColor::FromHex("#D98B4E"), { INVTEXT("Combat") });
 	RegisterAssetTypeAction<UKzLightingProfile>(KzAssetCategoryBit, INVTEXT("Lighting Profile"), FColor::FromHex("#F5C542"), { INVTEXT("Lighting") });
 	KzAnimationPreview::RegisterMontagePreview();
 	KzComboNodeBodies::Register();
