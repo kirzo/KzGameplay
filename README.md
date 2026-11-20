@@ -36,7 +36,7 @@ This plugin relies on the following custom modules to function:
 Integrations with other plugins live in this repository next to KzGameplay, each as its own plugin and disabled by default, so KzGameplay never depends on them. Enable the ones you need in **Edit -> Plugins**:
 
 * **KzGameplay - Limbic Integration** (`KzGameplayLimbic`): requires **[Limbic](https://github.com/kirzo/Limbic)**. Adds the *Limbic Pose* item fragment, which holds a Limbic pose while the item is equipped.
-* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn, `KzInputKeysWidget`, a row with the keys an input tag needs (the ones its chords hold, then its own), each on its own or, in the Diamond style, the face buttons lit together in the face-button diamond, `KzInteractionPromptWidget`, a prompt for the interactable the player's interactor focuses, placed over it or at a fixed point of the screen, and `KzAttributeBarWidget`, a bar for a gameplay attribute of the player's pawn over its maximum, such as health.
+* **KzGameplay - KzUI Integration** (`KzGameplayUI`): requires **[KzUI](https://github.com/kirzo/KzUI)**. Adds the *Input Tag* icon source and `{Input.Tag}` text tokens, which show the key of the action an input tag fires for the player right now, through the input profiles of their pawn, `KzInputKeysWidget`, a row with the keys an input tag needs (the ones its chords hold, then its own), each on its own or, in the Diamond style, the face buttons lit together in the face-button diamond, `KzInteractionPromptWidget`, a prompt for the interactable the player's interactor focuses, placed over it or at a fixed point of the screen, and `KzAttributeBarWidget`, a bar for a gameplay attribute of the player's pawn over its maximum, such as health. It also hides on a `KzHUD` the *Hidden UI Layers* of a player's cinematic mode.
 
 ## 🌟 Core Systems
 
@@ -60,6 +60,13 @@ A highly optimized interaction system powered by a dual Spatial Hash Grid.
 * **Prompt Arguments:** A Prompt Text such as `Pick up {Item}` is filled by the interactable's handlers through `GetPromptArguments`; an item fills `{Item}` with its Display Name.
 * **Nearby:** an interactable with a *Nearby Margin* tells an interactor it is near enough to notice before it can be used, through *On Begin Nearby* and *On End Nearby*: an icon over someone to talk to, shown at a distance, while the prompt waits for the shape itself.
 * **Shared Keys:** Interaction can share a key with another action, such as dodge. The *Yield To Interaction* trigger on that action's mapping hands the key to interaction for presses that begin with something focused; neither action may consume input.
+
+### 🎬 Cinematic Mode
+What a cinematic or a conversation takes away from gameplay while it lasts, per player.
+
+* **Push / Remove Cinematic Mode:** requests come by source and add up, so a conversation that hides the HUD and a sequence inside it that hides the player both hold. When the last one goes, everything is back as it was, and what was already hidden or off before stays so.
+* **Settings:** *Hide Player* hides the pawn and every actor attached to it, such as its equipment, pauses their animation (so notify sounds such as breathing stop) and sounds, and turns their collision off. *Block Input* takes the gameplay input from the pawn and stops it; UI input keeps working. *Hidden UI Layers* names UI layers for a UI that hides them (the KzUI integration does, on a `KzHUD`).
+* **Cinematic Mode task:** keeps the mode while it runs and takes it back when stopped, for an interactable's *While Action*: an interaction that plays a cinematic or a conversation holds it exactly as long.
 
 ### 🎒 Fragment-Based Inventory & Items
 A data-driven item architecture using `UPrimaryDataAsset` definitions and modular fragments.
