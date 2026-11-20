@@ -47,6 +47,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		{ TEXT("ScriptableTask_GrantItem"), TEXT("ItemDefinition") },
 		{ TEXT("ScriptableTask_LinkAnimLayers"), TEXT("AnimLayer") },
 		{ TEXT("ScriptableTask_LinkAnimLayerByQuery"), TEXT("AnimLayer") },
+		{ TEXT("ScriptableTask_CinematicMode"), TEXT("ScriptableTask_CinematicMode") },
 	};
 	for (const auto& Pair : ScriptableObjects)
 	{
