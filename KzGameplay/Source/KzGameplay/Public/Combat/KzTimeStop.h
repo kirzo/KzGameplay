@@ -84,38 +84,30 @@ public:
 	void Apply(const UObject* WorldContext, float InDuration) const;
 };
 
-/** A Hit Stop an attack sets off, with its own duration if it overrides the asset's. */
+/** The Hit Stop and the Slow Motion a hit sets off, each with its own duration if it overrides the asset's. */
 USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzHitStopSlot
+struct KZGAMEPLAY_API FKzTimeStops
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hit Stop")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (DisplayThumbnail = "false"))
 	TObjectPtr<const UKzHitStop> HitStop;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hit Stop", meta = (InlineEditConditionToggle))
-	bool bOverrideDuration = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (InlineEditConditionToggle))
+	bool bOverrideHitStopDuration = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hit Stop", meta = (EditCondition = "bOverrideDuration", ClampMin = "0", Units = "Seconds"))
-	float Duration = 0.1f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (EditCondition = "bOverrideHitStopDuration", ClampMin = "0", Units = "Seconds"))
+	float HitStopDuration = 0.1f;
 
-	float GetDuration() const { return bOverrideDuration ? Duration : HitStop ? HitStop->Duration : 0.0f; }
-};
-
-/** A Slow Motion an attack sets off, with its own duration if it overrides the asset's. */
-USTRUCT(BlueprintType)
-struct KZGAMEPLAY_API FKzSlowMotionSlot
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slow Motion")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (DisplayThumbnail = "false"))
 	TObjectPtr<const UKzSlowMotion> SlowMotion;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slow Motion", meta = (InlineEditConditionToggle))
-	bool bOverrideDuration = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (InlineEditConditionToggle))
+	bool bOverrideSlowMotionDuration = false;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slow Motion", meta = (EditCondition = "bOverrideDuration", ClampMin = "0", Units = "Seconds"))
-	float Duration = 0.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop", meta = (EditCondition = "bOverrideSlowMotionDuration", ClampMin = "0", Units = "Seconds"))
+	float SlowMotionDuration = 0.5f;
 
-	float GetDuration() const { return bOverrideDuration ? Duration : SlowMotion ? SlowMotion->Duration : 0.0f; }
+	float GetHitStopDuration() const { return bOverrideHitStopDuration ? HitStopDuration : HitStop ? HitStop->Duration : 0.0f; }
+	float GetSlowMotionDuration() const { return bOverrideSlowMotionDuration ? SlowMotionDuration : SlowMotion ? SlowMotion->Duration : 0.0f; }
 };

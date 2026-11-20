@@ -267,10 +267,10 @@ namespace
 				AddChip(FText::Format(Format, FText::AsNumber(Duration)), ChipTextColor, FText::FromString(Stop->GetName()));
 			}
 		};
-		AddTimeStopChip(LOCTEXT("HitStop", "Hit stop {0} s"), Attack->HitStopOnHit.HitStop, Attack->HitStopOnHit.GetDuration());
-		AddTimeStopChip(LOCTEXT("KillHitStop", "Kill: hit stop {0} s"), Attack->HitStopOnKill.HitStop, Attack->HitStopOnKill.GetDuration());
-		AddTimeStopChip(LOCTEXT("SlowMotion", "Slow motion {0} s"), Attack->SlowMotionOnHit.SlowMotion, Attack->SlowMotionOnHit.GetDuration());
-		AddTimeStopChip(LOCTEXT("KillSlowMotion", "Kill: slow motion {0} s"), Attack->SlowMotionOnKill.SlowMotion, Attack->SlowMotionOnKill.GetDuration());
+		AddTimeStopChip(LOCTEXT("HitStop", "Hit stop {0} s"), Attack->OnHit.HitStop, Attack->OnHit.GetHitStopDuration());
+		AddTimeStopChip(LOCTEXT("SlowMotion", "Slow motion {0} s"), Attack->OnHit.SlowMotion, Attack->OnHit.GetSlowMotionDuration());
+		AddTimeStopChip(LOCTEXT("KillHitStop", "Kill: hit stop {0} s"), Attack->OnKill.HitStop, Attack->OnKill.GetHitStopDuration());
+		AddTimeStopChip(LOCTEXT("KillSlowMotion", "Kill: slow motion {0} s"), Attack->OnKill.SlowMotion, Attack->OnKill.GetSlowMotionDuration());
 		if (!Attack->bFaceTarget)
 		{
 			AddChip(LOCTEXT("NoFacing", "No turning"), ChipTextColor, LOCTEXT("NoFacingTip", "It does not turn to its target."));

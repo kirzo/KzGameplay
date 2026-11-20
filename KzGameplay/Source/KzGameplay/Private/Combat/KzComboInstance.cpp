@@ -719,13 +719,14 @@ void UKzComboInstance::StopTime(const FKzComboNode_Attack& Attack, int32 AttackP
 
 	if (!Receivers.IsEmpty())
 	{
-		const FKzHitStopSlot& HitStop = bKilled && Attack.HitStopOnKill.HitStop ? Attack.HitStopOnKill : Attack.HitStopOnHit;
-		HoldHit(HitStop.HitStop, HitStop.GetDuration(), Receivers);
+		// On Kill's take the place of On Hit's one by one, those it has
+		const FKzTimeStops& HitStops = bKilled && Attack.OnKill.HitStop ? Attack.OnKill : Attack.OnHit;
+		HoldHit(HitStops.HitStop, HitStops.GetHitStopDuration(), Receivers);
 
-		const FKzSlowMotionSlot& SlowMotion = bKilled && Attack.SlowMotionOnKill.SlowMotion ? Attack.SlowMotionOnKill : Attack.SlowMotionOnHit;
-		if (CanFire(SlowMotion.SlowMotion))
+		const FKzTimeStops& SlowMotions = bKilled && Attack.OnKill.SlowMotion ? Attack.OnKill : Attack.OnHit;
+		if (CanFire(SlowMotions.SlowMotion))
 		{
-			SlowMotion.SlowMotion->Apply(Context.User, SlowMotion.GetDuration());
+			SlowMotions.SlowMotion->Apply(Context.User, SlowMotions.GetSlowMotionDuration());
 		}
 	}
 

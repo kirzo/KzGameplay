@@ -231,21 +231,13 @@ struct KZGAMEPLAY_API FKzComboNode_Attack : public FKzComboNode
 	UPROPERTY(EditAnywhere, Category = "Targeting", meta = (EditCondition = "bOverrideTargetShape", EditConditionHides))
 	FKzShapeInstance TargetShape = FKzShapeInstance::Make<FKzWedge>();
 
-	/** How attacker and target freeze when it hits. */
-	UPROPERTY(EditAnywhere, Category = "Hit Stop", meta = (DisplayName = "On Hit"))
-	FKzHitStopSlot HitStopOnHit;
+	/** How attacker and target freeze, and the whole game slows down, when it hits. */
+	UPROPERTY(EditAnywhere, Category = "Time Stop")
+	FKzTimeStops OnHit;
 
-	/** Takes On Hit's place when it kills anyone it hits in that instant. Without one, On Hit's still plays. */
-	UPROPERTY(EditAnywhere, Category = "Hit Stop", meta = (DisplayName = "On Kill"))
-	FKzHitStopSlot HitStopOnKill;
-
-	/** How the whole game slows down when it hits. */
-	UPROPERTY(EditAnywhere, Category = "Slow Motion", meta = (DisplayName = "On Hit"))
-	FKzSlowMotionSlot SlowMotionOnHit;
-
-	/** Takes On Hit's place when it kills anyone it hits in that instant. Without one, On Hit's still plays. */
-	UPROPERTY(EditAnywhere, Category = "Slow Motion", meta = (DisplayName = "On Kill"))
-	FKzSlowMotionSlot SlowMotionOnKill;
+	/** When it kills anyone it hits in that instant, each one set here takes the place of On Hit's; the others, On Hit's still play. */
+	UPROPERTY(EditAnywhere, Category = "Time Stop")
+	FKzTimeStops OnKill;
 
 	/**
 	 * Executed on the target when it hits, at the impact and with the surface hit: particles and sound, a Kz Burst's mesh shake, and the camera
