@@ -491,10 +491,10 @@ void UKzAnimNotifyState_SlowMotionWindow::NotifyTick(USkeletalMeshComponent* Mes
 
 	// Only in game: a preview would slow its own editor world
 	UWorld* World = MeshComp ? MeshComp->GetWorld() : nullptr;
-	UKzTimeDilationSubsystem* TimeDilation = World && World->IsGameWorld() ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
+	UKzTimeDilationSubsystem* Subsystem = World && World->IsGameWorld() ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr;
 	const FAnimNotifyEvent* Event = EventReference.GetNotify();
 	const float Duration = Event ? Event->GetDuration() : 0.0f;
-	if (!TimeDilation || Duration <= 0.0f)
+	if (!Subsystem || Duration <= 0.0f)
 	{
 		return;
 	}
@@ -502,9 +502,11 @@ void UKzAnimNotifyState_SlowMotionWindow::NotifyTick(USkeletalMeshComponent* Mes
 	float& Elapsed = WindowTimes.FindOrAdd(FKzWindowKey(MeshComp, this));
 	Elapsed += FrameDeltaTime;
 
+	// Never quite frozen: the window would never reach its end
+	constexpr float MinWindowDilation = 0.1f;
 	const FRichCurve* Curve = SlowMotionCurve.GetRichCurveConst();
-	const float Amount = Curve && !Curve->IsEmpty() ? FMath::Clamp(Curve->Eval(Elapsed / Duration), 0.0f, 1.0f) : 1.0f;
-	TimeDilation->SetWorldDilation(this, MeshComp, FMath::Lerp(1.0f, MaxSlomoValue, Amount));
+	const float Dilation = Curve ? UKzTimeDilationSubsystem::Evaluate(*Curve, Elapsed / Duration, TimeDilation) : TimeDilation.Min;
+	Subsystem->SetWorldDilation(this, MeshComp, FMath::Max(Dilation, MinWindowDilation));
 }
 
 void UKzAnimNotifyState_SlowMotionWindow::NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference)
@@ -513,15 +515,15 @@ void UKzAnimNotifyState_SlowMotionWindow::NotifyEnd(USkeletalMeshComponent* Mesh
 
 	WindowTimes.Remove(FKzWindowKey(MeshComp, this));
 	UWorld* World = MeshComp ? MeshComp->GetWorld() : nullptr;
-	if (UKzTimeDilationSubsystem* TimeDilation = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr)
+	if (UKzTimeDilationSubsystem* Subsystem = World ? World->GetSubsystem<UKzTimeDilationSubsystem>() : nullptr)
 	{
-		TimeDilation->ClearWorldDilation(this, MeshComp);
+		Subsystem->ClearWorldDilation(this, MeshComp);
 	}
 }
 
 FString UKzAnimNotifyState_SlowMotionWindow::GetNotifyName_Implementation() const
 {
-	return FString::Printf(TEXT("Slow Motion %.1f"), MaxSlomoValue);
+	return FString::Printf(TEXT("Slow Motion %.1f-%.1f"), TimeDilation.Min, TimeDilation.Max);
 }
 
 UKzAnimNotifyState_InputBlockWindow::UKzAnimNotifyState_InputBlockWindow()

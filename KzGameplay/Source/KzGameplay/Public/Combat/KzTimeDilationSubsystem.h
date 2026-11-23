@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 #include "Curves/RichCurve.h"
 #include "GameplayTagContainer.h"
+#include "Math/Interval.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "UObject/ObjectKey.h"
 #include "KzTimeDilationSubsystem.generated.h"
 
+class UKzSlowMotion;
 class UKzTimeStop;
 
 /**
@@ -25,11 +27,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Time Dilation")
 	void Dilate(AActor* Actor, float Dilation, float Duration);
 
-	/** Holds Actor along Stop's curve for Duration of the world's time, after its delay. An ability with any of CancelableBy lets go of it. */
+	/**
+	 * Holds Actor along Stop's curve, from frozen at 0 to its own speed at 1, for Duration of the world's time, after its delay. An ability with any of
+	 * CancelableBy lets go of it.
+	 */
 	void Hold(AActor* Actor, const UKzTimeStop& Stop, float Duration, const FGameplayTagContainer& CancelableBy = FGameplayTagContainer());
 
-	/** Slows the whole world along Stop's curve for Duration of real time, after its delay, so the slowdown does not stretch itself. */
-	void HoldWorld(const UKzTimeStop& Stop, float Duration);
+	/**
+	 * Slows the whole world along SlowMotion's curve, from its Time Dilation's Min at 0 to its Max at 1, for Duration of real time, after its delay, so
+	 * the slowdown does not stretch itself.
+	 */
+	void HoldWorld(const UKzSlowMotion& SlowMotion, float Duration);
 
 	/** Slows the whole world to Dilation for as long as Source keeps it on Owner, such as an animation window on its mesh, until cleared. */
 	void SetWorldDilation(const UObject* Source, const UObject* Owner, float Dilation);
@@ -38,6 +46,9 @@ public:
 	/** Lets go of Actor's holds that an ability with AbilityTags cancels, as it activates. */
 	void Cancel(AActor* Actor, const FGameplayTagContainer& AbilityTags);
 
+	/** The speed Curve gives at Time: Range's Min at 0 and its Max at 1, kept within them. Without keys, the Min. */
+	static float Evaluate(const FRichCurve& Curve, float Time, const FFloatInterval& Range);
+
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 	virtual void Deinitialize() override;
@@ -45,10 +56,9 @@ public:
 private:
 	struct FRequest
 	{
-		/** For the whole of it, without curve keys. */
-		float Dilation = 1.0f;
+		/** The speeds the curve goes between, at 0 and at 1. Without curve keys, the first for the whole of it. */
+		FFloatInterval Range = FFloatInterval(1.0f, 1.0f);
 
-		/** How strongly it holds along the way, from 1, frozen, to 0, not at all; takes Dilation's place when it has keys. */
 		FRichCurve Curve;
 
 		float Duration = 0.0f;
@@ -72,7 +82,7 @@ private:
 		TArray<FRequest> Requests;
 	};
 
-	static FRequest MakeRequest(const UKzTimeStop& Stop, float Duration);
+	static FRequest MakeRequest(const UKzTimeStop& Stop, float Duration, const FFloatInterval& Range);
 
 	/** Counts Delta off each request, dropping those over. */
 	static void AdvanceRequests(TArray<FRequest>& Requests, float Delta);

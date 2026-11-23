@@ -23,14 +23,22 @@ void UKzTimeDilationSubsystem::AdvanceRequests(TArray<FRequest>& Requests, float
 	}
 }
 
+float UKzTimeDilationSubsystem::Evaluate(const FRichCurve& Curve, float Time, const FFloatInterval& Range)
+{
+	const float Low = FMath::Min(Range.Min, Range.Max);
+	const float High = FMath::Max(Range.Min, Range.Max);
+	const float Alpha = Curve.IsEmpty() ? 0.0f : Curve.Eval(Time);
+	return FMath::Clamp(FMath::Lerp(Range.Min, Range.Max, Alpha), Low, High);
+}
+
 float UKzTimeDilationSubsystem::FRequest::GetDilation() const
 {
 	if (DelayLeft > 0.0f)
 	{
 		return 1.0f;
 	}
-	const float Value = Curve.IsEmpty() || Duration <= 0.0f ? Dilation : 1.0f - Curve.Eval(FMath::Clamp(1.0f - TimeLeft / Duration, 0.0f, 1.0f));
-	return FMath::Clamp(Value, MinDilation, 1.0f);
+	const float Time = Duration > 0.0f ? FMath::Clamp(1.0f - TimeLeft / Duration, 0.0f, 1.0f) : 0.0f;
+	return FMath::Clamp(Evaluate(Curve, Time, Range), MinDilation, 1.0f);
 }
 
 bool UKzTimeDilationSubsystem::FRequest::Advance(float Delta)
@@ -44,10 +52,10 @@ bool UKzTimeDilationSubsystem::FRequest::Advance(float Delta)
 	return TimeLeft > 0.0f;
 }
 
-UKzTimeDilationSubsystem::FRequest UKzTimeDilationSubsystem::MakeRequest(const UKzTimeStop& Stop, float Duration)
+UKzTimeDilationSubsystem::FRequest UKzTimeDilationSubsystem::MakeRequest(const UKzTimeStop& Stop, float Duration, const FFloatInterval& Range)
 {
 	FRequest Request;
-	Request.Dilation = 0.0f;
+	Request.Range = Range;
 	if (const FRichCurve* Curve = Stop.Curve.GetRichCurveConst())
 	{
 		Request.Curve = *Curve;
@@ -66,7 +74,7 @@ void UKzTimeDilationSubsystem::Dilate(AActor* Actor, float Dilation, float Durat
 	}
 
 	FRequest Request;
-	Request.Dilation = Dilation;
+	Request.Range = FFloatInterval(Dilation, Dilation);
 	Request.Duration = Duration;
 	Request.TimeLeft = Duration;
 	AddRequest(Actor, MoveTemp(Request));
@@ -74,16 +82,16 @@ void UKzTimeDilationSubsystem::Dilate(AActor* Actor, float Dilation, float Durat
 
 void UKzTimeDilationSubsystem::Hold(AActor* Actor, const UKzTimeStop& Stop, float Duration, const FGameplayTagContainer& CancelableBy)
 {
-	FRequest Request = MakeRequest(Stop, Duration);
+	FRequest Request = MakeRequest(Stop, Duration, FFloatInterval(0.0f, 1.0f));
 	Request.CancelableBy = CancelableBy;
 	AddRequest(Actor, MoveTemp(Request));
 }
 
-void UKzTimeDilationSubsystem::HoldWorld(const UKzTimeStop& Stop, float Duration)
+void UKzTimeDilationSubsystem::HoldWorld(const UKzSlowMotion& SlowMotion, float Duration)
 {
 	if (Duration > 0.0f)
 	{
-		WorldRequests.Add(MakeRequest(Stop, Duration));
+		WorldRequests.Add(MakeRequest(SlowMotion, Duration, SlowMotion.TimeDilation));
 		ApplyWorld();
 	}
 }

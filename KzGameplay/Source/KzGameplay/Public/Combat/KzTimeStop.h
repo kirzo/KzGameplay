@@ -6,6 +6,7 @@
 #include "Curves/CurveFloat.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "Math/Interval.h"
 #include "KzTimeStop.generated.h"
 
 class AActor;
@@ -22,8 +23,8 @@ public:
 	float Duration = 0.1f;
 
 	/**
-	 * How strongly it holds along the way: X from 0 to 1 through Duration, Y from 1, frozen, to 0, normal speed, and slowed in between. Without keys,
-	 * frozen to the end.
+	 * The speed along the way: X from 0 to 1 through Duration, Y from 0, the slowest, to 1, normal speed. A Hit Stop's slowest is frozen; a Slow
+	 * Motion's, its Time Dilation's Min. Without keys, the slowest to the end.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Time Stop")
 	FRuntimeFloatCurve Curve;
@@ -79,6 +80,10 @@ class KZGAMEPLAY_API UKzSlowMotion : public UKzTimeStop
 
 public:
 	UKzSlowMotion();
+
+	/** The game's speed where the curve is 0, Min, and where it is 1, Max. The curve stays within them even where it goes past 0 or 1. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slow Motion")
+	FFloatInterval TimeDilation = FFloatInterval(0.2f, 1.0f);
 
 	/** Slows WorldContext's world for InDuration of real time. */
 	void Apply(const UObject* WorldContext, float InDuration) const;

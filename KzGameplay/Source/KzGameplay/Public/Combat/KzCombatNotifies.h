@@ -8,6 +8,7 @@
 #include "Curves/CurveFloat.h"
 #include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
+#include "Math/Interval.h"
 #include "KzCombatNotifies.generated.h"
 
 /** While it lasts, the attack's hitboxes hit, each target once. */
@@ -266,13 +267,16 @@ class KZGAMEPLAY_API UKzAnimNotifyState_SlowMotionWindow : public UKzAnimationNo
 public:
 	UKzAnimNotifyState_SlowMotionWindow();
 
-	/** How much it slows the game along the window, X from 0 to 1 through it: Y 1 down to Max Slomo Value, 0 not at all. Without keys, all the way. */
+	/** The game's speed along the window, X from 0 to 1 through it, Y from 0, Time Dilation's Min, to 1, its Max. Without keys, the Min all the way. */
 	UPROPERTY(EditAnywhere, Category = "Slow Motion Window")
 	FRuntimeFloatCurve SlowMotionCurve;
 
-	/** The game's speed where the curve reaches 1. Not below 0.1: the window runs on its animation's time, which slows down with the game. */
-	UPROPERTY(EditAnywhere, Category = "Slow Motion Window", meta = (ClampMin = "0.1", ClampMax = "1"))
-	float MaxSlomoValue = 0.3f;
+	/**
+	 * The game's speed where the curve is 0, Min, and where it is 1, Max; the curve stays within them. Never below 0.1: the window runs on its
+	 * animation's time, which slows down with the game.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Slow Motion Window")
+	FFloatInterval TimeDilation = FFloatInterval(0.3f, 1.0f);
 
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyEnd(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, const FAnimNotifyEventReference& EventReference) override;

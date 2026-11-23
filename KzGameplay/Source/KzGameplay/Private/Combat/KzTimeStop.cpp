@@ -43,8 +43,8 @@ UKzSlowMotion::UKzSlowMotion()
 
 void UKzSlowMotion::Apply(const UObject* WorldContext, float InDuration) const
 {
-	if (UKzTimeDilationSubsystem* TimeDilation = FindTimeDilation(WorldContext))
+	if (UKzTimeDilationSubsystem* Subsystem = FindTimeDilation(WorldContext))
 	{
-		TimeDilation->HoldWorld(*this, InDuration);
+		Subsystem->HoldWorld(*this, InDuration);
 	}
 }
