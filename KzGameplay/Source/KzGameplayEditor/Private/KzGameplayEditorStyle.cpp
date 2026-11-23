@@ -69,7 +69,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	}
 
 	// Camera: the actors placed in the level, the rig, and each module after what it does
-	for (const TCHAR* CameraActor : { TEXT("CameraMarker"), TEXT("CameraVolume"), TEXT("CameraLimit") })
+	for (const TCHAR* CameraActor : { TEXT("CameraMarker"), TEXT("CameraVolume"), TEXT("CameraLimit"), TEXT("CameraZone") })
 	{
 		Set(*FString::Printf(TEXT("ClassIcon.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor, TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 		Set(*FString::Printf(TEXT("ClassThumbnail.Kz%s"), CameraActor), new FSlateVectorImageBrush(RootToContentDir(FString(TEXT("Icons/")) + CameraActor + TEXT("Color"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));

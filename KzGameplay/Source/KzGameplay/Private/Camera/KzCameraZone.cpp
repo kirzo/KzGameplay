@@ -2,10 +2,13 @@
 
 #include "Camera/KzCameraZone.h"
 #include "Components/ArrowComponent.h"
+#include "Components/BillboardComponent.h"
 #include "Components/KzShapeComponent.h"
 #include "Core/KzRegistrySubsystem.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/Texture2D.h"
 #include "Math/Geometry/Shapes/KzBox.h"
+#include "UObject/ConstructorHelpers.h"
 
 AKzCameraZone::AKzCameraZone()
 {
@@ -23,6 +26,17 @@ AKzCameraZone::AKzCameraZone()
 	bReplicates = false;
 
 #if WITH_EDITORONLY_DATA
+	SpriteComponent = CreateEditorOnlyDefaultSubobject<UBillboardComponent>(TEXT("Sprite"));
+	if (SpriteComponent)
+	{
+		static ConstructorHelpers::FObjectFinderOptional<UTexture2D> SpriteTexture(TEXT("/KzGameplay/EditorResources/CameraZone"));
+		SpriteComponent->Sprite = SpriteTexture.Get();
+		SpriteComponent->bIsScreenSizeScaled = true;
+		SpriteComponent->SpriteInfo.Category = TEXT("Cameras");
+		SpriteComponent->SpriteInfo.DisplayName = NSLOCTEXT("KzSpriteCategory", "Cameras", "Cameras");
+		SpriteComponent->SetupAttachment(ShapeComponent);
+	}
+
 	CameraArrow = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("CameraArrow"));
 	if (CameraArrow)
 	{

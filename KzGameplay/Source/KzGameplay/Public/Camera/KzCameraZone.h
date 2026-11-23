@@ -8,6 +8,7 @@
 #include "KzCameraZone.generated.h"
 
 class UArrowComponent;
+class UBillboardComponent;
 class UKzShapeComponent;
 
 /**
@@ -49,6 +50,9 @@ public:
 
 protected:
 #if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TObjectPtr<UBillboardComponent> SpriteComponent = nullptr;
+
 	/** Points at the zone's camera. */
 	UPROPERTY()
 	TObjectPtr<UArrowComponent> CameraArrow = nullptr;
