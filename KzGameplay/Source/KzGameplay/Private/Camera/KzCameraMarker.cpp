@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraMarker.h"
+#include "Camera/KzCameraDirector.h"
 #include "Camera/KzCameraRigComponent.h"
 #include "Components/ArrowComponent.h"
 #include "Components/BillboardComponent.h"
@@ -17,6 +18,9 @@ namespace
 
 AKzCameraMarker::AKzCameraMarker()
 {
+	SwitchBlend.BlendTime = 1.0f;
+	SwitchBlend.BlendFunction = VTBlend_EaseInOut;
+
 #if WITH_EDITORONLY_DATA
 	struct FConstructorStatics
 	{
@@ -59,6 +63,15 @@ void AKzCameraMarker::NotifyCrossed(UKzSplineFollowerComponent* Follower, bool b
 		else
 		{
 			Rig->PopLayer(this, bTeleport);
+		}
+	}
+
+	// Only a real crossing switches: after a jump past the marker the director picks the camera itself.
+	if (bForward && !bTeleport && SwitchToCamera)
+	{
+		if (UKzCameraDirector* Director = UKzCameraDirector::Get(this))
+		{
+			Director->SwitchTo(SwitchToCamera, SwitchBlend);
 		}
 	}
 

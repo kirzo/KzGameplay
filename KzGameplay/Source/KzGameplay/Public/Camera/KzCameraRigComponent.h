@@ -52,10 +52,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rig", meta = (ClampMin = "0", Units = "Seconds"))
 	float DefaultBlendTime = 1.0f;
 
-	/** Makes the actor the first local player's view target when play starts. The player controller must not manage its camera target. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rig")
-	bool bAutoActivateForPlayer = false;
-
 	/** Draws the target, the focus and what the modules do, in game too. In the editor they show while the camera is selected. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rig|Debug")
 	bool bDrawDebug = false;
@@ -80,7 +76,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Camera Rig")
 	FVector GetFocus() const { return LastPose.Focus; }
 
+	/** Starts updating, snapped to where it should be, and updates at once so a blend towards it starts from the right view. */
+	void Wake();
+
+	/** Stops updating. In game, rigs sleep until the camera director needs them, so cameras out of view cost nothing. */
+	void Sleep();
+
+	bool IsAwake() const { return IsComponentTickEnabled(); }
+
+	/** How far Location is from where this camera would hang for it: its spline's point for it, by its own projection rule, or its anchor. */
+	float GetDistanceTo(const FVector& Location) const;
+
 	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
@@ -106,6 +114,9 @@ private:
 	bool bPendingTeleport = true;
 
 	UCameraComponent* FindCamera();
+
+	/** One frame of the rig: focus, anchor, the rest of the modules, and the pose on the camera. */
+	void UpdateRig(float DeltaTime);
 
 	/** Adds, scales and removes the layers of the camera volumes for the target's location. */
 	void UpdateVolumes(const FVector& TargetLocation, bool bSnap);

@@ -6,6 +6,7 @@
 #include "Camera/KzCameraVolume.h"
 #include "CineCameraComponent.h"
 #include "Components/KzSplineFollowerComponent.h"
+#include "Components/SplineComponent.h"
 #include "Core/KzRegistrySubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/EngineTypes.h"
@@ -35,21 +36,57 @@ void UKzCameraRigComponent::OnRegister()
 	{
 		AddTickPrerequisiteComponent(Follower.Get());
 	}
+
+	// The camera director looks here for the cameras it can switch to.
+	if (UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this))
+	{
+		Registry->Register(this);
+	}
+}
+
+void UKzCameraRigComponent::OnUnregister()
+{
+	if (UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this))
+	{
+		Registry->Unregister(this);
+	}
+
+	Super::OnUnregister();
 }
 
 void UKzCameraRigComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	bPendingTeleport = true;
+	// The camera director wakes the rig when it comes into view.
+	Sleep();
+}
 
-	if (bAutoActivateForPlayer)
+void UKzCameraRigComponent::Wake()
+{
+	if (IsAwake()) return;
+
+	bPendingTeleport = true;
+	SetComponentTickEnabled(true);
+	UpdateRig(0.0f);
+}
+
+void UKzCameraRigComponent::Sleep()
+{
+	SetComponentTickEnabled(false);
+}
+
+float UKzCameraRigComponent::GetDistanceTo(const FVector& Location) const
+{
+	const UKzSplineFollowerComponent* SplineFollower = Follower.Get();
+	if (const USplineComponent* Spline = SplineFollower ? SplineFollower->GetSpline() : nullptr)
 	{
-		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
-		{
-			PlayerController->SetViewTarget(GetOwner());
-		}
+		const float Distance = UKzSplineFollowerComponent::FindClosestDistance(Spline, Location, SplineFollower->IgnoredAxes);
+		return FVector::Dist(Location, Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World));
 	}
+
+	const USceneComponent* Parent = GetAttachParent();
+	return FVector::Dist(Location, Parent ? Parent->GetComponentLocation() : GetOwner()->GetActorLocation());
 }
 
 void UKzCameraRigComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -133,6 +170,11 @@ void UKzCameraRigComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		DeltaTime /= WorldDilation;
 	}
 
+	UpdateRig(DeltaTime);
+}
+
+void UKzCameraRigComponent::UpdateRig(float DeltaTime)
+{
 	UCameraComponent* CameraComponent = FindCamera();
 	UKzSplineFollowerComponent* SplineFollower = Follower.Get();
 	const USceneComponent* Parent = GetAttachParent();
