@@ -119,6 +119,11 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	}
 	Set("ClassIcon.KzLightingModule_MaterialParameters", new FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Editor/Slate/Icons/AssetIcons/MaterialParameterCollection_16x.png"), FVector2D(16.0f, 16.0f)));
 
+	// Spawning: the point placed in the level, and its component with the same icon
+	Set("ClassIcon.KzSpawnPoint", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPoint"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	Set("ClassThumbnail.KzSpawnPoint", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPointColor"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
+	Set("ClassIcon.KzSpawnComponent", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPoint"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+
 	// Combo graph nodes, on their title: an attack is the Melee Weapon's sword
 	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	Set("KzGameplay.Combo.Node.Attack", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/MeleeWeapon"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
