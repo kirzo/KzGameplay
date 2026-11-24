@@ -7,6 +7,9 @@
 
 AKzCameraVolume::AKzCameraVolume()
 {
+	// Camera changes add up along the way, as markers' do.
+	bKeepPastExit = true;
+
 #if WITH_EDITORONLY_DATA
 	if (SpriteComponent)
 	{
