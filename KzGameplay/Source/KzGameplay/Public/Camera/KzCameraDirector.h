@@ -46,7 +46,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Camera Director", meta = (DefaultToSelf = "Instigator", HidePin = "Instigator"))
 	void ReturnToGameplay(const FViewTargetTransitionParams& Blend, const UObject* Instigator = nullptr);
 
-	/** Cuts to the camera for where the player is now: its zone's, or else the nearest. Play start and respawns do it on their own. */
+	/** Cuts to the camera for where the player is now: its zone's, or else the nearest, with every volume the player is in. Play start and respawns do it on their own. */
 	UFUNCTION(BlueprintCallable, Category = "Camera Director")
 	void SelectCamera();
 
@@ -85,8 +85,8 @@ private:
 
 	APlayerController* GetPlayerController() const;
 
-	/** Switches to Camera and records Reason for the debugger. */
-	void Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason);
+	/** Switches to Camera and records Reason for the debugger. After a jump (start, respawn) the camera takes every volume the player is in. */
+	void Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason, bool bPlayerJumped = false);
 
 	/** Whether the player sees the gameplay camera, or is blending to it, rather than a cutscene or a fixed shot. */
 	bool IsShowingGameplay(const APlayerCameraManager* CameraManager) const;

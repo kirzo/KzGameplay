@@ -73,7 +73,7 @@ void UKzCameraDirector::ReturnToGameplay(const FViewTargetTransitionParams& Blen
 	Show(GameplayCamera.Get(), Blend, FString::Printf(TEXT("back to gameplay, by %s"), Instigator ? *Describe(Instigator) : TEXT("C++")));
 }
 
-void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason)
+void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason, bool bPlayerJumped)
 {
 	APlayerController* PlayerController = GetPlayerController();
 	if (!Camera || !PlayerController) return;
@@ -82,7 +82,7 @@ void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& 
 	if (UKzCameraRigComponent* Rig = Camera->FindComponentByClass<UKzCameraRigComponent>())
 	{
 		GameplayCamera = Camera;
-		Rig->Wake();
+		Rig->Wake(bPlayerJumped);
 	}
 
 	PlayerController->SetViewTarget(Camera, Blend);
@@ -104,11 +104,11 @@ void UKzCameraDirector::SelectCamera()
 
 	if (Zone && Zone->Camera)
 	{
-		Show(Zone->Camera, FViewTargetTransitionParams(), FString::Printf(TEXT("the player is in %s"), *Describe(Zone)));
+		Show(Zone->Camera, FViewTargetTransitionParams(), FString::Printf(TEXT("the player is in %s"), *Describe(Zone)), true);
 	}
 	else
 	{
-		Show(FindNearestCamera(Location), FViewTargetTransitionParams(), TEXT("nearest to the player, in no zone"));
+		Show(FindNearestCamera(Location), FViewTargetTransitionParams(), TEXT("nearest to the player, in no zone"), true);
 	}
 }
 

@@ -9,6 +9,7 @@
 #include "UObject/ObjectKey.h"
 #include "KzCameraRigComponent.generated.h"
 
+class AKzCameraVolume;
 class UCameraComponent;
 class UKzCameraModule;
 class UKzSplineFollowerComponent;
@@ -76,8 +77,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Camera Rig")
 	FVector GetFocus() const { return LastPose.Focus; }
 
-	/** Starts updating, snapped to where it should be, and updates at once so a blend towards it starts from the right view. */
-	void Wake();
+	/**
+	 * Starts updating, snapped to where it should be, and updates at once so a blend towards it starts from the right view.
+	 * The camera keeps its own layers, and leaves the volumes the target is already in to the camera that saw it enter them: it only
+	 * takes the ones it enters from now on. With bTargetJumped (start, respawn), it takes every volume where the target is.
+	 */
+	void Wake(bool bTargetJumped = false);
 
 	/** Stops updating. In game, rigs sleep until the camera director needs them, so cameras out of view cost nothing. */
 	void Sleep();
@@ -102,6 +107,9 @@ public:
 	/** The layers from the lowest priority to the highest, with their weights. For the camera debugger. */
 	TArray<FLayer*> GetLayers() { return Layers.GetOrdered(); }
 
+	/** Volumes the target was already in when the rig woke, left to another camera until the target leaves them. For the camera debugger. */
+	const TSet<TObjectKey<AKzCameraVolume>>& GetIgnoredVolumes() const { return IgnoredVolumes; }
+
 	/** Frame the camera debugger last drew on: the rigs draw their debug the next one too, as with Draw Debug. */
 	static uint64 DebuggerFrame;
 
@@ -119,13 +127,18 @@ private:
 
 	bool bPendingTeleport = true;
 
+	TSet<TObjectKey<AKzCameraVolume>> IgnoredVolumes;
+
+	/** Woke without the target jumping: the next volume update ignores the volumes the target is in. */
+	bool bWokeClean = false;
+
 	UCameraComponent* FindCamera();
 
 	/** One frame of the rig: focus, anchor, the rest of the modules, and the pose on the camera. */
 	void UpdateRig(float DeltaTime);
 
-	/** Adds, scales and removes the layers of the camera volumes for the target's location. */
-	void UpdateVolumes(const FVector& TargetLocation, bool bSnap);
+	/** Adds, scales and removes the layers of the camera volumes for the target's location. Reread applies them by the location alone. */
+	void UpdateVolumes(const FVector& TargetLocation, bool bSnap, bool bReread);
 
 	/** Runs every kind of module whose stage is between First and Last, by stage and then in the order they first appear. */
 	void EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const;

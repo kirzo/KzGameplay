@@ -65,11 +65,24 @@ void UKzCameraRigComponent::BeginPlay()
 	Sleep();
 }
 
-void UKzCameraRigComponent::Wake()
+void UKzCameraRigComponent::Wake(bool bTargetJumped)
 {
 	if (IsAwake()) return;
 
 	bPendingTeleport = true;
+	if (bTargetJumped)
+	{
+		// Read as a new target, so the volumes apply by where it is.
+		LastTarget.Reset();
+	}
+	else
+	{
+		// The camera only comes into view: the target didn't jump while the rig slept, and the volumes it is in belong to the camera that saw it enter.
+		LastTarget = GetTarget();
+		LastTargetLocation = LastTarget.IsValid() ? LastTarget->GetActorLocation() : LastTargetLocation;
+		bWokeClean = true;
+	}
+
 	SetComponentTickEnabled(true);
 	UpdateRig(0.0f);
 }
@@ -221,7 +234,7 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 
 	if (Context.Target)
 	{
-		UpdateVolumes(Context.TargetLocation, bSnap);
+		UpdateVolumes(Context.TargetLocation, bSnap, bTargetJumped || !GetWorld()->IsGameWorld());
 	}
 	Layers.Update(DeltaTime, bSnap);
 
@@ -264,10 +277,18 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 	DrawDebug(Context, Pose, OrderedLayers);
 }
 
-void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bSnap)
+void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bSnap, bool bReread)
 {
 	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
 	if (!Registry) return;
+
+	// Reread after a jump (start, respawn) or in the editor's preview: the volumes apply by where the target is, and nothing else.
+	const bool bWoke = bWokeClean && !bReread;
+	bWokeClean = false;
+	if (bReread)
+	{
+		IgnoredVolumes.Reset();
+	}
 
 	Registry->ForEach<AKzCameraVolume>([&](AKzCameraVolume* Volume)
 	{
@@ -281,12 +302,23 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 		{
 			if (!bActive)
 			{
+				// Woken into view, the rig leaves the volumes the target is already in to the camera that saw it enter, until it leaves them.
+				if (bWoke)
+				{
+					IgnoredVolumes.Add(Volume);
+				}
+				if (IgnoredVolumes.Contains(Volume)) return;
+
 				PushLayer(Volume, Volume->Layer, bVolumeSnap);
 			}
 			SetLayerAlpha(Volume, Alpha);
+			return;
 		}
-		// Walked out past its exit, a volume keeps its layer; a jump, or the editor's preview, goes by the alpha alone.
-		else if (bActive && (bSnap || !Volume->Keeps(TargetLocation)))
+
+		IgnoredVolumes.Remove(Volume);
+
+		// Walked out past its exit, a volume keeps its layer; on a reread, the alpha alone decides.
+		if (bActive && (bReread || !Volume->Keeps(TargetLocation)))
 		{
 			PopLayer(Volume, bVolumeSnap);
 		}

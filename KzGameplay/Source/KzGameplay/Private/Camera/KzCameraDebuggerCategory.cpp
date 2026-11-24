@@ -7,6 +7,7 @@
 #include "Camera/KzCameraDirector.h"
 #include "Camera/KzCameraModule.h"
 #include "Camera/KzCameraRigComponent.h"
+#include "Camera/KzCameraVolume.h"
 #include "Camera/KzCameraZone.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/KzShapeComponent.h"
@@ -268,6 +269,19 @@ void FKzCameraDebuggerCategory::DrawData(APlayerController* OwnerPC, FGameplayDe
 
 		const TArray<FLayer*> Layers = Rig->GetLayers();
 		DrawLayers(CanvasContext, Layers, Target);
+
+		TArray<FString> Ignored;
+		for (const TObjectKey<AKzCameraVolume>& Key : Rig->GetIgnoredVolumes())
+		{
+			if (const AKzCameraVolume* Volume = Key.ResolveObjectPtr())
+			{
+				Ignored.Add(Describe(Volume));
+			}
+		}
+		if (!Ignored.IsEmpty())
+		{
+			CanvasContext.Printf(TEXT("  {orange}%s {cyan}left to the camera that saw the player enter, until the player leaves"), *FString::Join(Ignored, TEXT(", ")));
+		}
 		DrawModules(CanvasContext, *Rig, Layers);
 	}
 	else
