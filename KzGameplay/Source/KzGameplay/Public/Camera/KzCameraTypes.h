@@ -74,6 +74,10 @@ struct KZGAMEPLAY_API FKzCameraPose
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FRotator FocusSlackRotation = FRotator::ZeroRotator;
 
+	/** The dead zone is round, with FocusSlack as its radii, rather than a box. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	bool bFocusSlackRound = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FVector Location = FVector::ZeroVector;
 

@@ -14,6 +14,7 @@ FKzCameraPose FKzCameraPose::Blend(const FKzCameraPose& A, const FKzCameraPose& 
 	const FQuat SlackA = (A.FocusSlack.IsZero() ? B : A).FocusSlackRotation.Quaternion();
 	const FQuat SlackB = (B.FocusSlack.IsZero() ? A : B).FocusSlackRotation.Quaternion();
 	Result.FocusSlackRotation = FQuat::Slerp(SlackA, SlackB, Alpha).Rotator();
+	Result.bFocusSlackRound = (A.FocusSlack.IsZero() ? B : B.FocusSlack.IsZero() ? A : Alpha < 0.5f ? A : B).bFocusSlackRound;
 	Result.Location = FMath::Lerp(A.Location, B.Location, Alpha);
 	Result.Rotation = FQuat::Slerp(A.Rotation.Quaternion(), B.Rotation.Quaternion(), Alpha).Rotator();
 	Result.FieldOfView = FMath::Lerp(A.FieldOfView, B.FieldOfView, Alpha);

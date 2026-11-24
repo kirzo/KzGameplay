@@ -196,16 +196,38 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 			Velocity *= NewSpeed / Speed;
 		}
 
-		// Along each of the box's axes, whatever sticks out of it drags it.
+		// Whatever of the target sticks out drags the zone: past a box's faces axis by axis, past a round edge along its line from the centre.
+		// An axis without size follows the target.
 		const FVector Offset = Axes.UnrotateVector(Pose.Focus - Center);
+		const bool bRound = Shape == EKzCameraDeadZoneShape::Round;
 
 		FVector Drag = FVector::ZeroVector;
+		double RoundDistanceSquared = 0.0;
 		for (int32 Axis = 0; Axis < 3; ++Axis)
 		{
-			const double Excess = FMath::Abs(Offset[Axis]) - HalfSize[Axis];
-			if (Excess > 0.0)
+			if (HalfSize[Axis] <= UE_KINDA_SMALL_NUMBER)
 			{
-				Drag[Axis] = FMath::Sign(Offset[Axis]) * Excess;
+				Drag[Axis] = Offset[Axis];
+			}
+			else if (bRound)
+			{
+				RoundDistanceSquared += FMath::Square(Offset[Axis] / HalfSize[Axis]);
+			}
+			else if (FMath::Abs(Offset[Axis]) > HalfSize[Axis])
+			{
+				Drag[Axis] = FMath::Sign(Offset[Axis]) * (FMath::Abs(Offset[Axis]) - HalfSize[Axis]);
+			}
+		}
+
+		if (RoundDistanceSquared > 1.0)
+		{
+			const double Outside = 1.0 - 1.0 / FMath::Sqrt(RoundDistanceSquared);
+			for (int32 Axis = 0; Axis < 3; ++Axis)
+			{
+				if (HalfSize[Axis] > UE_KINDA_SMALL_NUMBER)
+				{
+					Drag[Axis] = Offset[Axis] * Outside;
+				}
 			}
 		}
 
@@ -227,12 +249,48 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 	Result.Focus = Center;
 	Result.FocusSlack = HalfSize;
 	Result.FocusSlackRotation = Axes.Rotator();
+	Result.bFocusSlackRound = Shape == EKzCameraDeadZoneShape::Round;
 	return Result;
 }
 
 void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
 {
-	DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), GetAxes(Context), FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+	const FQuat Axes = GetAxes(Context);
+	if (Shape == EKzCameraDeadZoneShape::Box)
+	{
+		DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), Axes, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+		return;
+	}
+
+	// An ellipse across each pair of axes with size: one for a flat zone, three for a solid one. With a single axis, a segment.
+	const FVector Radii[3] = { Axes.GetAxisX() * HalfSize.X, Axes.GetAxisY() * HalfSize.Y, Axes.GetAxisZ() * HalfSize.Z };
+	int32 Sized = 0;
+	for (int32 First = 0; First < 3; ++First)
+	{
+		if (HalfSize[First] <= UE_KINDA_SMALL_NUMBER) continue;
+		++Sized;
+
+		for (int32 Second = First + 1; Second < 3; ++Second)
+		{
+			if (HalfSize[Second] <= UE_KINDA_SMALL_NUMBER) continue;
+
+			constexpr int32 Segments = 32;
+			FVector Previous = Center + Radii[First];
+			for (int32 Segment = 1; Segment <= Segments; ++Segment)
+			{
+				const double Angle = UE_TWO_PI * Segment / Segments;
+				const FVector Point = Center + Radii[First] * FMath::Cos(Angle) + Radii[Second] * FMath::Sin(Angle);
+				DrawDebugLine(GetWorld(), Previous, Point, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+				Previous = Point;
+			}
+		}
+	}
+
+	if (Sized == 1)
+	{
+		const FVector Radius = Radii[0] + Radii[1] + Radii[2];
+		DrawDebugLine(GetWorld(), Center - Radius, Center + Radius, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+	}
 }
 
 UKzCameraModule_LookAhead::UKzCameraModule_LookAhead()
@@ -307,12 +365,33 @@ FVector UKzCameraModule_LookAhead::GetDesiredLead(const FKzCameraContext& Contex
 
 	// Moving inside the box leaves the camera be. Pushing a face, the lead counts from the target, so it isn't spent inside the box; heading for
 	// a face, or past one the box slid on from, it holds; heading back, it lets go to where the target stands against the face, or to the centre.
-	// An axis without slack is always pushed.
+	// An axis without slack is always pushed. A round zone has a single face, its edge, which the target reaches and heads out of as a whole.
+	bool bAtEdge = false;
+	bool bHeadingOutOfEdge = false;
+	if (Pose.bFocusSlackRound)
+	{
+		double DistanceSquared = 0.0;
+		double Outward = 0.0;
+		double MinRadius = TNumericLimits<double>::Max();
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			const double Radius = Pose.FocusSlack[Axis];
+			if (Radius <= FaceTolerance) continue;
+
+			DistanceSquared += FMath::Square(Offset[Axis] / Radius);
+			Outward += Heading[Axis] * Offset[Axis] / FMath::Square(Radius);
+			MinRadius = FMath::Min(MinRadius, Radius);
+		}
+		bAtEdge = DistanceSquared > 0.0 && FMath::Sqrt(DistanceSquared) >= 1.0 - FaceTolerance / MinRadius;
+		bHeadingOutOfEdge = Outward > UE_KINDA_SMALL_NUMBER;
+	}
+
 	for (int32 Axis = 0; Axis < 3; ++Axis)
 	{
 		const bool bSlack = Pose.FocusSlack[Axis] > FaceTolerance;
-		const bool bAtFace = !bSlack || FMath::Abs(Offset[Axis]) >= Pose.FocusSlack[Axis] - FaceTolerance;
-		const bool bHeadingOut = (bSlack ? Heading[Axis] * FMath::Sign(Offset[Axis]) : FMath::Abs(Heading[Axis])) > UE_KINDA_SMALL_NUMBER;
+		const bool bRound = bSlack && Pose.bFocusSlackRound;
+		const bool bAtFace = !bSlack || (bRound ? bAtEdge : FMath::Abs(Offset[Axis]) >= Pose.FocusSlack[Axis] - FaceTolerance);
+		const bool bHeadingOut = bRound ? bHeadingOutOfEdge : (bSlack ? Heading[Axis] * FMath::Sign(Offset[Axis]) : FMath::Abs(Heading[Axis])) > UE_KINDA_SMALL_NUMBER;
 
 		if (bHeadingOut && bAtFace)
 		{

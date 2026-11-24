@@ -32,6 +32,15 @@ enum class EKzCameraDeadZoneAlignment : uint8
 };
 
 UENUM(BlueprintType)
+enum class EKzCameraDeadZoneShape : uint8
+{
+	Box,
+
+	/** An ellipse, or an ellipsoid with depth or height, whose radii are the half sizes: equal ones make a circle or a sphere. */
+	Round
+};
+
+UENUM(BlueprintType)
 enum class EKzCameraLeadSource : uint8
 {
 	/** Where the pawn's player wants to go, at its top speed. Moves without input (attacks, knockbacks) don't count. */
@@ -76,7 +85,10 @@ enum class EKzCameraFocus : uint8
 	Target
 };
 
-/** Lets the target move inside a box around the focus without moving it; leaving the box drags the focus along. Axes follow the view, or lie level under it. */
+/**
+ * Lets the target move inside a zone around the focus without moving it; leaving the zone drags the focus along. The zone is a box or round,
+ * with axes that follow the view or lie level under it. Its half sizes are a round zone's radii.
+ */
 UCLASS(meta = (DisplayName = "Dead Zone"))
 class KZGAMEPLAY_API UKzCameraModule_DeadZone : public UKzCameraModule
 {
@@ -90,6 +102,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone")
 	EKzCameraDeadZoneAlignment Alignment = EKzCameraDeadZoneAlignment::View;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone")
+	EKzCameraDeadZoneShape Shape = EKzCameraDeadZoneShape::Box;
 
 	/** What a level box turns from: the view (Camera), the point the camera hangs from (Reference) or the world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (EditCondition = "Alignment == EKzCameraDeadZoneAlignment::Level", EditConditionHides))
