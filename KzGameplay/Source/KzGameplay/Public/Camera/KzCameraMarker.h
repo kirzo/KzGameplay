@@ -29,7 +29,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<AActor> SwitchToCamera;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera", meta = (EditCondition = "SwitchToCamera != nullptr"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera", meta = (EditCondition = "SwitchToCamera != nullptr", EditConditionHides))
 	FViewTargetTransitionParams SwitchBlend;
 
 	virtual void NotifyCrossed(UKzSplineFollowerComponent* Follower, bool bForward, bool bTeleport) override;

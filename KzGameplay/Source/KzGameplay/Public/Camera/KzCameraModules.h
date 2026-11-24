@@ -180,7 +180,7 @@ public:
 	bool bHoldWhenIdle = true;
 
 	/** Time standing still before the lead starts easing back, when it isn't held. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds", EditCondition = "!bHoldWhenIdle"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds", EditCondition = "!bHoldWhenIdle", EditConditionHides))
 	float ReturnDelay = 0.5f;
 
 	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;

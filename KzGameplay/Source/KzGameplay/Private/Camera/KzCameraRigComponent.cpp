@@ -268,7 +268,8 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 			}
 			SetLayerAlpha(Volume, Alpha);
 		}
-		else if (bActive)
+		// A volume that keeps its layer however it is left only drops it on a jump, or in the editor's preview.
+		else if (bActive && (bSnap || !Volume->KeepsAfterLeaving()))
 		{
 			PopLayer(Volume, bVolumeSnap);
 		}

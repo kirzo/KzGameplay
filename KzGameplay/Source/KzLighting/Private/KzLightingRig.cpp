@@ -232,7 +232,7 @@ void AKzLightingRig::UpdateVolumes(const FVector& Location, bool bSnap)
 			// Read every frame, so Sequencer can key it.
 			Layers.Find(Volume)->Profile = Volume->Layer.Profile;
 		}
-		else if (bActive)
+		else if (bActive && (bSnap || !Volume->KeepsAfterLeaving()))
 		{
 			PopLayer(Volume, bVolumeSnap);
 		}
