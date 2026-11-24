@@ -30,6 +30,7 @@ public class KzGameplay : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"CinematicCamera",
+				"NavigationSystem",
 				"Slate",
 				"SlateCore",
 				"InputCore"

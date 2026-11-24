@@ -33,6 +33,8 @@
 #include "KzLightingRig.h"
 #include "Engagement/KzEngagementComponent.h"
 #include "Engagement/KzEngagementVisualizer.h"
+#include "Spawning/KzSpawnComponent.h"
+#include "Spawning/KzSpawnVisualizer.h"
 #include "Factories/ItemDefinitionActorFactory.h"
 
 #include "Editor.h"
@@ -198,6 +200,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 	RegisterPropertyLayout<FKzAnimTime, FKzAnimTimeCustomization>();
 
 	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
+	RegisterComponentVisualizer<UKzSpawnComponent, FKzSpawnVisualizer>();
 
 	// This module loads after the editor gathers its actor factories, so the item one is added by hand.
 	if (GEditor)
