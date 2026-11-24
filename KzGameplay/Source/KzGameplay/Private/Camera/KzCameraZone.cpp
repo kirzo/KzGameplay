@@ -15,7 +15,7 @@ AKzCameraZone::AKzCameraZone()
 	PrimaryActorTick.bCanEverTick = false;
 
 	ShapeComponent = CreateDefaultSubobject<UKzShapeComponent>(TEXT("Shape"));
-	ShapeComponent->Shape.InitializeAs<FKzBox>(FVector(500.0f, 500.0f, 300.0f));
+	ShapeComponent->Shape.InitializeAs<FKzBox>(FVector(200.0f));
 	ShapeComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	RootComponent = ShapeComponent;
 
