@@ -60,7 +60,7 @@ namespace
 		const FKzCameraEvent& LastSwitch = Director->GetLastSwitch();
 		if (!LastSwitch.Text.IsEmpty())
 		{
-			CanvasContext.Printf(TEXT("{green}Why {white}%s {grey}%.1f s ago"), *LastSwitch.Text, World.GetTimeSeconds() - LastSwitch.Time);
+			CanvasContext.Printf(TEXT("{green}Why {white}%s {cyan}%.1f s ago"), *LastSwitch.Text, World.GetTimeSeconds() - LastSwitch.Time);
 		}
 
 		const AKzCameraZone* Zone = Director->GetCurrentZone();
@@ -85,7 +85,7 @@ namespace
 		CanvasContext.Printf(TEXT("{green}Layers{white}, top first"));
 		if (Layers.IsEmpty())
 		{
-			CanvasContext.Printf(TEXT("  {grey}None: only the rig's own modules."));
+			CanvasContext.Printf(TEXT("  {white}None: only the rig's own modules."));
 			return;
 		}
 
@@ -141,7 +141,7 @@ namespace
 				}
 			}
 
-			CanvasContext.Printf(TEXT("  %s%s {white}priority %d, weight %.2f%s%s  {grey}%s"), Layer.Weight > 0.0f ? TEXT("{yellow}") : TEXT("{grey}"), *Describe(Layer.Source.Get()),
+			CanvasContext.Printf(TEXT("  %s%s {white}priority %d, weight %.2f%s%s  {cyan}%s"), Layer.Weight > 0.0f ? TEXT("{yellow}") : TEXT("{orange}"), *Describe(Layer.Source.Get()),
 				Layer.Priority, Layer.Weight, State.IsEmpty() ? TEXT("") : TEXT(", "), *FString::Join(State, TEXT(", ")), Modules.IsEmpty() ? TEXT("no modules") : *FString::Join(Modules, TEXT(", ")));
 		}
 	}
@@ -195,8 +195,8 @@ namespace
 			}
 
 			const FString Stage = StaticEnum<EKzCameraStage>()->GetNameStringByValue(static_cast<int64>(Slot.Stage));
-			CanvasContext.Printf(TEXT("  {grey}%s {white}%s  %s"), *Stage, *GetModuleName(Slot.Class),
-				Sources.IsEmpty() ? TEXT("{grey}off") : *(TEXT("{yellow}") + FString::Join(Sources, TEXT(" {white}over{yellow} "))));
+			CanvasContext.Printf(TEXT("  {cyan}%s {white}%s  %s"), *Stage, *GetModuleName(Slot.Class),
+				Sources.IsEmpty() ? TEXT("{orange}off") : *(TEXT("{yellow}") + FString::Join(Sources, TEXT(" {white}over{yellow} "))));
 		}
 	}
 
@@ -207,7 +207,7 @@ namespace
 		const TArray<FKzCameraEvent>& History = Director.GetHistory();
 		for (int32 Index = History.Num() - 1; Index >= 0; --Index)
 		{
-			CanvasContext.Printf(TEXT("  {grey}%.1f s ago {white}%s"), World.GetTimeSeconds() - History[Index].Time, *History[Index].Text);
+			CanvasContext.Printf(TEXT("  {cyan}%.1f s ago {white}%s"), World.GetTimeSeconds() - History[Index].Time, *History[Index].Text);
 		}
 	}
 

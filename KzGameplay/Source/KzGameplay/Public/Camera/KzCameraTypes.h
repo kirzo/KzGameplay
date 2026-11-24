@@ -70,7 +70,7 @@ struct KZGAMEPLAY_API FKzCameraPose
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (Units = "Centimeters"))
 	FVector FocusSlack = FVector::ZeroVector;
 
-	/** The dead zone's axes: the rest view's, or level under it. */
+	/** The dead zone's axes: the view's, or level under it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	FRotator FocusSlackRotation = FRotator::ZeroRotator;
 

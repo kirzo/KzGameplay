@@ -158,12 +158,14 @@ FVector UKzCameraModule_DeadZone::GetHalfSize(const FKzCameraContext& Context, c
 
 FQuat UKzCameraModule_DeadZone::GetAxes(const FKzCameraContext& Context) const
 {
+	// The view as last seen, once aimed: the rest view can point far from it when a Look At turns the camera.
+	const FRotator ViewRotation = Context.LastView.Rotation;
 	if (Alignment == EKzCameraDeadZoneAlignment::View)
 	{
-		return Context.Rest.Quaternion();
+		return ViewRotation.Quaternion();
 	}
 
-	const double BaseYaw = Space == EKzCameraSpace::World ? 0.0 : Space == EKzCameraSpace::Reference ? Context.Reference.Rotator().Yaw : Context.Rest.Yaw;
+	const double BaseYaw = Space == EKzCameraSpace::World ? 0.0 : Space == EKzCameraSpace::Reference ? Context.Reference.Rotator().Yaw : ViewRotation.Yaw;
 	return FRotator(0.0, BaseYaw + Yaw, 0.0).Quaternion();
 }
 
