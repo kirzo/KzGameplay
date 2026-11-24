@@ -7,14 +7,15 @@
 #include "GameplayTagContainer.h"
 #include "Math/Geometry/KzShapeInstance.h"
 #include "Components/KzComponentReference.h"
+#include "Pooling/KzActorPoolSubsystem.h"
 #include "KzSensableComponent.generated.h"
 
 /**
  * Registers its actor with the Spatial Sense Subsystem, for sensors to find. It sits where Component is, as a point unless given a Shape, so a
- * sensor finds it by whether that point lies inside the sensor's shape.
+ * sensor finds it by whether that point lies inside the sensor's shape. While its actor is in an actor pool, sensors don't find it.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
-class KZGAMEPLAY_API UKzSensableComponent : public UActorComponent
+class KZGAMEPLAY_API UKzSensableComponent : public UActorComponent, public IKzPoolable
 {
 	GENERATED_BODY()
 
@@ -66,6 +67,8 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void OnAcquiredFromPool_Implementation() override;
+	virtual void OnReleasedToPool_Implementation() override;
 
 	/** Component, found once: queries ask for it every time. */
 	TWeakObjectPtr<USceneComponent> CachedComponent;

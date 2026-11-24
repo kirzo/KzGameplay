@@ -36,6 +36,22 @@ void UKzSensableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void UKzSensableComponent::OnAcquiredFromPool_Implementation()
+{
+	if (UKzSpatialSenseSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>())
+	{
+		Subsystem->RegisterSensable(this);
+	}
+}
+
+void UKzSensableComponent::OnReleasedToPool_Implementation()
+{
+	if (UKzSpatialSenseSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>())
+	{
+		Subsystem->UnregisterSensable(this);
+	}
+}
+
 void UKzSensableComponent::CacheShapeComponent()
 {
 	CachedComponent = Component.GetComponent(this);

@@ -8,6 +8,8 @@
 #include "Input/KzInputHandlerComponent.h"
 #include "Input/KzInputTags.h"
 
+#include "Animation/AnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "InputActionValue.h"
@@ -103,6 +105,19 @@ void AKzCharacter::UnPossessed()
 	ResetPossessionActions();
 
 	Super::UnPossessed();
+}
+
+void AKzCharacter::OnReleasedToPool_Implementation()
+{
+	AbilitySystemComponent->CancelAllAbilities();
+	AbilitySystemComponent->RemoveActiveEffects(FGameplayEffectQuery());
+
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		AnimInstance->StopAllMontages(0.0f);
+	}
+
+	GetCharacterMovement()->SetDefaultMovementMode();
 }
 
 void AKzCharacter::RunPossessionActions()

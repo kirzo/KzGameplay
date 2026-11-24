@@ -7,6 +7,7 @@
 #include "AbilitySystemInterface.h"
 #include "GameplayTagAssetInterface.h"
 #include "Containers/KzPriorityStack.h"
+#include "Pooling/KzActorPoolSubsystem.h"
 #include "Curves/CurveFloat.h"
 #include "ScriptableTasks/ScriptableAction.h"
 #include "KzCharacter.generated.h"
@@ -54,9 +55,12 @@ struct FKzWalkSpeed
  *
  * Every character has an input handler so any of them can be possessed: without a player controller it binds
  * nothing, and the profiles its capabilities push are bound when a player takes it.
+ *
+ * Back in an actor pool it stops its abilities and montages and loses its active effects: a subclass applies those of its BeginPlay again
+ * in On Released To Pool.
  */
 UCLASS(Abstract)
-class KZGAMEPLAY_API AKzCharacter : public ACharacter, public IAbilitySystemInterface, public IGameplayTagAssetInterface
+class KZGAMEPLAY_API AKzCharacter : public ACharacter, public IAbilitySystemInterface, public IGameplayTagAssetInterface, public IKzPoolable
 {
 	GENERATED_BODY()
 
@@ -137,6 +141,7 @@ protected:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void UnPossessed() override;
+	virtual void OnReleasedToPool_Implementation() override;
 
 	/** Move goes to the movement component and Look turns the control rotation. Twin-stick facing is UKzGameplayAbility_Strafe's, on Input.Strafe. */
 	UFUNCTION()
