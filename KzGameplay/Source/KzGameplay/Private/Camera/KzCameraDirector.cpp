@@ -7,6 +7,14 @@
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "VisualLogger/VisualLogger.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogKzCamera, Log, All);
+
+namespace
+{
+	constexpr int32 MaxHistory = 12;
+}
 
 UKzCameraDirector* UKzCameraDirector::Get(const UObject* WorldContextObject)
 {
@@ -30,7 +38,42 @@ APlayerController* UKzCameraDirector::GetPlayerController() const
 	return World ? World->GetFirstPlayerController() : nullptr;
 }
 
-void UKzCameraDirector::SwitchTo(AActor* Camera, const FViewTargetTransitionParams& Blend)
+FString UKzCameraDirector::Describe(const UObject* Object)
+{
+	if (const UActorComponent* Component = Cast<UActorComponent>(Object))
+	{
+		Object = Component->GetOwner();
+	}
+
+	const AActor* Actor = Cast<AActor>(Object);
+	return Actor ? Actor->GetActorNameOrLabel() : GetNameSafe(Object);
+}
+
+void UKzCameraDirector::RecordEvent(const UObject* Subject, const FString& Text)
+{
+	UE_VLOG(Subject, LogKzCamera, Log, TEXT("%s"), *Text);
+
+	UKzCameraDirector* Director = Get(Subject);
+	if (!Director) return;
+
+	if (Director->History.Num() >= MaxHistory)
+	{
+		Director->History.RemoveAt(0);
+	}
+	Director->History.Add({ Director->GetWorld()->GetTimeSeconds(), Text });
+}
+
+void UKzCameraDirector::SwitchTo(AActor* Camera, const FViewTargetTransitionParams& Blend, const UObject* Instigator)
+{
+	Show(Camera, Blend, Instigator ? Describe(Instigator) : FString(TEXT("C++")));
+}
+
+void UKzCameraDirector::ReturnToGameplay(const FViewTargetTransitionParams& Blend, const UObject* Instigator)
+{
+	Show(GameplayCamera.Get(), Blend, FString::Printf(TEXT("back to gameplay, by %s"), Instigator ? *Describe(Instigator) : TEXT("C++")));
+}
+
+void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason)
 {
 	APlayerController* PlayerController = GetPlayerController();
 	if (!Camera || !PlayerController) return;
@@ -43,11 +86,10 @@ void UKzCameraDirector::SwitchTo(AActor* Camera, const FViewTargetTransitionPara
 	}
 
 	PlayerController->SetViewTarget(Camera, Blend);
-}
 
-void UKzCameraDirector::ReturnToGameplay(const FViewTargetTransitionParams& Blend)
-{
-	SwitchTo(GameplayCamera.Get(), Blend);
+	LastSwitch = { GetWorld()->GetTimeSeconds(), Reason };
+	const FString How = Blend.BlendTime > 0.0f ? FString::Printf(TEXT("Blend %.1f s to"), Blend.BlendTime) : FString(TEXT("Cut to"));
+	RecordEvent(this, FString::Printf(TEXT("%s %s (%s)"), *How, *Describe(Camera), *Reason));
 }
 
 void UKzCameraDirector::SelectCamera()
@@ -60,8 +102,14 @@ void UKzCameraDirector::SelectCamera()
 	const AKzCameraZone* Zone = FindZone(Location);
 	CurrentZone = Zone;
 
-	AActor* Camera = Zone && Zone->Camera ? Zone->Camera.Get() : FindNearestCamera(Location);
-	SwitchTo(Camera, FViewTargetTransitionParams());
+	if (Zone && Zone->Camera)
+	{
+		Show(Zone->Camera, FViewTargetTransitionParams(), FString::Printf(TEXT("the player is in %s"), *Describe(Zone)));
+	}
+	else
+	{
+		Show(FindNearestCamera(Location), FViewTargetTransitionParams(), TEXT("nearest to the player, in no zone"));
+	}
 }
 
 void UKzCameraDirector::Tick(float DeltaTime)
@@ -74,14 +122,17 @@ void UKzCameraDirector::Tick(float DeltaTime)
 	if (!CameraManager || !Pawn) return;
 
 	const FVector Location = Pawn->GetActorLocation();
-	const bool bJumped = Pawn != LastPawn.Get()
-		|| (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastPawnLocation) > FMath::Square(TeleportDistance));
-	LastPawn = Pawn;
-	LastPawnLocation = Location;
+	const bool bNewPawn = Pawn != LastPawn.Get();
+	const bool bJumped = bNewPawn || (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastPawnLocation) > FMath::Square(TeleportDistance));
 
 	if (bJumped)
 	{
 		// Play start, a respawn or a teleport: cut to the camera for where the player is now.
+		RecordEvent(this, bNewPawn
+			? FString::Printf(TEXT("Player pawn is %s"), *Describe(Pawn))
+			: FString::Printf(TEXT("Player jumped %.0f cm"), FVector::Dist(Location, LastPawnLocation)));
+		LastPawn = Pawn;
+		LastPawnLocation = Location;
 		SelectCamera();
 	}
 	else
@@ -92,15 +143,17 @@ void UKzCameraDirector::Tick(float DeltaTime)
 		{
 			if (IsShowingGameplay(CameraManager))
 			{
-				SwitchTo(Zone->Camera, Zone->Blend);
+				SwitchTo(Zone->Camera, Zone->Blend, Zone);
 			}
 			else
 			{
 				// A cutscene or a fixed shot is in view: returning to gameplay will go to the zone's camera.
 				GameplayCamera = Zone->Camera.Get();
+				RecordEvent(this, FString::Printf(TEXT("Entered %s during another shot: back to gameplay goes to %s"), *Describe(Zone), *Describe(Zone->Camera)));
 			}
 		}
 		CurrentZone = Zone;
+		LastPawnLocation = Location;
 	}
 
 	UpdateRigs(CameraManager);

@@ -94,12 +94,18 @@ public:
 
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
-private:
 	struct FLayer : Kz::FBlendLayer
 	{
 		TArray<TObjectPtr<UKzCameraModule>> Modules;
 	};
 
+	/** The layers from the lowest priority to the highest, with their weights. For the camera debugger. */
+	TArray<FLayer*> GetLayers() { return Layers.GetOrdered(); }
+
+	/** Frame the camera debugger last drew on: the rigs draw their debug the next one too, as with Draw Debug. */
+	static uint64 DebuggerFrame;
+
+private:
 	Kz::TBlendLayers<FLayer> Layers;
 
 	TWeakObjectPtr<UKzSplineFollowerComponent> Follower;

@@ -11,6 +11,13 @@ class AKzCameraZone;
 class APawn;
 class APlayerController;
 
+/** Something the cameras did, for the camera debugger's history. */
+struct FKzCameraEvent
+{
+	double Time = 0.0;
+	FString Text;
+};
+
 /**
  * Chooses the camera the first local player sees, and keeps camera rigs awake only while they are in view or blending in.
  * At play start, and after a respawn or a teleport, it cuts to the camera of the zone the player is in, or else the nearest one.
@@ -28,13 +35,16 @@ public:
 
 	static UKzCameraDirector* Get(const UObject* WorldContextObject);
 
-	/** Shows Camera, blending from the current view. A camera with a camera rig also becomes the one ReturnToGameplay goes back to. */
-	UFUNCTION(BlueprintCallable, Category = "Camera Director")
-	void SwitchTo(AActor* Camera, const FViewTargetTransitionParams& Blend);
+	/**
+	 * Shows Camera, blending from the current view. A camera with a camera rig also becomes the one ReturnToGameplay goes back to.
+	 * Instigator is who asked, for the camera debugger; from Blueprint, the caller.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Camera Director", meta = (DefaultToSelf = "Instigator", HidePin = "Instigator"))
+	void SwitchTo(AActor* Camera, const FViewTargetTransitionParams& Blend, const UObject* Instigator = nullptr);
 
 	/** Back to the gameplay camera, from a cutscene, a fixed shot or a finisher. */
-	UFUNCTION(BlueprintCallable, Category = "Camera Director")
-	void ReturnToGameplay(const FViewTargetTransitionParams& Blend);
+	UFUNCTION(BlueprintCallable, Category = "Camera Director", meta = (DefaultToSelf = "Instigator", HidePin = "Instigator"))
+	void ReturnToGameplay(const FViewTargetTransitionParams& Blend, const UObject* Instigator = nullptr);
 
 	/** Cuts to the camera for where the player is now: its zone's, or else the nearest. Play start and respawns do it on their own. */
 	UFUNCTION(BlueprintCallable, Category = "Camera Director")
@@ -42,6 +52,20 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Camera Director")
 	AActor* GetGameplayCamera() const { return GameplayCamera.Get(); }
+
+	const AKzCameraZone* GetCurrentZone() const { return CurrentZone.Get(); }
+
+	/** Why the camera in view was chosen, and when. */
+	const FKzCameraEvent& GetLastSwitch() const { return LastSwitch; }
+
+	/** The latest events, oldest first. */
+	const TArray<FKzCameraEvent>& GetHistory() const { return History; }
+
+	/** Adds an event to the camera debugger's history and to the visual logger, under Subject. */
+	static void RecordEvent(const UObject* Subject, const FString& Text);
+
+	/** How the camera debugger names an object: an actor by its label, a component by its actor's. */
+	static FString Describe(const UObject* Object);
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
@@ -56,7 +80,13 @@ private:
 	TWeakObjectPtr<const APawn> LastPawn;
 	FVector LastPawnLocation = FVector::ZeroVector;
 
+	FKzCameraEvent LastSwitch;
+	TArray<FKzCameraEvent> History;
+
 	APlayerController* GetPlayerController() const;
+
+	/** Switches to Camera and records Reason for the debugger. */
+	void Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason);
 
 	/** Whether the player sees the gameplay camera, or is blending to it, rather than a cutscene or a fixed shot. */
 	bool IsShowingGameplay(const APlayerCameraManager* CameraManager) const;

@@ -2,6 +2,7 @@
 
 #include "Camera/KzCameraRigComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/KzCameraDirector.h"
 #include "Camera/KzCameraModule.h"
 #include "Camera/KzCameraVolume.h"
 #include "CineCameraComponent.h"
@@ -13,6 +14,8 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/WorldSettings.h"
+
+uint64 UKzCameraRigComponent::DebuggerFrame = 0;
 
 UKzCameraRigComponent::UKzCameraRigComponent()
 {
@@ -113,11 +116,25 @@ void UKzCameraRigComponent::PushLayer(UObject* Source, const FKzCameraLayerSetti
 		}
 	}
 
-	Layers.Push(Source, MoveTemp(Layer), Settings.Priority, Settings.bOverrideBlendTime ? Settings.BlendTime : DefaultBlendTime, Settings.bClearPrevious, bSnap);
+	const float BlendTime = Settings.bOverrideBlendTime ? Settings.BlendTime : DefaultBlendTime;
+	if (!Layers.IsActive(Source) && GetWorld() && GetWorld()->IsGameWorld())
+	{
+		UKzCameraDirector::RecordEvent(this, FString::Printf(TEXT("%s: + %s, priority %d%s, %s"), *UKzCameraDirector::Describe(this), *UKzCameraDirector::Describe(Source),
+			Settings.Priority, Settings.bClearPrevious ? TEXT(", clears previous") : TEXT(""), bSnap ? TEXT("at once") : *FString::Printf(TEXT("%.1f s"), BlendTime)));
+	}
+
+	Layers.Push(Source, MoveTemp(Layer), Settings.Priority, BlendTime, Settings.bClearPrevious, bSnap);
 }
 
 void UKzCameraRigComponent::PopLayer(UObject* Source, bool bSnap)
 {
+	const FLayer* Layer = Layers.Find(Source);
+	if (Layer && !Layer->bRemoving && GetWorld() && GetWorld()->IsGameWorld())
+	{
+		UKzCameraDirector::RecordEvent(this, FString::Printf(TEXT("%s: - %s, %s"), *UKzCameraDirector::Describe(this), *UKzCameraDirector::Describe(Source),
+			bSnap ? TEXT("at once") : *FString::Printf(TEXT("%.1f s"), Layer->BlendTime)));
+	}
+
 	Layers.Pop(Source, bSnap);
 }
 
@@ -369,7 +386,7 @@ void UKzCameraRigComponent::ApplyPose(const FKzCameraPose& Pose, UCameraComponen
 
 void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
 {
-	bool bDraw = bDrawDebug;
+	bool bDraw = bDrawDebug || (DebuggerFrame > 0 && GFrameCounter <= DebuggerFrame + 1);
 #if WITH_EDITOR
 	bDraw |= !GetWorld()->IsGameWorld() && GetOwner()->IsSelectedInEditor();
 #endif

@@ -4,6 +4,7 @@
 
 #if WITH_GAMEPLAY_DEBUGGER
 #include "GameplayDebugger.h"
+#include "Camera/KzCameraDebuggerCategory.h"
 #include "Combat/KzTargetingDebuggerCategory.h"
 #include "Interaction/Debugger/KzGameplayDebuggerCategory.h"
 #endif
@@ -17,6 +18,7 @@ void FKzGameplayModule::StartupModule()
 
 	GameplayDebuggerModule.RegisterCategory("KzInteraction", IGameplayDebugger::FOnGetCategory::CreateStatic(&FKzGameplayDebuggerCategory::MakeInstance), EGameplayDebuggerCategoryState::EnabledInGameAndSimulate);
 	GameplayDebuggerModule.RegisterCategory("KzTargeting", IGameplayDebugger::FOnGetCategory::CreateStatic(&FKzTargetingDebuggerCategory::MakeInstance), EGameplayDebuggerCategoryState::EnabledInGameAndSimulate);
+	GameplayDebuggerModule.RegisterCategory("KzCamera", IGameplayDebugger::FOnGetCategory::CreateStatic(&FKzCameraDebuggerCategory::MakeInstance), EGameplayDebuggerCategoryState::Disabled);
 	GameplayDebuggerModule.NotifyCategoriesChanged();
 #endif
 }
@@ -28,6 +30,7 @@ void FKzGameplayModule::ShutdownModule()
 	{
 		IGameplayDebugger::Get().UnregisterCategory("KzInteraction");
 		IGameplayDebugger::Get().UnregisterCategory("KzTargeting");
+		IGameplayDebugger::Get().UnregisterCategory("KzCamera");
 		IGameplayDebugger::Get().NotifyCategoriesChanged();
 	}
 #endif

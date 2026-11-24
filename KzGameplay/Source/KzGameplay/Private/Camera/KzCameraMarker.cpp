@@ -71,7 +71,7 @@ void AKzCameraMarker::NotifyCrossed(UKzSplineFollowerComponent* Follower, bool b
 	{
 		if (UKzCameraDirector* Director = UKzCameraDirector::Get(this))
 		{
-			Director->SwitchTo(SwitchToCamera, SwitchBlend);
+			Director->SwitchTo(SwitchToCamera, SwitchBlend, this);
 		}
 	}
 
