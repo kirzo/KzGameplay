@@ -137,7 +137,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dead Zone", meta = (ClampMin = "0", Units = "Seconds"))
 	float Inertia = 0.0f;
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
@@ -198,14 +198,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look Ahead", meta = (ClampMin = "0", Units = "Seconds", EditCondition = "!bHoldWhenIdle", EditConditionHides))
 	float ReturnDelay = 0.5f;
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
 
 private:
 	float IdleTime = 0.0f;
-	FVector LeadOrigin = FVector::ZeroVector;
 	FVector DesiredLead = FVector::ZeroVector;
 	FVector Lead = FVector::ZeroVector;
 	FVector Rate = FVector::ZeroVector;
@@ -227,7 +226,7 @@ class KZGAMEPLAY_API UKzCameraModule_Limits : public UKzCameraModule
 public:
 	UKzCameraModule_Limits();
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
@@ -235,9 +234,6 @@ protected:
 private:
 	/** The focus as the limits left it last frame, outside every blocking shape. */
 	FVector Position = FVector::ZeroVector;
-
-	/** The focus before the limits, for the debug draw. */
-	FVector DesiredFocus = FVector::ZeroVector;
 
 	bool bInitialized = false;
 };
@@ -345,7 +341,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pan", meta = (ClampMin = "0", Units = "Centimeters"))
 	float MaxDistance = 300.0f;
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
@@ -377,14 +373,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arm", meta = (ClampMin = "0", ForceUnits = "Centimeters"))
 	float MaxDistance = 0.0f;
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;
-
-private:
-	/** Where the camera hung before the arm moved it, for the debug drawing. */
-	FVector Origin = FVector::ZeroVector;
 };
 
 UCLASS(meta = (DisplayName = "Look At"))
@@ -445,7 +437,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rotation Limit", meta = (ClampMin = "0", ClampMax = "89", Units = "Degrees"))
 	float MaxPitch = 10.0f;
 
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const override;
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const override;
 
 protected:
 	virtual FKzCameraPose Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose) override;

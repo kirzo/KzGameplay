@@ -140,13 +140,24 @@ private:
 	/** Adds, scales and removes the layers of the camera volumes for the target's location. Reread applies them by the location alone. */
 	void UpdateVolumes(const FVector& TargetLocation, bool bSnap, bool bReread);
 
-	/** Runs every kind of module whose stage is between First and Last, by stage and then in the order they first appear. */
-	void EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const;
+	/** What a kind of module did this frame, for the debug drawing: its top module that weighs, and the pose before and after the kind. */
+	struct FDebugSlot
+	{
+		const UKzCameraModule* Module = nullptr;
+		FKzCameraPose In;
+		FKzCameraPose Out;
+	};
 
-	/** Runs every module of one kind, from the base to the top layer, each blended by its layer's weight. */
-	FKzCameraPose EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const;
+	/** Runs every kind of module whose stage is between First and Last, by stage and then in the order they first appear. */
+	void EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers, TArray<FDebugSlot>* DebugSlots) const;
+
+	/** Runs every module of one kind, from the base to the top layer, each blended by its layer's weight. OutTop is the top one that weighs. */
+	FKzCameraPose EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers, const UKzCameraModule*& OutTop) const;
 
 	void ApplyPose(const FKzCameraPose& Pose, UCameraComponent* CameraComponent);
 
-	void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const;
+	/** In the editor while selected, with Draw Debug, or with the camera debugger. */
+	bool ShouldDrawDebug() const;
+
+	void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FDebugSlot>& DebugSlots) const;
 };

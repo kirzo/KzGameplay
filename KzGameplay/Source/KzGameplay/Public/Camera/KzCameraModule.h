@@ -31,8 +31,12 @@ public:
 
 	UClass* GetSlotClass() const;
 
-	/** Draws what the module does, with the final pose. The rig calls it while the camera is selected in the editor, or when it draws debug. */
-	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const {}
+	/**
+	 * Draws what its kind of module did this frame. The rig calls it on the top module of each kind that weighs, with the pose before
+	 * and after the kind, blended over every layer: draw from them, not from the module's own state, which may not be the one in effect.
+	 * The rig draws while the camera is selected in the editor, with Draw Debug, or with the camera debugger.
+	 */
+	virtual void DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const {}
 
 	virtual UWorld* GetWorld() const override;
 

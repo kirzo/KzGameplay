@@ -238,11 +238,14 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 	}
 	Layers.Update(DeltaTime, bSnap);
 
+	TArray<FDebugSlot> DebugSlots;
+	TArray<FDebugSlot>* Debug = ShouldDrawDebug() ? &DebugSlots : nullptr;
+
 	// Focus: what the camera follows.
 	FKzCameraPose Pose;
 	Pose.Focus = Context.TargetLocation;
 	Pose.FieldOfView = FieldOfView;
-	EvaluateStages(EKzCameraStage::Track, EKzCameraStage::Smooth, Context, Pose, Layers.GetOrdered());
+	EvaluateStages(EKzCameraStage::Track, EKzCameraStage::Smooth, Context, Pose, Layers.GetOrdered(), Debug);
 
 	// A driven follower takes the focus onto its spline and moves the root; the markers it crosses may add or remove layers.
 	if (SplineFollower && SplineFollower->Mode == EKzSplineFollowMode::Driven && Context.Target)
@@ -258,13 +261,13 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 	const FTransform HangingTransform = Context.CameraRelative * Context.Anchor;
 	Pose.Location = HangingTransform.GetLocation();
 	Pose.Rotation = HangingTransform.Rotator();
-	EvaluateStages(EKzCameraStage::Anchor, EKzCameraStage::Anchor, Context, Pose, OrderedLayers);
+	EvaluateStages(EKzCameraStage::Anchor, EKzCameraStage::Anchor, Context, Pose, OrderedLayers, Debug);
 
 	// The point the anchor modules left the camera hanging from, and where it points from there before aiming.
 	Context.Reference = Context.CameraRelative.Inverse() * FTransform(Pose.Rotation, Pose.Location);
 	Context.Rest = Pose.Rotation;
 
-	EvaluateStages(EKzCameraStage::Position, EKzCameraStage::Lens, Context, Pose, OrderedLayers);
+	EvaluateStages(EKzCameraStage::Position, EKzCameraStage::Lens, Context, Pose, OrderedLayers, Debug);
 	ApplyPose(Pose, CameraComponent);
 
 	LastPose = Pose;
@@ -274,7 +277,10 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 	LastView.FOV = Pose.FieldOfView;
 	LastView.AspectRatio = CameraComponent ? CameraComponent->AspectRatio : 16.0f / 9.0f;
 
-	DrawDebug(Context, Pose, OrderedLayers);
+	if (Debug)
+	{
+		DrawDebug(Context, Pose, DebugSlots);
+	}
 }
 
 void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bSnap, bool bReread)
@@ -330,7 +336,7 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 	});
 }
 
-void UKzCameraRigComponent::EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
+void UKzCameraRigComponent::EvaluateStages(EKzCameraStage First, EKzCameraStage Last, const FKzCameraContext& Context, FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers, TArray<FDebugSlot>* DebugSlots) const
 {
 	struct FSlot
 	{
@@ -366,11 +372,18 @@ void UKzCameraRigComponent::EvaluateStages(EKzCameraStage First, EKzCameraStage 
 
 	for (const FSlot& Slot : Slots)
 	{
-		Pose = EvaluateSlot(Slot.Class, Context, Pose, OrderedLayers);
+		const FKzCameraPose In = Pose;
+		const UKzCameraModule* Top = nullptr;
+		Pose = EvaluateSlot(Slot.Class, Context, Pose, OrderedLayers, Top);
+
+		if (DebugSlots && Top)
+		{
+			DebugSlots->Add({ Top, In, Pose });
+		}
 	}
 }
 
-FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
+FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers, const UKzCameraModule*& OutTop) const
 {
 	auto FindModule = [SlotClass](const TArray<TObjectPtr<UKzCameraModule>>& InModules) -> UKzCameraModule*
 	{
@@ -387,6 +400,7 @@ FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const
 	// Every module of the kind works from the same input; the layers above blend over the ones below.
 	UKzCameraModule* BaseModule = FindModule(Modules);
 	FKzCameraPose Out = BaseModule ? BaseModule->Evaluate(Context, Pose) : Pose;
+	OutTop = BaseModule;
 
 	for (const FLayer* Layer : OrderedLayers)
 	{
@@ -395,6 +409,7 @@ FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const
 		if (UKzCameraModule* Module = FindModule(Layer->Modules))
 		{
 			Out = FKzCameraPose::Blend(Out, Module->Evaluate(Context, Pose), Layer->Weight);
+			OutTop = Module;
 		}
 	}
 
@@ -421,14 +436,17 @@ void UKzCameraRigComponent::ApplyPose(const FKzCameraPose& Pose, UCameraComponen
 	}
 }
 
-void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers) const
+bool UKzCameraRigComponent::ShouldDrawDebug() const
 {
 	bool bDraw = bDrawDebug || (DebuggerFrame > 0 && GFrameCounter <= DebuggerFrame + 1);
 #if WITH_EDITOR
 	bDraw |= !GetWorld()->IsGameWorld() && GetOwner()->IsSelectedInEditor();
 #endif
-	if (!bDraw) return;
+	return bDraw;
+}
 
+void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FDebugSlot>& DebugSlots) const
+{
 	// The target, the focus and the line between them, which is how far behind or ahead the camera follows.
 	constexpr float Thickness = 1.5f;
 	const UWorld* World = GetWorld();
@@ -436,24 +454,9 @@ void UKzCameraRigComponent::DrawDebug(const FKzCameraContext& Context, const FKz
 	DrawDebugSphere(World, Pose.Focus, 18.0f, 8, FColor::Yellow, false, -1.0f, SDPG_Foreground, Thickness);
 	DrawDebugLine(World, Context.TargetLocation, Pose.Focus, FColor::Yellow, false, -1.0f, SDPG_Foreground, Thickness);
 
-	for (const UKzCameraModule* Module : Modules)
+	// Each kind of module as its layers blend it, drawn once by the top one.
+	for (const FDebugSlot& Slot : DebugSlots)
 	{
-		if (Module)
-		{
-			Module->DrawDebug(Context, Pose);
-		}
-	}
-
-	for (const FLayer* Layer : OrderedLayers)
-	{
-		if (Layer->Weight <= 0.0f) continue;
-
-		for (const UKzCameraModule* Module : Layer->Modules)
-		{
-			if (Module)
-			{
-				Module->DrawDebug(Context, Pose);
-			}
-		}
+		Slot.Module->DrawDebug(Context, Slot.In, Slot.Out);
 	}
 }

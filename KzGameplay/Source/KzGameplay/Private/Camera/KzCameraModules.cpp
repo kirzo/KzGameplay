@@ -253,33 +253,38 @@ FKzCameraPose UKzCameraModule_DeadZone::Evaluate_Implementation(const FKzCameraC
 	return Result;
 }
 
-void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
-	const FQuat Axes = GetAxes(Context);
-	if (Shape == EKzCameraDeadZoneShape::Box)
+	// The zone in effect, as the layers blend it: a dead zone set to nothing draws nothing.
+	const FVector& Size = Out.FocusSlack;
+	if (Size.IsNearlyZero()) return;
+
+	const FVector& ZoneCenter = Out.Focus;
+	const FQuat Axes = Out.FocusSlackRotation.Quaternion();
+	if (!Out.bFocusSlackRound)
 	{
-		DrawDebugBox(GetWorld(), Center, HalfSize.ComponentMax(FVector(1.0)), Axes, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+		DrawDebugBox(GetWorld(), ZoneCenter, Size.ComponentMax(FVector(1.0)), Axes, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
 		return;
 	}
 
 	// An ellipse across each pair of axes with size: one for a flat zone, three for a solid one. With a single axis, a segment.
-	const FVector Radii[3] = { Axes.GetAxisX() * HalfSize.X, Axes.GetAxisY() * HalfSize.Y, Axes.GetAxisZ() * HalfSize.Z };
+	const FVector Radii[3] = { Axes.GetAxisX() * Size.X, Axes.GetAxisY() * Size.Y, Axes.GetAxisZ() * Size.Z };
 	int32 Sized = 0;
 	for (int32 First = 0; First < 3; ++First)
 	{
-		if (HalfSize[First] <= UE_KINDA_SMALL_NUMBER) continue;
+		if (Size[First] <= UE_KINDA_SMALL_NUMBER) continue;
 		++Sized;
 
 		for (int32 Second = First + 1; Second < 3; ++Second)
 		{
-			if (HalfSize[Second] <= UE_KINDA_SMALL_NUMBER) continue;
+			if (Size[Second] <= UE_KINDA_SMALL_NUMBER) continue;
 
 			constexpr int32 Segments = 32;
-			FVector Previous = Center + Radii[First];
+			FVector Previous = ZoneCenter + Radii[First];
 			for (int32 Segment = 1; Segment <= Segments; ++Segment)
 			{
 				const double Angle = UE_TWO_PI * Segment / Segments;
-				const FVector Point = Center + Radii[First] * FMath::Cos(Angle) + Radii[Second] * FMath::Sin(Angle);
+				const FVector Point = ZoneCenter + Radii[First] * FMath::Cos(Angle) + Radii[Second] * FMath::Sin(Angle);
 				DrawDebugLine(GetWorld(), Previous, Point, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
 				Previous = Point;
 			}
@@ -289,7 +294,7 @@ void UKzCameraModule_DeadZone::DrawDebug(const FKzCameraContext& Context, const 
 	if (Sized == 1)
 	{
 		const FVector Radius = Radii[0] + Radii[1] + Radii[2];
-		DrawDebugLine(GetWorld(), Center - Radius, Center + Radius, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
+		DrawDebugLine(GetWorld(), ZoneCenter - Radius, ZoneCenter + Radius, FColor::Cyan, false, -1.0f, SDPG_Foreground, DebugThickness);
 	}
 }
 
@@ -347,8 +352,6 @@ FKzCameraPose UKzCameraModule_LookAhead::Evaluate_Implementation(const FKzCamera
 	{
 		FMath::CriticallyDampedSmoothing(Lead, Rate, DesiredLead, FVector::ZeroVector, Context.DeltaTime, SmoothingTime);
 	}
-
-	LeadOrigin = Pose.Focus;
 
 	FKzCameraPose Result = Pose;
 	Result.Focus += Lead;
@@ -408,11 +411,11 @@ FVector UKzCameraModule_LookAhead::GetDesiredLead(const FKzCameraContext& Contex
 	return Axes.RotateVector(Desired);
 }
 
-void UKzCameraModule_LookAhead::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_LookAhead::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
-	if (!Lead.IsNearlyZero())
+	if (!In.Focus.Equals(Out.Focus, 0.1))
 	{
-		DrawDebugDirectionalArrow(GetWorld(), LeadOrigin, LeadOrigin + Lead, 30.0f, FColor::Green, false, -1.0f, SDPG_Foreground, DebugThickness);
+		DrawDebugDirectionalArrow(GetWorld(), In.Focus, Out.Focus, 30.0f, FColor::Green, false, -1.0f, SDPG_Foreground, DebugThickness);
 	}
 }
 
@@ -424,7 +427,6 @@ UKzCameraModule_Limits::UKzCameraModule_Limits()
 
 FKzCameraPose UKzCameraModule_Limits::Evaluate_Implementation(const FKzCameraContext& Context, const FKzCameraPose& Pose)
 {
-	DesiredFocus = Pose.Focus;
 	FVector Goal = Pose.Focus;
 
 	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
@@ -482,7 +484,7 @@ FKzCameraPose UKzCameraModule_Limits::Evaluate_Implementation(const FKzCameraCon
 	return Result;
 }
 
-void UKzCameraModule_Limits::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_Limits::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
 	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
 	if (!Registry) return;
@@ -497,9 +499,9 @@ void UKzCameraModule_Limits::DrawDebug(const FKzCameraContext& Context, const FK
 		DrawDebugShape(World, Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Shape, Color, false, -1.0f, SDPG_Foreground, DebugThickness);
 	});
 
-	if (!DesiredFocus.Equals(Position))
+	if (!In.Focus.Equals(Out.Focus))
 	{
-		DrawDebugLine(World, DesiredFocus, Position, FColor::Red, false, -1.0f, SDPG_Foreground, DebugThickness);
+		DrawDebugLine(World, In.Focus, Out.Focus, FColor::Red, false, -1.0f, SDPG_Foreground, DebugThickness);
 	}
 }
 
@@ -651,13 +653,13 @@ FKzCameraPose UKzCameraModule_Pan::Evaluate_Implementation(const FKzCameraContex
 	return Result;
 }
 
-void UKzCameraModule_Pan::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_Pan::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
 	if (MaxDistance <= 0.0f) return;
 
 	FVector AxisY;
 	FVector AxisZ;
-	GetPlaneNormal(Context, Pose).FindBestAxisVectors(AxisY, AxisZ);
+	GetPlaneNormal(Context, In).FindBestAxisVectors(AxisY, AxisZ);
 	DrawDebugCircle(GetWorld(), Context.Anchor.GetLocation(), MaxDistance, 32, FColor::Orange, false, -1.0f, SDPG_Foreground, DebugThickness, AxisY, AxisZ, false);
 }
 
@@ -677,25 +679,23 @@ FKzCameraPose UKzCameraModule_Arm::Evaluate_Implementation(const FKzCameraContex
 		Travel = FMath::Clamp(Travel, -static_cast<double>(MaxDistance), static_cast<double>(MaxDistance));
 	}
 
-	Origin = Pose.Location;
-
 	FKzCameraPose Result = Pose;
 	Result.Location += Forward * Travel;
 	return Result;
 }
 
-void UKzCameraModule_Arm::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_Arm::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
 	const UWorld* World = GetWorld();
 	const FVector Forward = Context.Rest.Vector();
 
-	DrawDebugLine(World, Pose.Location, Pose.Location + Forward * Length, FColor(0, 128, 255), false, -1.0f, SDPG_Foreground, DebugThickness);
+	DrawDebugLine(World, Out.Location, Out.Location + Forward * Length, FColor(0, 128, 255), false, -1.0f, SDPG_Foreground, DebugThickness);
 
 	// How far the arm may move the camera, around where it hangs.
 	if (MaxDistance > 0.0f)
 	{
-		const FVector Back = Origin - Forward * MaxDistance;
-		const FVector Front = Origin + Forward * MaxDistance;
+		const FVector Back = In.Location - Forward * MaxDistance;
+		const FVector Front = In.Location + Forward * MaxDistance;
 		DrawDebugLine(World, Back, Front, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground, DebugThickness * 2.0f);
 		DrawDebugPoint(World, Back, 8.0f, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground);
 		DrawDebugPoint(World, Front, 8.0f, FColor(0, 64, 160), false, -1.0f, SDPG_Foreground);
@@ -797,7 +797,7 @@ FKzCameraPose UKzCameraModule_RotationLimit::Evaluate_Implementation(const FKzCa
 	return Result;
 }
 
-void UKzCameraModule_RotationLimit::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& Pose) const
+void UKzCameraModule_RotationLimit::DrawDebug(const FKzCameraContext& Context, const FKzCameraPose& In, const FKzCameraPose& Out) const
 {
 	constexpr double Length = 300.0;
 	constexpr int32 Segments = 32;
@@ -811,7 +811,7 @@ void UKzCameraModule_RotationLimit::DrawDebug(const FKzCameraContext& Context, c
 	{
 		const double Angle = 2.0 * UE_DOUBLE_PI * Index / Segments;
 		const FRotator Edge(MaxPitch * FMath::Sin(Angle), MaxYaw * FMath::Cos(Angle), 0.0);
-		const FVector Point = Pose.Location + BaseRotation.RotateVector(Edge.Vector()) * Length;
+		const FVector Point = Out.Location + BaseRotation.RotateVector(Edge.Vector()) * Length;
 
 		if (Index > 0)
 		{
@@ -819,12 +819,12 @@ void UKzCameraModule_RotationLimit::DrawDebug(const FKzCameraContext& Context, c
 		}
 		if (Index % (Segments / 4) == 0)
 		{
-			DrawDebugLine(World, Pose.Location, Point, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
+			DrawDebugLine(World, Out.Location, Point, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
 		}
 		Previous = Point;
 	}
 
-	DrawDebugLine(World, Pose.Location, Pose.Location + Pose.Rotation.Vector() * Length, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
+	DrawDebugLine(World, Out.Location, Out.Location + Out.Rotation.Vector() * Length, FColor::Magenta, false, -1.0f, SDPG_Foreground, DebugThickness);
 }
 
 UKzCameraModule_RotationOffset::UKzCameraModule_RotationOffset()
