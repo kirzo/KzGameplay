@@ -225,6 +225,9 @@ void AKzLightingRig::UpdateVolumes(const FVector& Location, bool bSnap)
 		{
 			if (!bActive)
 			{
+				// Moving, a layer comes in by going inside the volume, not by reaching past its exit some other way.
+				if (!bSnap && !Volume->bUnbound && !Volume->Contains(Location)) return;
+
 				PushLayer(Volume, Volume->Layer, bVolumeSnap);
 			}
 			SetLayerAlpha(Volume, Alpha);

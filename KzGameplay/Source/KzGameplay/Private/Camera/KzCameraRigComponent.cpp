@@ -294,33 +294,38 @@ void UKzCameraRigComponent::UpdateVolumes(const FVector& TargetLocation, bool bS
 	{
 		const float Alpha = Volume->GetAlpha(TargetLocation);
 		const bool bActive = Layers.IsActive(Volume);
+		const bool bInside = Volume->Contains(TargetLocation);
 
 		// A progressive volume already blends in space, so it adds no time blend on top.
 		const bool bVolumeSnap = bSnap || Volume->bProgressive;
 
-		if (Alpha > 0.0f)
+		// Woken into view, the rig leaves the volumes the target is inside to the camera that saw it enter, until it walks out of them.
+		if (!bInside)
 		{
-			if (!bActive)
-			{
-				// Woken into view, the rig leaves the volumes the target is already in to the camera that saw it enter, until it leaves them.
-				if (bWoke)
-				{
-					IgnoredVolumes.Add(Volume);
-				}
-				if (IgnoredVolumes.Contains(Volume)) return;
-
-				PushLayer(Volume, Volume->Layer, bVolumeSnap);
-			}
-			SetLayerAlpha(Volume, Alpha);
-			return;
+			IgnoredVolumes.Remove(Volume);
+		}
+		else if (bWoke && !bActive)
+		{
+			IgnoredVolumes.Add(Volume);
 		}
 
-		IgnoredVolumes.Remove(Volume);
-
-		// Walked out past its exit, a volume keeps its layer; on a reread, the alpha alone decides.
-		if (bActive && (bReread || !Volume->Keeps(TargetLocation)))
+		if (bActive)
 		{
-			PopLayer(Volume, bVolumeSnap);
+			if (Alpha > 0.0f)
+			{
+				SetLayerAlpha(Volume, Alpha);
+			}
+			// Walked out past its exit, a volume keeps its layer; on a reread, the alpha alone decides.
+			else if (bReread || !Volume->Keeps(TargetLocation))
+			{
+				PopLayer(Volume, bVolumeSnap);
+			}
+		}
+		// Walking, a layer comes in by going inside the volume, not by reaching past its exit some other way; on a reread, by the alpha alone.
+		else if (Alpha > 0.0f && (bReread || (bInside && !IgnoredVolumes.Contains(Volume))))
+		{
+			PushLayer(Volume, Volume->Layer, bVolumeSnap);
+			SetLayerAlpha(Volume, Alpha);
 		}
 	});
 }
