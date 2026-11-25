@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Combat/KzComboInstance.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Animation/KzAnimationSource.h"
@@ -210,6 +211,14 @@ bool UKzComboInstance::PlayAttack(int32 NodeIndex, const FVector& Direction)
 
 	FacingDirection = Flatten(Direction.IsNearlyZero() && Context.User ? Context.User->GetActorForwardVector() : Direction);
 	Target = FindTarget(FacingDirection);
+	if (AActor* Targeted = Target.Get(); Targeted && Context.User)
+	{
+		FGameplayEventData Payload;
+		Payload.EventTag = KzTags::Combat::Combat_Targeted;
+		Payload.Instigator = Context.User;
+		Payload.Target = Targeted;
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Targeted, KzTags::Combat::Combat_Targeted, Payload);
+	}
 	UpdateFacing(0.0f);
 
 	Play->OnNotify.AddUObject(this, &UKzComboInstance::OnNotify);

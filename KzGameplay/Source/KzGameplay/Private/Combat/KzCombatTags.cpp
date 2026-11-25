@@ -23,6 +23,8 @@ namespace KzTags::Combat
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_Undodgeable, "Attack.Undodgeable", "Hits through State.Invulnerable.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Attack_GuardBreak, "Attack.GuardBreak", "Breaks a block: Reaction.GuardBreak instead of Reaction.Block.");
 
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Combat_Targeted, "Combat.Targeted", "Gameplay event to whom an attack picks as its target, as the attack starts, before any hit. Instigator: the attacker.");
+
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Reaction, "Reaction", "Events of how someone takes a combo hit.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Reaction_Hit, "Reaction.Hit", "A hit whose Hit Window asks for no reaction of its own.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Reaction_Block, "Reaction.Block", "The defender blocked a hit.");

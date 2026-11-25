@@ -4,11 +4,13 @@
 #include "StateTreeExecutionContext.h"
 #include "Sensors/KzSensorComponent.h"
 #include "Factions/KzFactionLibrary.h"
+#include "Abilities/GameplayAbilityTypes.h"
+#include "Combat/KzCombatTags.h"
 #include "KzAITags.h"
 
 namespace
 {
-	/** The current target while the sensor still has it with the attitude, else the nearest that has it. */
+	/** The current target while the sensor still has it with the attitude, else the nearest that has it, else the revealed one, else the suggested one. */
 	AActor* PickTarget(const FKzStateTreeTask_FindTargetInstanceData& InstanceData)
 	{
 		const FVector Location = InstanceData.Actor->GetActorLocation();
@@ -35,8 +37,27 @@ namespace
 				NearestDistSq = DistSq;
 			}
 		}
-		return Nearest;
+
+		if (Nearest)
+		{
+			return Nearest;
+		}
+
+		for (AActor* Fallback : { InstanceData.Revealed.Get(), InstanceData.Suggested.Get() })
+		{
+			if (Fallback && UKzFactionLibrary::GetAttitude(InstanceData.Actor, Fallback) == InstanceData.Attitude)
+			{
+				return Fallback;
+			}
+		}
+		return nullptr;
 	}
+}
+
+FKzStateTreeTask_FindTargetInstanceData::FKzStateTreeTask_FindTargetInstanceData()
+{
+	RevealEvents.AddTag(KzTags::Combat::Combat_Targeted);
+	RevealEvents.AddTag(KzTags::Combat::Reaction);
 }
 
 EStateTreeRunStatus FKzStateTreeTask_FindTarget::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
@@ -51,6 +72,26 @@ EStateTreeRunStatus FKzStateTreeTask_FindTarget::Tick(FStateTreeExecutionContext
 	{
 		return EStateTreeRunStatus::Failed;
 	}
+
+	Context.ForEachEvent([&InstanceData](const FStateTreeSharedEvent& SharedEvent)
+	{
+		const FStateTreeEvent& Event = *SharedEvent;
+		const FGameplayEventData* Data = Event.Payload.GetPtr<FGameplayEventData>();
+		if (!Data)
+		{
+			return EStateTreeLoopEvents::Next;
+		}
+
+		if (Event.Tag == KzTags::AI::Target_Suggested)
+		{
+			InstanceData.Suggested = const_cast<AActor*>(Data->Target.Get());
+		}
+		else if (Event.Tag.MatchesAny(InstanceData.RevealEvents) && Data->Instigator.Get() != InstanceData.Actor.Get())
+		{
+			InstanceData.Revealed = const_cast<AActor*>(Data->Instigator.Get());
+		}
+		return EStateTreeLoopEvents::Next;
+	});
 
 	AActor* Target = PickTarget(InstanceData);
 	if (Target != InstanceData.Target)
