@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Math/Geometry/KzShapeInstance.h"
+#include "Misc/KzToggleable.h"
 #include "KzCameraLimit.generated.h"
 
 class UBillboardComponent;
@@ -25,12 +26,16 @@ enum class EKzCameraLimitMode : uint8
  * A blocking limit keeps the focus out; a confining one keeps it in while the target is inside, so its shape can be the room itself.
  */
 UCLASS(Blueprintable, HideCategories = (Input, Collision, Physics, LOD, Cooking, Replication, HLOD))
-class KZGAMEPLAY_API AKzCameraLimit : public AActor
+class KZGAMEPLAY_API AKzCameraLimit : public AActor, public IKzToggleable
 {
 	GENERATED_BODY()
 
 public:
 	AKzCameraLimit();
+
+	/** Off, it limits nothing, such as until an encounter needs it. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Limit")
+	bool bEnabled = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Camera Limit")
 	EKzCameraLimitMode Mode = EKzCameraLimitMode::Block;
@@ -55,6 +60,7 @@ public:
 	virtual void PostRegisterAllComponents() override;
 	virtual void UnregisterAllComponents(bool bForReregister = false) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void SetEnabled_Implementation(bool bNewEnabled) override { bEnabled = bNewEnabled; }
 
 #if WITH_EDITORONLY_DATA
 private:

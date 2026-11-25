@@ -437,7 +437,7 @@ FKzCameraPose UKzCameraModule_Limits::Evaluate_Implementation(const FKzCameraCon
 	FVector Confined = Goal;
 	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
 	{
-		if (!Limit->IsConfining(Context.TargetLocation)) return;
+		if (!Limit->bEnabled || !Limit->IsConfining(Context.TargetLocation)) return;
 
 		const FVector Closest = Limit->GetShape(true).GetClosestPoint(Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Goal);
 		const double DistSq = FVector::DistSquared(Closest, Goal);
@@ -464,7 +464,7 @@ FKzCameraPose UKzCameraModule_Limits::Evaluate_Implementation(const FKzCameraCon
 	TArray<FLimitShape, TInlineAllocator<8>> Blockers;
 	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
 	{
-		if (Limit->Mode != EKzCameraLimitMode::Block) return;
+		if (!Limit->bEnabled || Limit->Mode != EKzCameraLimitMode::Block) return;
 
 		const FBox Bounds = Limit->GetBounds();
 		if (!Bounds.Intersect(Reach)) return;
@@ -493,7 +493,7 @@ void UKzCameraModule_Limits::DrawDebug(const FKzCameraContext& Context, const FK
 	Registry->ForEach<AKzCameraLimit>([&](const AKzCameraLimit* Limit)
 	{
 		const FKzShapeInstance Shape = Limit->GetShape(true);
-		if (!Shape.IsValid()) return;
+		if (!Limit->bEnabled || !Shape.IsValid()) return;
 
 		const FColor Color = Limit->Mode == EKzCameraLimitMode::Block ? FColor::Red : Limit->IsConfining(Context.TargetLocation) ? FColor::Green : FColor::Silver;
 		DrawDebugShape(World, Limit->ShapeComponent->GetComponentLocation(), Limit->ShapeComponent->GetComponentQuat(), Shape, Color, false, -1.0f, SDPG_Foreground, DebugThickness);
