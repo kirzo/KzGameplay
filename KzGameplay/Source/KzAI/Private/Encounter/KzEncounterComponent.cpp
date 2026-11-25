@@ -120,6 +120,8 @@ void UKzEncounterComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	Enemies.Reset();
 	RestoreEngagements();
+	StartAction.Reset();
+	EndAction.Reset();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -204,6 +206,7 @@ void UKzEncounterComponent::End()
 	if (bWasActive)
 	{
 		SetLimitsEnabled(false);
+		StartAction.Reset();
 		RunAction(EndAction);
 	}
 	OnEnded.Broadcast();
@@ -566,14 +569,14 @@ bool UKzEncounterComponent::Evaluate(const FScriptableRequirement& Requirement)
 	return FScriptableRequirement::EvaluateRequirement(this, Requirement, Context);
 }
 
-void UKzEncounterComponent::RunAction(const FScriptableAction& Action)
+void UKzEncounterComponent::RunAction(FScriptableAction& Action)
 {
 	if (!Action.Tasks.IsEmpty())
 	{
 		FScriptableContext Context;
 		Context.SetProperty(TEXT("Encounter"), GetOwner());
 		Context.SetProperty(TEXT("Target"), Target.Get());
-		FScriptableAction::RunCopy(this, Action, Context);
+		Action.Run(this, Context);
 	}
 }
 

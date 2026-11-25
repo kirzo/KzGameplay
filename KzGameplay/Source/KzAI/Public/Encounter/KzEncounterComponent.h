@@ -118,7 +118,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Start")
 	bool bStartOnEngage = true;
 
-	/** Runs as it starts, such as the combat camera. Its context has the Encounter and its Target. */
+	/** Runs as it starts, such as the combat camera. Its context has the Encounter and its Target. Reset as it ends, so tasks with Revert On Reset undo what they did. */
 	UPROPERTY(EditAnywhere, Category = "Start", meta = (DisplayName = "Start Action"))
 	FScriptableAction StartAction;
 
@@ -130,7 +130,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "End", meta = (ClampMin = "0", Units = "Seconds"))
 	float EndDelay = 0.0f;
 
-	/** Runs as it ends, whatever ends it. Its context has the Encounter and its Target. */
+	/** Runs as it ends, whatever ends it, after Start Action is reset. Its context has the Encounter and its Target. */
 	UPROPERTY(EditAnywhere, Category = "End", meta = (DisplayName = "End Action"))
 	FScriptableAction EndAction;
 
@@ -269,7 +269,8 @@ private:
 	void RestoreEngagements();
 
 	bool Evaluate(const FScriptableRequirement& Requirement);
-	void RunAction(const FScriptableAction& Action);
+	/** Runs it on this encounter, not on a copy, so its tasks last and Start Action can be reset. */
+	void RunAction(FScriptableAction& Action);
 
 	void HandleCombatantJoined(UKzCombatant* Combatant);
 	void HandleDeadTag(const FGameplayTag Tag, int32 Count, TWeakObjectPtr<AActor> Actor);
