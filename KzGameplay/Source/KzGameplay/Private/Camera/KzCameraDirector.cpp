@@ -159,6 +159,13 @@ void UKzCameraDirector::Tick(float DeltaTime)
 	UpdateRigs(CameraManager);
 }
 
+bool UKzCameraDirector::IsShowing(const AActor* Camera) const
+{
+	const APlayerController* PlayerController = GetPlayerController();
+	const APlayerCameraManager* CameraManager = PlayerController ? PlayerController->PlayerCameraManager.Get() : nullptr;
+	return Camera && CameraManager && (CameraManager->GetViewTarget() == Camera || CameraManager->PendingViewTarget.Target == Camera);
+}
+
 bool UKzCameraDirector::IsShowingGameplay(const APlayerCameraManager* CameraManager) const
 {
 	const AActor* Gameplay = GameplayCamera.Get();

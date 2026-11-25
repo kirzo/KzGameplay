@@ -53,6 +53,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Camera Director")
 	AActor* GetGameplayCamera() const { return GameplayCamera.Get(); }
 
+	/** Whether the player sees Camera, or is blending to it. */
+	UFUNCTION(BlueprintPure, Category = "Camera Director")
+	bool IsShowing(const AActor* Camera) const;
+
 	const AKzCameraZone* GetCurrentZone() const { return CurrentZone.Get(); }
 
 	/** Why the camera in view was chosen, and when. */
