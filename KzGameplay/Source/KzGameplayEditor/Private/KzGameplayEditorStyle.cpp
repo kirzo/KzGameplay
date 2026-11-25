@@ -48,6 +48,7 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		{ TEXT("ScriptableTask_LinkAnimLayers"), TEXT("AnimLayer") },
 		{ TEXT("ScriptableTask_LinkAnimLayerByQuery"), TEXT("AnimLayer") },
 		{ TEXT("ScriptableTask_CinematicMode"), TEXT("ScriptableTask_CinematicMode") },
+		{ TEXT("ScriptableTask_SetLightingProfile"), TEXT("LightingProfile") },
 		{ TEXT("KzEncounterCondition_Defeated"), TEXT("KzEncounterCondition_Defeated") },
 		{ TEXT("KzEncounterCondition_Time"), TEXT("KzEncounterCondition_Time") },
 		{ TEXT("KzEncounterCondition_Waves"), TEXT("KzEncounterCondition_Waves") },

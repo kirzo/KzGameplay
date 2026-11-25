@@ -15,7 +15,8 @@ public class KzLighting : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"KzLib",
-				"MovieScene"
+				"MovieScene",
+				"ScriptableFramework"
 			}
 			);
 	}
