@@ -2,21 +2,56 @@
 
 #include "Spawning/KzSpawnComponent.h"
 #include "KzDrawDebugHelpers.h"
+#include "Kismet/KzSystemLibrary.h"
 #include "Math/Geometry/KzShapeInstance.h"
 #include "Pooling/KzActorPoolSubsystem.h"
 #include "ScriptableContext.h"
 #include "ScriptableTasks/ScriptableActionRunner.h"
+#include "Sensors/KzSensorTags.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
-#include "GameFramework/Pawn.h"
-#include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "LatentActions.h"
 #include "NavigationSystem.h"
 #include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogKzSpawn, Log, All);
+
+namespace
+{
+	struct FKzSpawnAtPointState
+	{
+		bool bDone = false;
+		TWeakObjectPtr<AActor> Actor;
+	};
+
+	class FKzSpawnAtPointAction : public FPendingLatentAction
+	{
+	public:
+		FKzSpawnAtPointAction(const FLatentActionInfo& InInfo, const TSharedRef<FKzSpawnAtPointState>& InState, EKzSpawnResult& InResult, AActor*& InActor)
+			: Info(InInfo), State(InState), Result(InResult), Actor(InActor)
+		{
+		}
+
+		virtual void UpdateOperation(FLatentResponse& Response) override
+		{
+			if (State->bDone)
+			{
+				Actor = State->Actor.Get();
+				Result = Actor ? EKzSpawnResult::Spawned : EKzSpawnResult::Failed;
+			}
+			Response.FinishAndTriggerIf(State->bDone, Info.ExecutionFunction, Info.Linkage, Info.CallbackTarget);
+		}
+
+	private:
+		FLatentActionInfo Info;
+		TSharedRef<FKzSpawnAtPointState> State;
+		EKzSpawnResult& Result;
+		AActor*& Actor;
+	};
+}
 
 namespace
 {
@@ -43,20 +78,22 @@ void UKzSpawnComponent::BeginPlay()
 		return;
 	}
 
-	if (AutoSpawnDistance <= 0.0f)
+	UKzSensorComponent* Sensor = bWaitForSensor ? UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(GetOwner(), KzTags::Sensor::Spawn) : nullptr;
+	if (!Sensor)
 	{
+		UE_CLOG(bWaitForSensor, LogKzSpawn, Warning, TEXT("%s waits for a sensor tagged Sensor.Spawn but has none: it spawns %s now."), *GetNameSafe(GetOwner()), *GetNameSafe(AutoSpawnClass.Get()));
 		RequestSpawn(AutoSpawnClass);
+		return;
 	}
-	else
-	{
-		GetWorld()->GetTimerManager().SetTimer(AutoSpawnTimer, this, &ThisClass::CheckAutoSpawn, 0.25f, true);
-	}
+
+	WaitingSensor = Sensor;
+	Sensor->OnObjectBeginOverlap.AddUniqueDynamic(this, &ThisClass::HandleSensed);
+	Sensor->Activate();
 }
 
 void UKzSpawnComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorld()->GetTimerManager().ClearTimer(RetryTimer);
-	GetWorld()->GetTimerManager().ClearTimer(AutoSpawnTimer);
 
 	for (FRequest& Request : TArray<FRequest>(MoveTemp(Pending)))
 	{
@@ -69,20 +106,18 @@ void UKzSpawnComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void UKzSpawnComponent::CheckAutoSpawn()
+void UKzSpawnComponent::HandleSensed(const FKzOverlapResult& OverlapInfo)
 {
-	const float MaxDistanceSquared = FMath::Square(AutoSpawnDistance);
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	if (UKzSensorComponent* Sensor = WaitingSensor.Get())
 	{
-		const APlayerController* Player = It->Get();
-		const APawn* Pawn = Player ? Player->GetPawn() : nullptr;
-		if (Pawn && FVector::DistSquared(Pawn->GetActorLocation(), GetComponentLocation()) <= MaxDistanceSquared)
-		{
-			GetWorld()->GetTimerManager().ClearTimer(AutoSpawnTimer);
-			RequestSpawn(AutoSpawnClass);
-			return;
-		}
+		Sensor->OnObjectBeginOverlap.RemoveDynamic(this, &ThisClass::HandleSensed);
+
+		// Not in the middle of its scan
+		GetWorld()->GetTimerManager().SetTimerForNextTick(Sensor, &UKzSensorComponent::Deactivate);
 	}
+	WaitingSensor.Reset();
+
+	RequestSpawn(AutoSpawnClass);
 }
 
 void UKzSpawnComponent::RequestSpawn(TSubclassOf<AActor> Class, TFunction<void(AActor*)> OnFinished)
@@ -173,8 +208,23 @@ AActor* UKzSpawnComponent::Spawn(TSubclassOf<AActor> Class, FString& OutWhy)
 		RunningActions.Add(TObjectKey<AActor>(Actor), FScriptableAction::RunCopy(this, SpawnAction, Context));
 	}
 
+	Spawned.RemoveAll([](const TWeakObjectPtr<AActor>& Each) { return !Each.IsValid(); });
+	Spawned.Add(Actor);
+
 	OnSpawned.Broadcast(Actor);
 	return Actor;
+}
+
+void UKzSpawnComponent::GetSpawnedActors(TArray<AActor*>& OutActors) const
+{
+	OutActors.Reset();
+	for (const TWeakObjectPtr<AActor>& Actor : Spawned)
+	{
+		if (Actor.IsValid())
+		{
+			OutActors.Add(Actor.Get());
+		}
+	}
 }
 
 void UKzSpawnComponent::Despawn(AActor* Actor)
@@ -183,6 +233,8 @@ void UKzSpawnComponent::Despawn(AActor* Actor)
 	{
 		return;
 	}
+
+	Spawned.Remove(Actor);
 
 	TWeakObjectPtr<UScriptableActionRunner> Runner;
 	if (RunningActions.RemoveAndCopyValue(TObjectKey<AActor>(Actor), Runner) && Runner.IsValid())
@@ -314,32 +366,29 @@ bool UKzSpawnComponent::FindSpawnTransform(TSubclassOf<AActor> Class, FTransform
 	return false;
 }
 
-UKzSpawnAtPoint* UKzSpawnAtPoint::SpawnAtPoint(AActor* SpawnPoint, TSubclassOf<AActor> Class)
+void UKzSpawnLibrary::SpawnAtPoint(AActor* SpawnPoint, TSubclassOf<AActor> Class, EKzSpawnResult& Result, AActor*& Actor, FLatentActionInfo LatentInfo)
 {
-	UKzSpawnAtPoint* Node = NewObject<UKzSpawnAtPoint>();
-	Node->SpawnPoint = SpawnPoint;
-	Node->Class = Class;
-	Node->RegisterWithGameInstance(SpawnPoint);
-	return Node;
-}
-
-void UKzSpawnAtPoint::Activate()
-{
-	UKzSpawnComponent* Component = SpawnPoint.IsValid() ? SpawnPoint->FindComponentByClass<UKzSpawnComponent>() : nullptr;
-	if (!Component)
+	UWorld* World = LatentInfo.CallbackTarget ? LatentInfo.CallbackTarget->GetWorld() : nullptr;
+	if (!World)
 	{
-		UE_LOG(LogKzSpawn, Error, TEXT("Spawn At Point: %s has no Spawn Component."), *GetNameSafe(SpawnPoint.Get()));
-		Failed.Broadcast(nullptr);
-		SetReadyToDestroy();
 		return;
 	}
 
-	Component->RequestSpawn(Class, [WeakThis = TWeakObjectPtr<UKzSpawnAtPoint>(this)](AActor* Actor)
+	// Its callback may come after the action is gone, such as with the level ending
+	TSharedRef<FKzSpawnAtPointState> State = MakeShared<FKzSpawnAtPointState>();
+	World->GetLatentActionManager().AddNewAction(LatentInfo.CallbackTarget, LatentInfo.UUID, new FKzSpawnAtPointAction(LatentInfo, State, Result, Actor));
+
+	UKzSpawnComponent* Component = SpawnPoint ? SpawnPoint->FindComponentByClass<UKzSpawnComponent>() : nullptr;
+	if (!Component)
 	{
-		if (UKzSpawnAtPoint* This = WeakThis.Get())
-		{
-			(Actor ? This->Spawned : This->Failed).Broadcast(Actor);
-			This->SetReadyToDestroy();
-		}
+		UE_LOG(LogKzSpawn, Error, TEXT("Spawn At Point: %s has no Spawn Component."), *GetNameSafe(SpawnPoint));
+		State->bDone = true;
+		return;
+	}
+
+	Component->RequestSpawn(Class, [State](AActor* Spawned)
+	{
+		State->Actor = Spawned;
+		State->bDone = true;
 	});
 }

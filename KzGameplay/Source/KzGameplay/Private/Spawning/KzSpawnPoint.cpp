@@ -2,6 +2,9 @@
 
 #include "Spawning/KzSpawnPoint.h"
 #include "Spawning/KzSpawnComponent.h"
+#include "Math/Geometry/Shapes/KzSphere.h"
+#include "Sensors/KzSensorComponent.h"
+#include "Sensors/KzSensorTags.h"
 #include "Components/ArrowComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Engine/Texture2D.h"
@@ -13,6 +16,15 @@ AKzSpawnPoint::AKzSpawnPoint()
 
 	SpawnComponent = CreateDefaultSubobject<UKzSpawnComponent>(TEXT("SpawnComponent"));
 	RootComponent = SpawnComponent;
+
+	// Off until Wait For Sensor turns it on
+	SensorComponent = CreateDefaultSubobject<UKzSensorComponent>(TEXT("SensorComponent"));
+	SensorComponent->SetupAttachment(SpawnComponent);
+	SensorComponent->GameplayTags.AddTag(KzTags::Sensor::Spawn);
+	SensorComponent->Shape = FKzShapeInstance::Make<FKzSphere>(1500.0f);
+	SensorComponent->ScanInterval = 0.25f;
+	SensorComponent->ShapeColor = FColor(245, 165, 36);
+	SensorComponent->bAutoActivate = false;
 
 	SetCanBeDamaged(false);
 	bReplicates = false;
@@ -41,4 +53,11 @@ AKzSpawnPoint::AKzSpawnPoint()
 		ArrowComponent->SetupAttachment(SpawnComponent);
 	}
 #endif
+}
+
+void AKzSpawnPoint::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	SensorComponent->SetVisibility(SpawnComponent->AutoSpawnClass && SpawnComponent->bWaitForSensor);
 }

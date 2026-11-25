@@ -5,8 +5,10 @@
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "Engine/TimerHandle.h"
-#include "Kismet/BlueprintAsyncActionBase.h"
+#include "Engine/LatentActionManager.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "ScriptableTasks/ScriptableAction.h"
+#include "Sensors/KzSensorComponent.h"
 #include "UObject/ObjectKey.h"
 #include "KzSpawnComponent.generated.h"
 
@@ -53,13 +55,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (DisplayName = "Spawn Action"))
 	FScriptableAction SpawnAction;
 
-	/** Spawned once a player comes within Auto Spawn Distance, such as an enemy already waiting there. */
+	/** Spawned as the level starts, such as an enemy already waiting there. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auto Spawn")
 	TSubclassOf<AActor> AutoSpawnClass;
 
-	/** 0 spawns it as the level starts. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auto Spawn", meta = (ClampMin = 0, Units = "Centimeters", EditCondition = "AutoSpawnClass != nullptr"))
-	float AutoSpawnDistance = 0.0f;
+	/** Spawns it instead once the owner's Sensor.Spawn sensor senses something, such as the player coming close. That sensor turns off then. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auto Spawn", meta = (EditCondition = "AutoSpawnClass != nullptr", EditConditionHides))
+	bool bWaitForSensor = false;
 
 	/** After each actor it spawns, with its Spawn Action already running. */
 	UPROPERTY(BlueprintAssignable, Category = "Spawn")
@@ -71,6 +73,10 @@ public:
 	/** Takes away an actor it spawned, stopping its Spawn Action: back to the pool with Use Pool, destroyed without it. */
 	UFUNCTION(BlueprintCallable, Category = "Spawn")
 	void Despawn(AActor* Actor);
+
+	/** The actors it spawned that it hasn't despawned yet. */
+	UFUNCTION(BlueprintCallable, Category = "Spawn")
+	void GetSpawnedActors(TArray<AActor*>& OutActors) const;
 
 	/** Where an actor of Class would spawn now; false, with why, when nothing fits. */
 	bool FindSpawnTransform(TSubclassOf<AActor> Class, FTransform& OutTransform, FString& OutWhy) const;
@@ -92,7 +98,8 @@ private:
 
 	TArray<FRequest> Pending;
 	FTimerHandle RetryTimer;
-	FTimerHandle AutoSpawnTimer;
+	TWeakObjectPtr<UKzSensorComponent> WaitingSensor;
+	TArray<TWeakObjectPtr<AActor>> Spawned;
 
 	/** The Spawn Action running on each actor, to stop it on Despawn. */
 	TMap<TObjectKey<AActor>, TWeakObjectPtr<UScriptableActionRunner>> RunningActions;
@@ -104,30 +111,27 @@ private:
 
 	void Retry();
 
-	void CheckAutoSpawn();
+	UFUNCTION()
+	void HandleSensed(const FKzOverlapResult& OverlapInfo);
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKzSpawnAtPointPin, AActor*, Actor);
+UENUM(BlueprintType)
+enum class EKzSpawnResult : uint8
+{
+	Spawned,
+	Failed
+};
 
 UCLASS()
-class KZGAMEPLAY_API UKzSpawnAtPoint : public UBlueprintAsyncActionBase
+class KZGAMEPLAY_API UKzSpawnLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
-	/** Spawns an actor of Class at a Spawn Point, or any actor with a Spawn Component, as soon as it has room. Failed once the point gives up. */
-	UFUNCTION(BlueprintCallable, Category = "Spawn", meta = (BlueprintInternalUseOnly = "true"))
-	static UKzSpawnAtPoint* SpawnAtPoint(AActor* SpawnPoint, TSubclassOf<AActor> Class);
-
-	UPROPERTY(BlueprintAssignable)
-	FKzSpawnAtPointPin Spawned;
-
-	UPROPERTY(BlueprintAssignable)
-	FKzSpawnAtPointPin Failed;
-
-	virtual void Activate() override;
-
-private:
-	TWeakObjectPtr<AActor> SpawnPoint;
-	TSubclassOf<AActor> Class;
+	/**
+	 * Spawns an actor of Class at a Spawn Point, or any actor with a Spawn Component, as soon as it has room. Actor comes out as Class.
+	 * Failed once the point gives up.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Spawn", meta = (Latent, LatentInfo = "LatentInfo", ExpandEnumAsExecs = "Result", DeterminesOutputType = "Class", DynamicOutputParam = "Actor"))
+	static void SpawnAtPoint(AActor* SpawnPoint, TSubclassOf<AActor> Class, EKzSpawnResult& Result, AActor*& Actor, FLatentActionInfo LatentInfo);
 };

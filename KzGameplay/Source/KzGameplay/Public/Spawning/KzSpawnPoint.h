@@ -8,9 +8,13 @@
 
 class UArrowComponent;
 class UBillboardComponent;
+class UKzSensorComponent;
 class UKzSpawnComponent;
 
-/** A point in the level where actors spawn, such as enemies coming into a fight. Placed on the ground, they stand on it facing its arrow. */
+/**
+ * A point in the level where actors spawn, such as enemies coming into a fight. Placed on the ground, they stand on it facing its arrow.
+ * Its sensor is the one Wait For Sensor waits for, and only shows with it.
+ */
 UCLASS(Blueprintable, HideCategories = (Input, Collision, Physics, LOD, Cooking, Replication, HLOD))
 class KZGAMEPLAY_API AKzSpawnPoint : public AActor
 {
@@ -19,8 +23,13 @@ class KZGAMEPLAY_API AKzSpawnPoint : public AActor
 public:
 	AKzSpawnPoint();
 
+	virtual void OnConstruction(const FTransform& Transform) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawn")
 	TObjectPtr<UKzSpawnComponent> SpawnComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawn")
+	TObjectPtr<UKzSensorComponent> SensorComponent;
 
 #if WITH_EDITORONLY_DATA
 protected:
