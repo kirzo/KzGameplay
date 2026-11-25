@@ -29,6 +29,17 @@ public:
 };
 
 UCLASS()
+class UKzEngagementConfigFactory : public UFactory
+{
+	GENERATED_BODY()
+
+public:
+	UKzEngagementConfigFactory();
+
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+};
+
+UCLASS()
 class UKzHitStopFactory : public UFactory
 {
 	GENERATED_BODY()

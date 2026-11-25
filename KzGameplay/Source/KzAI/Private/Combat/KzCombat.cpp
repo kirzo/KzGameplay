@@ -222,7 +222,7 @@ UKzCombatant::FArea UKzCombatant::GetArea() const
 	const AActor* TargetActor = Target.Get();
 	const UKzEngagementComponent* Engagement = TargetActor ? TargetActor->FindComponentByClass<UKzEngagementComponent>() : nullptr;
 	const APawn* OwnerPawn = Pawn.Get();
-	if (!Engagement || !OwnerPawn || Engagement->Settings.Areas.IsEmpty())
+	if (!Engagement || !OwnerPawn || Engagement->GetSettings().Areas.IsEmpty())
 	{
 		return Area;
 	}
@@ -230,10 +230,10 @@ UKzCombatant::FArea UKzCombatant::GetArea() const
 	const int32 Index = Engagement->GetAreaAt(OwnerPawn->GetActorLocation());
 	Area.bKnown = true;
 	Area.bForbidden = Index == INDEX_NONE;
-	Area.bOutside = Index >= Engagement->Settings.Areas.Num();
-	if (Engagement->Settings.Areas.IsValidIndex(Index))
+	Area.bOutside = Index >= Engagement->GetSettings().Areas.Num();
+	if (Engagement->GetSettings().Areas.IsValidIndex(Index))
 	{
-		Area.Tag = Engagement->Settings.Areas[Index].Tag;
+		Area.Tag = Engagement->GetSettings().Areas[Index].Tag;
 	}
 	return Area;
 }

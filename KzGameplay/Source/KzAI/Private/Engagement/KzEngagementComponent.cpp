@@ -2,9 +2,7 @@
 
 #include "Engagement/KzEngagementComponent.h"
 #include "AIController.h"
-#include "Combat/KzCombatTags.h"
 #include "DrawDebugHelpers.h"
-#include "KzAITags.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
 #include "GameplayTagAssetInterface.h"
@@ -51,33 +49,22 @@ namespace
 	}
 }
 
-float FKzEngagementSettings::GetInnerRadius(int32 Area) const
-{
-	float Radius = bForbidden ? ForbiddenRadius : 0.0f;
-	for (int32 Index = 0; Index < Area && Index < Areas.Num(); ++Index)
-	{
-		Radius += Areas[Index].Width;
-	}
-	return Radius;
-}
-
 UKzEngagementComponent::UKzEngagementComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
+}
 
-	FKzEngagementArea Close;
-	Close.Width = 250.0f;
-	Close.Capacity = 3;
-	Close.SectorWeight = 10.0f;
+void UKzEngagementComponent::SetOverrideConfig(UKzEngagementConfig* NewConfig)
+{
+	OverrideConfig = NewConfig;
+}
 
-	FKzEngagementArea Far;
-	Far.Width = 400.0f;
-	Far.SectorWeight = 20.0f;
-
-	Settings.Areas = { Close, Far };
-	Settings.ExemptTags.AddTag(KzTags::Combat::State_Attacking);
-	Settings.ExemptTags.AddTag(KzTags::AI::State_AttackGranted);
+const FKzEngagementSettings& UKzEngagementComponent::GetSettings() const
+{
+	static const FKzEngagementSettings None;
+	const UKzEngagementConfig* InUse = OverrideConfig ? OverrideConfig.Get() : Config.Get();
+	return InUse ? InUse->Settings : None;
 }
 
 void UKzEngagementComponent::Engage(AActor* Attacker, float Weight, FGameplayTag PreferredArea)
@@ -96,6 +83,9 @@ void UKzEngagementComponent::Engage(AActor* Attacker, float Weight, FGameplayTag
 	Engager->Weight = Weight;
 	Engager->PreferredArea = PreferredArea;
 	UpdateTick();
+
+	UE_CLOG(!Config && !OverrideConfig && !bWarnedNoConfig, LogTemp, Warning, TEXT("%s has no Engagement Config: nobody places themselves around it."), *GetNameSafe(GetOwner()));
+	bWarnedNoConfig = true;
 }
 
 void UKzEngagementComponent::Disengage(AActor* Attacker)
@@ -107,7 +97,7 @@ void UKzEngagementComponent::Disengage(AActor* Attacker)
 bool UKzEngagementComponent::FindPlace(AActor* Attacker)
 {
 	FEngager* Engager = FindEngager(Attacker);
-	if (!Engager || Settings.Areas.IsEmpty())
+	if (!Engager || GetSettings().Areas.IsEmpty())
 	{
 		return false;
 	}
@@ -195,18 +185,18 @@ bool UKzEngagementComponent::HasPlace(const AActor* Attacker) const
 bool UKzEngagementComponent::IsInWrongPlace(const AActor* Attacker) const
 {
 	const FEngager* Engager = FindEngager(Attacker);
-	return Engager && Engager->Place.IsSet() && !Settings.Areas.IsEmpty() && IsWrongPlace(*Engager, Engager->Place.GetValue());
+	return Engager && Engager->Place.IsSet() && !GetSettings().Areas.IsEmpty() && IsWrongPlace(*Engager, Engager->Place.GetValue());
 }
 
 bool UKzEngagementComponent::IsInForbiddenArea(const AActor* Attacker) const
 {
-	return Attacker && Settings.bForbidden && FVector::Dist2D(Attacker->GetActorLocation(), GetCenter()) < Settings.ForbiddenRadius;
+	return Attacker && GetSettings().bForbidden && FVector::Dist2D(Attacker->GetActorLocation(), GetCenter()) < GetSettings().ForbiddenRadius;
 }
 
 bool UKzEngagementComponent::IsOutOfPlace(const AActor* Attacker) const
 {
 	const FEngager* Engager = FindEngager(Attacker);
-	if (!Engager || Settings.Areas.IsEmpty())
+	if (!Engager || GetSettings().Areas.IsEmpty())
 	{
 		return false;
 	}
@@ -224,7 +214,7 @@ bool UKzEngagementComponent::IsOutOfPlace(const AActor* Attacker) const
 bool UKzEngagementComponent::IsWrongPlace(const FEngager& Engager, const FVector& Place) const
 {
 	const int32 Area = GetAreaAt(Place);
-	if (!Settings.Areas.IsValidIndex(Area))
+	if (!GetSettings().Areas.IsValidIndex(Area))
 	{
 		return true;
 	}
@@ -267,37 +257,37 @@ bool UKzEngagementComponent::IsWrongPlace(const FEngager& Engager, const FVector
 	}
 
 	// Half of what a step gains between two others of its weight left two sectors uneven: under that, it is as even as sectors allow
-	const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
-	const float Margin = FMath::Clamp(Settings.Spread, 0.0f, 1.0f) * Engager.Weight / FMath::Max(AreaSettings.GetSectorWeight(Sector), UE_KINDA_SMALL_NUMBER) * 4.0f / FMath::Square(AreaSettings.GetSectorCount());
+	const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
+	const float Margin = FMath::Clamp(GetSettings().Spread, 0.0f, 1.0f) * Engager.Weight / FMath::Max(AreaSettings.GetSectorWeight(Sector), UE_KINDA_SMALL_NUMBER) * 4.0f / FMath::Square(AreaSettings.GetSectorCount());
 	return Best.bHasRoom && Gain > Margin;
 }
 
 int32 UKzEngagementComponent::GetAreaAt(const FVector& Location) const
 {
 	const double Distance = FVector::Dist2D(Location, GetCenter());
-	if (Settings.bForbidden && Distance < Settings.ForbiddenRadius)
+	if (GetSettings().bForbidden && Distance < GetSettings().ForbiddenRadius)
 	{
 		return INDEX_NONE;
 	}
 
-	for (int32 Area = 0; Area < Settings.Areas.Num(); ++Area)
+	for (int32 Area = 0; Area < GetSettings().Areas.Num(); ++Area)
 	{
-		if (Distance < Settings.GetOuterRadius(Area))
+		if (Distance < GetSettings().GetOuterRadius(Area))
 		{
 			return Area;
 		}
 	}
-	return Settings.Areas.Num();
+	return GetSettings().Areas.Num();
 }
 
 int32 UKzEngagementComponent::GetSectorAt(int32 Area, const FVector& Location) const
 {
-	if (!Settings.Areas.IsValidIndex(Area))
+	if (!GetSettings().Areas.IsValidIndex(Area))
 	{
 		return INDEX_NONE;
 	}
 
-	const int32 Count = Settings.Areas[Area].GetSectorCount();
+	const int32 Count = GetSettings().Areas[Area].GetSectorCount();
 	return FMath::Min(FMath::FloorToInt32(GetBearing(Location) * Count / 360.0f), Count - 1);
 }
 
@@ -306,7 +296,7 @@ float UKzEngagementComponent::GetReferenceYaw() const
 	const AActor* Owner = GetOwner();
 	if (!Owner)
 	{
-		return Settings.SectorOffset;
+		return GetSettings().SectorOffset;
 	}
 
 	double Yaw = Owner->GetActorRotation().Yaw;
@@ -320,7 +310,7 @@ float UKzEngagementComponent::GetReferenceYaw() const
 			Yaw = ViewRotation.Yaw;
 		}
 	}
-	return static_cast<float>(Yaw) + Settings.SectorOffset;
+	return static_cast<float>(Yaw) + GetSettings().SectorOffset;
 }
 
 void UKzEngagementComponent::ForEachDebugLine(TFunctionRef<void(const FVector& Start, const FVector& End, const FLinearColor& Color)> Line) const
@@ -347,19 +337,19 @@ void UKzEngagementComponent::ForEachDebugLine(TFunctionRef<void(const FVector& S
 		}
 	};
 
-	if (Settings.bForbidden)
+	if (GetSettings().bForbidden)
 	{
-		Circle(Settings.ForbiddenRadius, ForbiddenColor);
+		Circle(GetSettings().ForbiddenRadius, ForbiddenColor);
 	}
 
-	for (int32 Area = 0; Area < Settings.Areas.Num(); ++Area)
+	for (int32 Area = 0; Area < GetSettings().Areas.Num(); ++Area)
 	{
 		const FLinearColor Color = GetAreaColor(Area);
-		const float Inner = Settings.GetInnerRadius(Area);
-		const float Outer = Settings.GetOuterRadius(Area);
+		const float Inner = GetSettings().GetInnerRadius(Area);
+		const float Outer = GetSettings().GetOuterRadius(Area);
 		Circle(Outer, Color);
 
-		const int32 Count = Settings.Areas[Area].GetSectorCount();
+		const int32 Count = GetSettings().Areas[Area].GetSectorCount();
 		for (int32 Sector = 0; Count > 1 && Sector < Count; ++Sector)
 		{
 			const float Bearing = 360.0f * Sector / Count;
@@ -368,7 +358,7 @@ void UKzEngagementComponent::ForEachDebugLine(TFunctionRef<void(const FVector& S
 	}
 
 	// Straight ahead of the view
-	Line(Ground, PointAt(-Settings.SectorOffset, Settings.GetOuterRadius(Settings.Areas.Num() - 1)), FLinearColor::White);
+	Line(Ground, PointAt(-GetSettings().SectorOffset, GetSettings().GetOuterRadius(GetSettings().Areas.Num() - 1)), FLinearColor::White);
 }
 
 void UKzEngagementComponent::ForEachDebugLabel(bool bLoad, TFunctionRef<void(const FVector& Location, const FString& Text, const FLinearColor& Color)> Label) const
@@ -387,12 +377,12 @@ void UKzEngagementComponent::ForEachDebugLabel(bool bLoad, TFunctionRef<void(con
 		return Ground + FVector(FMath::Cos(Yaw), FMath::Sin(Yaw), 0.0f) * Radius;
 	};
 
-	for (int32 Area = 0; Area < Settings.Areas.Num(); ++Area)
+	for (int32 Area = 0; Area < GetSettings().Areas.Num(); ++Area)
 	{
-		const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+		const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 		const FLinearColor Color = GetAreaColor(Area);
-		const float Inner = Settings.GetInnerRadius(Area);
-		const float Outer = Settings.GetOuterRadius(Area);
+		const float Inner = GetSettings().GetInnerRadius(Area);
+		const float Outer = GetSettings().GetOuterRadius(Area);
 
 		const int32 Count = AreaSettings.GetSectorCount();
 		for (int32 Sector = 0; Sector < Count; ++Sector)
@@ -409,7 +399,7 @@ void UKzEngagementComponent::ForEachDebugLabel(bool bLoad, TFunctionRef<void(con
 		{
 			AreaText += bLoad ? FString::Printf(TEXT(" %d/%d"), GetAreaCount(Area, nullptr), AreaSettings.Capacity) : FString::Printf(TEXT(" (%d)"), AreaSettings.Capacity);
 		}
-		Label(PointAt(-Settings.SectorOffset, Outer), AreaText, Color);
+		Label(PointAt(-GetSettings().SectorOffset, Outer), AreaText, Color);
 	}
 }
 
@@ -452,11 +442,11 @@ void UKzEngagementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		// The sector it counts in
 		const FVector Counted = GetCountedLocation(Engager);
 		const int32 Area = GetAreaAt(Counted);
-		if (Settings.Areas.IsValidIndex(Area))
+		if (GetSettings().Areas.IsValidIndex(Area))
 		{
-			const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+			const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 			const float Bearing = (GetSectorAt(Area, Counted) + 0.5f) * 360.0f / AreaSettings.GetSectorCount();
-			const FVector Middle = GetLocationAt(Bearing, Settings.GetInnerRadius(Area) + AreaSettings.Width * 0.5f);
+			const FVector Middle = GetLocationAt(Bearing, GetSettings().GetInnerRadius(Area) + AreaSettings.Width * 0.5f);
 			DrawDebugLine(World, From, Middle, GetAreaColor(Area).ToFColor(true), false, -1.0f, 0, 2.0f);
 		}
 
@@ -494,7 +484,7 @@ FVector UKzEngagementComponent::GetCountedLocation(const FEngager& Engager) cons
 
 float UKzEngagementComponent::GetSectorCost(const FEngager& Engager, int32 Area, int32 Sector, float Bearing) const
 {
-	const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+	const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 	const int32 Count = AreaSettings.GetSectorCount();
 	const float SectorAngle = 360.0f / Count;
 	const float Travel = FMath::Abs(FMath::FindDeltaAngleDegrees(Bearing, (Sector + 0.5f) * SectorAngle)) / 180.0f;
@@ -516,7 +506,7 @@ float UKzEngagementComponent::GetSectorCost(const FEngager& Engager, int32 Area,
 		}
 	}
 
-	const float Spread = FMath::Clamp(Settings.Spread, 0.0f, 1.0f);
+	const float Spread = FMath::Clamp(GetSettings().Spread, 0.0f, 1.0f);
 	return Travel * (1.0f - Spread) + Load / FMath::Max(AreaSettings.GetSectorWeight(Sector), UE_KINDA_SMALL_NUMBER) * Spread;
 }
 
@@ -525,7 +515,7 @@ UKzEngagementComponent::FSectorChoice UKzEngagementComponent::ChooseSector(const
 	FSectorChoice Best;
 	Best.Area = Area;
 
-	const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+	const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 	const int32 Count = AreaSettings.GetSectorCount();
 	const int32 Nearest = FMath::Min(FMath::FloorToInt32(Bearing * Count / 360.0f), Count - 1);
 
@@ -552,23 +542,23 @@ UKzEngagementComponent::FSectorChoice UKzEngagementComponent::ChooseSector(const
 
 FVector UKzEngagementComponent::PickPoint(const FEngager& Engager, int32 Area, int32 Sector, const FVector& From) const
 {
-	const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+	const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 	const float SectorAngle = 360.0f / AreaSettings.GetSectorCount();
-	const float Inner = Settings.GetInnerRadius(Area);
+	const float Inner = GetSettings().GetInnerRadius(Area);
 	// Clear of the area's edges by half the separation, so a place isn't on the line with the next area or the forbidden one
-	const float RadiusMargin = FMath::Min(AreaSettings.Width * 0.5f, FMath::Max(AreaSettings.Width * 0.1f, Settings.MinSeparation * 0.5f));
+	const float RadiusMargin = FMath::Min(AreaSettings.Width * 0.5f, FMath::Max(AreaSettings.Width * 0.1f, GetSettings().MinSeparation * 0.5f));
 	const float Middle = (Sector + 0.5f) * SectorAngle;
 	const float HalfSpan = SectorAngle * 0.4f;
 
 	// From its shortest way in to around the middle of the sector, by Spread: at the edges, those in sectors apart still end up together
 	const float Nearest = FMath::Clamp(FMath::FindDeltaAngleDegrees(Middle, GetBearing(From)), -HalfSpan, HalfSpan);
-	const float Centring = AreaSettings.GetSectorCount() > 1 ? FMath::Clamp(Settings.Spread, 0.0f, 1.0f) : 0.0f;
+	const float Centring = AreaSettings.GetSectorCount() > 1 ? FMath::Clamp(GetSettings().Spread, 0.0f, 1.0f) : 0.0f;
 	const float Delta = FMath::Lerp(Nearest, FMath::FRandRange(-HalfSpan, HalfSpan) / 3.0f, Centring);
 
 	// At a random distance in the area; around it in the sector while too close to the others
 	FVector Best = GetLocationAt(Middle + Delta, FMath::FRandRange(Inner + RadiusMargin, Inner + AreaSettings.Width - RadiusMargin));
 	double BestClearance = GetClearance(Engager, Best);
-	for (int32 Try = 1; Try <= 8 && BestClearance < Settings.MinSeparation; ++Try)
+	for (int32 Try = 1; Try <= 8 && BestClearance < GetSettings().MinSeparation; ++Try)
 	{
 		// Alternating sides, farther each time
 		const float Offset = (Try + 1) / 2 * HalfSpan * 0.5f * (Try % 2 ? 1.0f : -1.0f);
@@ -635,7 +625,7 @@ void UKzEngagementComponent::Reconsider(FEngager& Engager)
 	Engager.Place.Reset();
 
 	const FSectorChoice Best = ChooseSector(Engager, ChooseArea(Engager), GetBearing(From));
-	const bool bValidPlace = Settings.Areas.IsValidIndex(PlaceArea);
+	const bool bValidPlace = GetSettings().Areas.IsValidIndex(PlaceArea);
 	const float CurrentCost = bValidPlace ? GetSectorCost(Engager, PlaceArea, PlaceSector, GetBearing(From)) : TNumericLimits<float>::Max();
 	const bool bSame = Best.Area == PlaceArea && Best.Sector == PlaceSector;
 	if (!bSame && (!bValidPlace || Best.Area < PlaceArea || Best.Cost < CurrentCost - SwitchMargin))
@@ -648,7 +638,7 @@ void UKzEngagementComponent::Reconsider(FEngager& Engager)
 
 		// Someone stands on its place, such as one that settled there after it chose: another point of the same sector, if clearly freer
 		const double Clearance = GetClearance(Engager, Place);
-		if (bValidPlace && Clearance < Settings.MinSeparation * 0.75)
+		if (bValidPlace && Clearance < GetSettings().MinSeparation * 0.75)
 		{
 			const FVector Point = PickPoint(Engager, PlaceArea, PlaceSector, From);
 			if (GetClearance(Engager, Point) > Clearance + ClearanceMargin)
@@ -664,7 +654,7 @@ FVector UKzEngagementComponent::GetPathPoint(const FVector& From, const FVector&
 	const FVector Center = GetCenter();
 	const FVector ToFrom = (From - Center) * FVector(1.0, 1.0, 0.0);
 	const FVector ToPlace = (Place - Center) * FVector(1.0, 1.0, 0.0);
-	const double MinRadius = (Settings.bForbidden ? Settings.ForbiddenRadius : 0.0f) + Settings.MinSeparation;
+	const double MinRadius = (GetSettings().bForbidden ? GetSettings().ForbiddenRadius : 0.0f) + GetSettings().MinSeparation;
 
 	// Straight while that keeps clear of the target
 	if (FMath::PointDistToSegment(FVector::ZeroVector, ToFrom, ToPlace) >= MinRadius)
@@ -722,21 +712,21 @@ int32 UKzEngagementComponent::GetAreaCount(int32 Area, const FEngager* Ignore) c
 
 bool UKzEngagementComponent::HasRoom(int32 Area, const FEngager* Ignore) const
 {
-	const int32 Capacity = Settings.Areas[Area].Capacity;
+	const int32 Capacity = GetSettings().Areas[Area].Capacity;
 	return Capacity <= 0 || GetAreaCount(Area, Ignore) < Capacity;
 }
 
 bool UKzEngagementComponent::IsExempt(const FEngager& Engager) const
 {
 	const IGameplayTagAssetInterface* Tags = Cast<IGameplayTagAssetInterface>(Engager.Actor.Get());
-	return Tags && Tags->HasAnyMatchingGameplayTags(Settings.ExemptTags);
+	return Tags && Tags->HasAnyMatchingGameplayTags(GetSettings().ExemptTags);
 }
 
 int32 UKzEngagementComponent::GetPreferredArea(const FEngager& Engager) const
 {
 	if (Engager.PreferredArea.IsValid())
 	{
-		const int32 Index = Settings.Areas.IndexOfByPredicate([&Engager](const FKzEngagementArea& Area) { return Area.Tag == Engager.PreferredArea; });
+		const int32 Index = GetSettings().Areas.IndexOfByPredicate([&Engager](const FKzEngagementArea& Area) { return Area.Tag == Engager.PreferredArea; });
 		if (Index != INDEX_NONE)
 		{
 			return Index;
@@ -747,19 +737,19 @@ int32 UKzEngagementComponent::GetPreferredArea(const FEngager& Engager) const
 
 int32 UKzEngagementComponent::ChooseArea(const FEngager& Engager) const
 {
-	for (int32 Area = GetPreferredArea(Engager); Area < Settings.Areas.Num(); ++Area)
+	for (int32 Area = GetPreferredArea(Engager); Area < GetSettings().Areas.Num(); ++Area)
 	{
 		if (HasRoom(Area, &Engager))
 		{
 			return Area;
 		}
 	}
-	return Settings.Areas.Num() - 1;
+	return GetSettings().Areas.Num() - 1;
 }
 
 bool UKzEngagementComponent::IsAreaLeaver(const FEngager& Engager, int32 Area) const
 {
-	const int32 Capacity = Settings.Areas[Area].Capacity;
+	const int32 Capacity = GetSettings().Areas[Area].Capacity;
 	const int32 Excess = Capacity > 0 ? GetAreaCount(Area, nullptr) - Capacity : 0;
 	if (Excess <= 0)
 	{
@@ -789,7 +779,7 @@ bool UKzEngagementComponent::IsAreaLeaver(const FEngager& Engager, int32 Area) c
 
 bool UKzEngagementComponent::IsSectorLeaver(const FEngager& Engager, int32 Area, int32 Sector) const
 {
-	const FKzEngagementArea& AreaSettings = Settings.Areas[Area];
+	const FKzEngagementArea& AreaSettings = GetSettings().Areas[Area];
 	const int32 Count = AreaSettings.GetSectorCount();
 	const float Weight = AreaSettings.GetSectorWeight(Sector);
 	float Load = GetSectorLoad(Area, Sector, nullptr);

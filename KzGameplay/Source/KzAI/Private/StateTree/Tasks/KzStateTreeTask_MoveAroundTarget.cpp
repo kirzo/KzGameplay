@@ -123,9 +123,9 @@ EStateTreeRunStatus FKzStateTreeTask_ChooseMoveAroundTarget::EnterState(FStateTr
 	// How far it can go towards and away from the target and stay in its area: without an engagement, short of bumping into the target
 	double MaxForward = Radius - AgentRadius * 2.0;
 	double MaxBackward = TNumericLimits<double>::Max();
-	if (const UKzEngagementComponent* Engagement = Target->FindComponentByClass<UKzEngagementComponent>(); Engagement && !Engagement->Settings.Areas.IsEmpty())
+	if (const UKzEngagementComponent* Engagement = Target->FindComponentByClass<UKzEngagementComponent>(); Engagement && !Engagement->GetSettings().Areas.IsEmpty())
 	{
-		const FKzEngagementSettings& Settings = Engagement->Settings;
+		const FKzEngagementSettings& Settings = Engagement->GetSettings();
 		const int32 Area = Engagement->GetAreaAt(From);
 		if (Settings.Areas.IsValidIndex(Area))
 		{

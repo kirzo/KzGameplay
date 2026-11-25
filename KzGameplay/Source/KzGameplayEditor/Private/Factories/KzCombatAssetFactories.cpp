@@ -4,6 +4,7 @@
 #include "Combat/KzAttackSet.h"
 #include "Combat/KzCombatConfig.h"
 #include "Combat/KzTimeStop.h"
+#include "Engagement/KzEngagementConfig.h"
 
 UKzCombatConfigFactory::UKzCombatConfigFactory()
 {
@@ -27,6 +28,18 @@ UKzAttackSetFactory::UKzAttackSetFactory()
 UObject* UKzAttackSetFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	return NewObject<UKzAttackSet>(InParent, Class, Name, Flags | RF_Transactional);
+}
+
+UKzEngagementConfigFactory::UKzEngagementConfigFactory()
+{
+	bCreateNew = true;
+	bEditAfterNew = true;
+	SupportedClass = UKzEngagementConfig::StaticClass();
+}
+
+UObject* UKzEngagementConfigFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+{
+	return NewObject<UKzEngagementConfig>(InParent, Class, Name, Flags | RF_Transactional);
 }
 
 UKzHitStopFactory::UKzHitStopFactory()
