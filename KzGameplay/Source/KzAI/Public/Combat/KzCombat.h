@@ -12,7 +12,10 @@
 class APawn;
 class UAbilitySystemComponent;
 class UKzCombat;
+class UKzCombatant;
 class UKzCombatConfig;
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FKzCombatantSignature, UKzCombatant*);
 
 /**
  * An attacker in a combat: the attacks it can be given, their cooldowns and which are blocked, and the attack it was given, from when it
@@ -145,6 +148,9 @@ public:
 
 	/** Adds the pawn with its attacks against its target, or updates them if it is in already. */
 	UKzCombatant* Join(APawn* Pawn, AActor* Target, UKzAttackSet* Attacks);
+
+	/** A pawn joined it, not one already in that updated its attacks or target. */
+	FKzCombatantSignature OnCombatantJoined;
 
 	/** Takes the pawn out, ending an attack it may have. */
 	void Leave(APawn* Pawn);

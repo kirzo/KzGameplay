@@ -5,7 +5,10 @@
 #include "CoreMinimal.h"
 #include "ComponentVisualizer.h"
 
-/** Draws a selected spawn component's Search Radius on the ground and, with an Auto Spawn Class, where its collision goes. */
+/**
+ * Draws a selected spawn component's Search Radius on the ground and, with an Auto Spawn Class, where its collision goes.
+ * Also a line to each encounter that uses its owner.
+ */
 class FKzSpawnVisualizer : public FComponentVisualizer
 {
 public:

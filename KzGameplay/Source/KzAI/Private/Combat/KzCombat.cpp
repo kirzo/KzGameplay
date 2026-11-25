@@ -361,7 +361,8 @@ UKzCombatant* UKzCombat::Join(APawn* Pawn, AActor* Target, UKzAttackSet* Attacks
 	}
 
 	UKzCombatant* Combatant = FindCombatant(Pawn);
-	if (!Combatant)
+	const bool bJoined = !Combatant;
+	if (bJoined)
 	{
 		Combatant = NewObject<UKzCombatant>(this);
 		Combatants.Add(Combatant);
@@ -372,6 +373,10 @@ UKzCombatant* UKzCombat::Join(APawn* Pawn, AActor* Target, UKzAttackSet* Attacks
 	if (bAutoStart && !bActive)
 	{
 		Start();
+	}
+	if (bJoined)
+	{
+		OnCombatantJoined.Broadcast(Combatant);
 	}
 	return Combatant;
 }

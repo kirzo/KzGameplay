@@ -35,6 +35,8 @@
 #include "Engagement/KzEngagementVisualizer.h"
 #include "Spawning/KzSpawnComponent.h"
 #include "Spawning/KzSpawnVisualizer.h"
+#include "Encounter/KzEncounterComponent.h"
+#include "Encounter/KzEncounterVisualizer.h"
 #include "Factories/ItemDefinitionActorFactory.h"
 
 #include "Editor.h"
@@ -202,6 +204,7 @@ void FKzGameplayEditorModule::OnStartupModule()
 
 	RegisterComponentVisualizer<UKzEngagementComponent, FKzEngagementVisualizer>();
 	RegisterComponentVisualizer<UKzSpawnComponent, FKzSpawnVisualizer>();
+	RegisterComponentVisualizer<UKzEncounterComponent, FKzEncounterVisualizer>();
 
 	// This module loads after the editor gathers its actor factories, so the item one is added by hand.
 	if (GEditor)
