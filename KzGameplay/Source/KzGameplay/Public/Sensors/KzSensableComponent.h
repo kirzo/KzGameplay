@@ -10,9 +10,13 @@
 #include "Pooling/KzActorPoolSubsystem.h"
 #include "KzSensableComponent.generated.h"
 
+class AController;
+class APawn;
+
 /**
  * Registers its actor with the Spatial Sense Subsystem, for sensors to find. It sits where Component is, as a point unless given a Shape, so a
  * sensor finds it by whether that point lies inside the sensor's shape. While its actor is in an actor pool, sensors don't find it.
+ * On a pawn, its Sense Tags have Character.Player while a player drives it.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzSensableComponent : public UActorComponent, public IKzPoolable
@@ -69,6 +73,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void OnAcquiredFromPool_Implementation() override;
 	virtual void OnReleasedToPool_Implementation() override;
+
+	UFUNCTION()
+	void HandleControllerChanged(APawn* Pawn, AController* OldController, AController* NewController);
 
 	/** Component, found once: queries ask for it every time. */
 	TWeakObjectPtr<USceneComponent> CachedComponent;

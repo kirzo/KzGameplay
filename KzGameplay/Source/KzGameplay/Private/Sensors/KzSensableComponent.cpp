@@ -3,8 +3,10 @@
 #include "Sensors/KzSensableComponent.h"
 #include "Sensors/KzSpatialSenseSubsystem.h"
 #include "Components/KzShapeComponent.h"
+#include "Characters/KzCharacterTags.h"
 #include "Math/Geometry/Shapes/KzPoint.h"
-#include "GameFramework/Actor.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 
 UKzSensableComponent::UKzSensableComponent()
@@ -18,9 +20,27 @@ void UKzSensableComponent::BeginPlay()
 	Super::BeginPlay();
 	CacheShapeComponent();
 
+	if (APawn* Pawn = Cast<APawn>(GetOwner()))
+	{
+		Pawn->ReceiveControllerChangedDelegate.AddUniqueDynamic(this, &ThisClass::HandleControllerChanged);
+		HandleControllerChanged(Pawn, nullptr, Pawn->GetController());
+	}
+
 	if (UKzSpatialSenseSubsystem* Subsystem = GetWorld()->GetSubsystem<UKzSpatialSenseSubsystem>())
 	{
 		Subsystem->RegisterSensable(this);
+	}
+}
+
+void UKzSensableComponent::HandleControllerChanged(APawn* Pawn, AController* OldController, AController* NewController)
+{
+	if (NewController && NewController->IsPlayerController())
+	{
+		SenseTags.AddTag(KzTags::Character::Player);
+	}
+	else
+	{
+		SenseTags.RemoveTag(KzTags::Character::Player);
 	}
 }
 
