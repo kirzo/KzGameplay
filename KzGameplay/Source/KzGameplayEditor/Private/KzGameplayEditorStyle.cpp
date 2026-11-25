@@ -48,6 +48,11 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 		{ TEXT("ScriptableTask_LinkAnimLayers"), TEXT("AnimLayer") },
 		{ TEXT("ScriptableTask_LinkAnimLayerByQuery"), TEXT("AnimLayer") },
 		{ TEXT("ScriptableTask_CinematicMode"), TEXT("ScriptableTask_CinematicMode") },
+		{ TEXT("KzEncounterCondition_Defeated"), TEXT("KzEncounterCondition_Defeated") },
+		{ TEXT("KzEncounterCondition_Time"), TEXT("KzEncounterCondition_Time") },
+		{ TEXT("KzEncounterCondition_Waves"), TEXT("KzEncounterCondition_Waves") },
+		{ TEXT("KzEncounterCondition_Alive"), TEXT("KzEncounterCondition_Alive") },
+		{ TEXT("KzEncounterCondition_Attribute"), TEXT("KzEncounterCondition_Attribute") },
 	};
 	for (const auto& Pair : ScriptableObjects)
 	{
@@ -123,6 +128,15 @@ FKzGameplayEditorStyle::FKzGameplayEditorStyle()
 	Set("ClassIcon.KzSpawnPoint", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPoint"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
 	Set("ClassThumbnail.KzSpawnPoint", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPointColor"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
 	Set("ClassIcon.KzSpawnComponent", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/SpawnPoint"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+
+	// Encounters: the encounter placed in the level, and its component with the same icon
+	Set("ClassIcon.KzEncounter", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/Encounter"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	Set("ClassThumbnail.KzEncounter", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/EncounterColor"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
+	Set("ClassIcon.KzEncounterComponent", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/Encounter"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+
+	// The Engagement Config asset wears its component's icon
+	Set("ClassIcon.KzEngagementConfig", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/Engagement"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
+	Set("ClassThumbnail.KzEngagementConfig", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/EngagementColor"), TEXT(".svg")), FVector2D(64.0f, 64.0f)));
 
 	// Combo graph nodes, on their title: an attack is the Melee Weapon's sword
 	Set("KzGameplay.Combo.Node.Entry", new FSlateVectorImageBrush(RootToContentDir(TEXT("Icons/ComboEntry"), TEXT(".svg")), FVector2D(16.0f, 16.0f)));
