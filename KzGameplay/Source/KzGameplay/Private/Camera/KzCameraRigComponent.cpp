@@ -256,7 +256,7 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 
 	if (Context.Target)
 	{
-		UpdateVolumes(Context.TargetLocation, bSnap, bTargetJumped || !GetWorld()->IsGameWorld());
+		UpdateVolumes(Context.TargetLocation, bSnap, bTargetJumped);
 	}
 	Layers.Update(DeltaTime, bSnap);
 
@@ -443,18 +443,9 @@ void UKzCameraRigComponent::UpdateStandInPreview(AKzStandIn* StandIn, UCameraCom
 {
 	if (!StandIn || !CameraComponent || GetWorld()->IsGameWorld()) return;
 
-	// The camera that would show the stand-in in game, worked out once a frame by the first rig that follows it.
-	static uint64 ChoiceFrame = 0;
-	static TWeakObjectPtr<const AKzStandIn> ChoiceStandIn;
-	static TWeakObjectPtr<const AActor> ChoiceCamera;
-	if (ChoiceFrame != GFrameCounter || ChoiceStandIn.Get() != StandIn)
-	{
-		ChoiceFrame = GFrameCounter;
-		ChoiceStandIn = StandIn;
-		ChoiceCamera = UKzCameraDirector::FindCameraFor(this, StandIn->GetTargetLocation());
-	}
-
-	if (ChoiceCamera.Get() == GetOwner())
+	// The camera the director chose for the stand-in, as it would in game.
+	const UKzCameraDirector* Director = UKzCameraDirector::Get(this);
+	if (Director && Director->GetGameplayCamera() == GetOwner())
 	{
 		FMinimalViewInfo View;
 		CameraComponent->GetCameraView(0.0f, View);

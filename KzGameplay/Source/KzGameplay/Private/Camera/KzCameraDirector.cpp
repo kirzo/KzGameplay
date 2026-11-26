@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraDirector.h"
+#include "Actors/KzStandIn.h"
 #include "Camera/KzCameraRigComponent.h"
 #include "Camera/KzCameraZone.h"
 #include "Core/KzRegistrySubsystem.h"
@@ -24,7 +25,7 @@ UKzCameraDirector* UKzCameraDirector::Get(const UObject* WorldContextObject)
 
 bool UKzCameraDirector::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
-	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
+	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE || WorldType == EWorldType::Editor;
 }
 
 TStatId UKzCameraDirector::GetStatId() const
@@ -36,6 +37,31 @@ APlayerController* UKzCameraDirector::GetPlayerController() const
 {
 	const UWorld* World = GetWorld();
 	return World ? World->GetFirstPlayerController() : nullptr;
+}
+
+const AActor* UKzCameraDirector::GetPlayer() const
+{
+	if (GetWorld()->IsGameWorld())
+	{
+		const APlayerController* PlayerController = GetPlayerController();
+		return PlayerController ? PlayerController->GetPawn() : nullptr;
+	}
+
+	// The selected stand-in, or else the first.
+	const AKzStandIn* Found = nullptr;
+#if WITH_EDITOR
+	if (UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this))
+	{
+		Registry->ForEach<AKzStandIn>([&Found](const AKzStandIn* StandIn)
+		{
+			if (!Found || StandIn->IsSelectedInEditor())
+			{
+				Found = StandIn;
+			}
+		});
+	}
+#endif
+	return Found;
 }
 
 FString UKzCameraDirector::Describe(const UObject* Object)
@@ -75,8 +101,9 @@ void UKzCameraDirector::ReturnToGameplay(const FViewTargetTransitionParams& Blen
 
 void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason, bool bPlayerJumped)
 {
+	// In the editor there is no view to set: the chosen camera feeds the stand-in's preview.
 	APlayerController* PlayerController = GetPlayerController();
-	if (!Camera || !PlayerController) return;
+	if (!Camera || (!PlayerController && GetWorld()->IsGameWorld())) return;
 
 	// Awake and in place before the blend reads its view.
 	if (UKzCameraRigComponent* Rig = Camera->FindComponentByClass<UKzCameraRigComponent>())
@@ -85,7 +112,10 @@ void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& 
 		Rig->Wake(bPlayerJumped);
 	}
 
-	PlayerController->SetViewTarget(Camera, Blend);
+	if (PlayerController)
+	{
+		PlayerController->SetViewTarget(Camera, Blend);
+	}
 
 	LastSwitch = { GetWorld()->GetTimeSeconds(), Reason };
 	const FString How = Blend.BlendTime > 0.0f ? FString::Printf(TEXT("Blend %.1f s to"), Blend.BlendTime) : FString(TEXT("Cut to"));
@@ -94,11 +124,10 @@ void UKzCameraDirector::Show(AActor* Camera, const FViewTargetTransitionParams& 
 
 void UKzCameraDirector::SelectCamera()
 {
-	const APlayerController* PlayerController = GetPlayerController();
-	const APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-	if (!Pawn) return;
+	const AActor* Player = GetPlayer();
+	if (!Player) return;
 
-	const FVector Location = Pawn->GetActorLocation();
+	const FVector Location = Player->GetTargetLocation();
 	const AKzCameraZone* Zone = FindZone(this, Location);
 	CurrentZone = Zone;
 
@@ -116,23 +145,32 @@ void UKzCameraDirector::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// In the editor there is no camera manager: the stand-in plays the player, and nothing but gameplay is ever shown.
+	const bool bGame = GetWorld()->IsGameWorld();
 	APlayerController* PlayerController = GetPlayerController();
 	const APlayerCameraManager* CameraManager = PlayerController ? PlayerController->PlayerCameraManager.Get() : nullptr;
-	const APawn* Pawn = PlayerController ? PlayerController->GetPawn() : nullptr;
-	if (!CameraManager || !Pawn) return;
+	const AActor* Player = GetPlayer();
+	if (!bGame && !Player)
+	{
+		// The stand-in is gone: every camera previews on its own again.
+		LastPlayer.Reset();
+		UpdateEditorRigs(nullptr);
+		return;
+	}
+	if (!Player || (bGame && !CameraManager)) return;
 
-	const FVector Location = Pawn->GetActorLocation();
-	const bool bNewPawn = Pawn != LastPawn.Get();
-	const bool bJumped = bNewPawn || (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastPawnLocation) > FMath::Square(TeleportDistance));
+	const FVector Location = Player->GetTargetLocation();
+	const bool bNewPlayer = Player != LastPlayer.Get();
+	const bool bJumped = bNewPlayer || (TeleportDistance > 0.0f && FVector::DistSquared(Location, LastPlayerLocation) > FMath::Square(TeleportDistance));
 
 	if (bJumped)
 	{
 		// Play start, a respawn or a teleport: cut to the camera for where the player is now.
-		RecordEvent(this, bNewPawn
-			? FString::Printf(TEXT("Player pawn is %s"), *Describe(Pawn))
-			: FString::Printf(TEXT("Player jumped %.0f cm"), FVector::Dist(Location, LastPawnLocation)));
-		LastPawn = Pawn;
-		LastPawnLocation = Location;
+		RecordEvent(this, bNewPlayer
+			? FString::Printf(TEXT("Player is %s"), *Describe(Player))
+			: FString::Printf(TEXT("Player jumped %.0f cm"), FVector::Dist(Location, LastPlayerLocation)));
+		LastPlayer = Player;
+		LastPlayerLocation = Location;
 		SelectCamera();
 	}
 	else
@@ -141,7 +179,7 @@ void UKzCameraDirector::Tick(float DeltaTime)
 		const AKzCameraZone* Zone = FindZone(this, Location);
 		if (Zone && Zone != CurrentZone.Get() && Zone->Camera && Zone->Camera != GameplayCamera.Get())
 		{
-			if (IsShowingGameplay(CameraManager))
+			if (!CameraManager || IsShowingGameplay(CameraManager))
 			{
 				SwitchTo(Zone->Camera, Zone->Blend, Zone);
 			}
@@ -153,10 +191,45 @@ void UKzCameraDirector::Tick(float DeltaTime)
 			}
 		}
 		CurrentZone = Zone;
-		LastPawnLocation = Location;
+		LastPlayerLocation = Location;
 	}
 
-	UpdateRigs(CameraManager);
+	if (CameraManager)
+	{
+		UpdateRigs(CameraManager);
+	}
+	else
+	{
+		UpdateEditorRigs(Player);
+	}
+}
+
+void UKzCameraDirector::UpdateEditorRigs(const AActor* Player) const
+{
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	if (!Registry) return;
+
+	TArray<UKzCameraRigComponent*, TInlineAllocator<8>> Rigs;
+	Registry->ForEach<UKzCameraRigComponent>([&Rigs](UKzCameraRigComponent* Rig) { Rigs.Add(Rig); });
+
+	for (UKzCameraRigComponent* Rig : Rigs)
+	{
+		if (!Player)
+		{
+			Rig->Wake();
+			continue;
+		}
+		if (Rig->GetTarget() != Player) continue;
+
+		if (Rig->GetOwner() == GameplayCamera.Get())
+		{
+			Rig->Wake();
+		}
+		else if (Rig->IsAwake())
+		{
+			Rig->Sleep();
+		}
+	}
 }
 
 bool UKzCameraDirector::IsShowing(const AActor* Camera) const
@@ -196,12 +269,6 @@ void UKzCameraDirector::UpdateRigs(const APlayerCameraManager* CameraManager) co
 			Rig->Sleep();
 		}
 	}
-}
-
-AActor* UKzCameraDirector::FindCameraFor(const UObject* WorldContextObject, const FVector& Location)
-{
-	const AKzCameraZone* Zone = FindZone(WorldContextObject, Location);
-	return Zone && Zone->Camera ? Zone->Camera.Get() : FindNearestCamera(WorldContextObject, Location);
 }
 
 const AKzCameraZone* UKzCameraDirector::FindZone(const UObject* WorldContextObject, const FVector& Location)

@@ -85,7 +85,10 @@ public:
 	 */
 	void Wake(bool bTargetJumped = false);
 
-	/** Stops updating. In game, rigs sleep until the camera director needs them, so cameras out of view cost nothing. */
+	/**
+	 * Stops updating. In game, rigs sleep until the camera director needs them, so cameras out of view cost nothing; in the editor,
+	 * the rigs following a Stand-In do too, so they take volumes and cross markers only while chosen, as in game.
+	 */
 	void Sleep();
 
 	bool IsAwake() const { return IsComponentTickEnabled(); }
@@ -157,7 +160,7 @@ private:
 
 	void ApplyPose(const FKzCameraPose& Pose, UCameraComponent* CameraComponent);
 
-	/** In the editor, gives a followed stand-in's preview this camera's view while it is the one that would show the stand-in in game. */
+	/** In the editor, gives a followed stand-in's preview this camera's view while the camera director has it as the gameplay camera. */
 	void UpdateStandInPreview(AKzStandIn* StandIn, UCameraComponent* CameraComponent) const;
 
 	/** In the editor while selected, with Draw Debug, or with the camera debugger. */

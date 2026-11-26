@@ -8,7 +8,6 @@
 #include "KzCameraDirector.generated.h"
 
 class AKzCameraZone;
-class APawn;
 class APlayerController;
 
 /** Something the cameras did, for the camera debugger's history. */
@@ -22,6 +21,8 @@ struct FKzCameraEvent
  * Chooses the camera the first local player sees, and keeps camera rigs awake only while they are in view or blending in.
  * At play start, and after a respawn or a teleport, it cuts to the camera of the zone the player is in, or else the nearest one.
  * While playing, camera zones, camera markers and Blueprint switch cameras. The player controller must not manage its camera target.
+ * In the editor it does the same for a Stand-In, the selected one or else the first: the cameras following it sleep, wake and take
+ * volumes as in game, and the chosen one shows in the Stand-In's preview.
  */
 UCLASS()
 class KZGAMEPLAY_API UKzCameraDirector : public UTickableWorldSubsystem
@@ -71,9 +72,6 @@ public:
 	/** How the camera debugger names an object: an actor by its label, a component by its actor's. */
 	static FString Describe(const UObject* Object);
 
-	/** The camera for a player at Location, as on start or respawn: its zone's, or else the nearest. Works in the editor too, for previews. */
-	static AActor* FindCameraFor(const UObject* WorldContextObject, const FVector& Location);
-
 	/** The zone Location is in: the highest priority among overlapping ones, then the smallest. */
 	static const AKzCameraZone* FindZone(const UObject* WorldContextObject, const FVector& Location);
 
@@ -82,6 +80,7 @@ public:
 
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
+	virtual bool IsTickableInEditor() const override { return true; }
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -90,13 +89,16 @@ private:
 	TWeakObjectPtr<AActor> GameplayCamera;
 	TWeakObjectPtr<const AKzCameraZone> CurrentZone;
 
-	TWeakObjectPtr<const APawn> LastPawn;
-	FVector LastPawnLocation = FVector::ZeroVector;
+	TWeakObjectPtr<const AActor> LastPlayer;
+	FVector LastPlayerLocation = FVector::ZeroVector;
 
 	FKzCameraEvent LastSwitch;
 	TArray<FKzCameraEvent> History;
 
 	APlayerController* GetPlayerController() const;
+
+	/** Whom the cameras show: the player's pawn in game, a Stand-In in the editor. */
+	const AActor* GetPlayer() const;
 
 	/** Switches to Camera and records Reason for the debugger. After a jump (start, respawn) the camera takes every volume the player is in. */
 	void Show(AActor* Camera, const FViewTargetTransitionParams& Blend, const FString& Reason, bool bPlayerJumped = false);
@@ -106,4 +108,7 @@ private:
 
 	/** Wakes the rigs in view or blending in, and puts the rest to sleep. */
 	void UpdateRigs(const APlayerCameraManager* CameraManager) const;
+
+	/** In the editor, wakes the chosen camera and puts to sleep the others following Player; rigs following anything else are left be. Without a player, wakes them all. */
+	void UpdateEditorRigs(const AActor* Player) const;
 };
