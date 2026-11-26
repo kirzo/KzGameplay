@@ -99,7 +99,7 @@ void UKzCameraDirector::SelectCamera()
 	if (!Pawn) return;
 
 	const FVector Location = Pawn->GetActorLocation();
-	const AKzCameraZone* Zone = FindZone(Location);
+	const AKzCameraZone* Zone = FindZone(this, Location);
 	CurrentZone = Zone;
 
 	if (Zone && Zone->Camera)
@@ -108,7 +108,7 @@ void UKzCameraDirector::SelectCamera()
 	}
 	else
 	{
-		Show(FindNearestCamera(Location), FViewTargetTransitionParams(), TEXT("nearest to the player, in no zone"), true);
+		Show(FindNearestCamera(this, Location), FViewTargetTransitionParams(), TEXT("nearest to the player, in no zone"), true);
 	}
 }
 
@@ -138,7 +138,7 @@ void UKzCameraDirector::Tick(float DeltaTime)
 	else
 	{
 		// Entering a zone switches to its camera; leaving every zone keeps the current one.
-		const AKzCameraZone* Zone = FindZone(Location);
+		const AKzCameraZone* Zone = FindZone(this, Location);
 		if (Zone && Zone != CurrentZone.Get() && Zone->Camera && Zone->Camera != GameplayCamera.Get())
 		{
 			if (IsShowingGameplay(CameraManager))
@@ -198,9 +198,15 @@ void UKzCameraDirector::UpdateRigs(const APlayerCameraManager* CameraManager) co
 	}
 }
 
-const AKzCameraZone* UKzCameraDirector::FindZone(const FVector& Location) const
+AActor* UKzCameraDirector::FindCameraFor(const UObject* WorldContextObject, const FVector& Location)
 {
-	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	const AKzCameraZone* Zone = FindZone(WorldContextObject, Location);
+	return Zone && Zone->Camera ? Zone->Camera.Get() : FindNearestCamera(WorldContextObject, Location);
+}
+
+const AKzCameraZone* UKzCameraDirector::FindZone(const UObject* WorldContextObject, const FVector& Location)
+{
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(WorldContextObject);
 	if (!Registry) return nullptr;
 
 	const AKzCameraZone* Best = nullptr;
@@ -221,9 +227,9 @@ const AKzCameraZone* UKzCameraDirector::FindZone(const FVector& Location) const
 	return Best;
 }
 
-AActor* UKzCameraDirector::FindNearestCamera(const FVector& Location) const
+AActor* UKzCameraDirector::FindNearestCamera(const UObject* WorldContextObject, const FVector& Location)
 {
-	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this);
+	UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(WorldContextObject);
 	if (!Registry) return nullptr;
 
 	AActor* Nearest = nullptr;

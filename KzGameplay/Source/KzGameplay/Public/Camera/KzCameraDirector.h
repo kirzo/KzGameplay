@@ -71,6 +71,15 @@ public:
 	/** How the camera debugger names an object: an actor by its label, a component by its actor's. */
 	static FString Describe(const UObject* Object);
 
+	/** The camera for a player at Location, as on start or respawn: its zone's, or else the nearest. Works in the editor too, for previews. */
+	static AActor* FindCameraFor(const UObject* WorldContextObject, const FVector& Location);
+
+	/** The zone Location is in: the highest priority among overlapping ones, then the smallest. */
+	static const AKzCameraZone* FindZone(const UObject* WorldContextObject, const FVector& Location);
+
+	/** The camera that would hang nearest to Location. */
+	static AActor* FindNearestCamera(const UObject* WorldContextObject, const FVector& Location);
+
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
@@ -97,10 +106,4 @@ private:
 
 	/** Wakes the rigs in view or blending in, and puts the rest to sleep. */
 	void UpdateRigs(const APlayerCameraManager* CameraManager) const;
-
-	/** The zone Location is in: the highest priority among overlapping ones, then the smallest. */
-	const AKzCameraZone* FindZone(const FVector& Location) const;
-
-	/** The camera that would hang nearest to Location. */
-	AActor* FindNearestCamera(const FVector& Location) const;
 };

@@ -10,6 +10,7 @@
 #include "KzCameraRigComponent.generated.h"
 
 class AKzCameraVolume;
+class AKzStandIn;
 class UCameraComponent;
 class UKzCameraModule;
 class UKzSplineFollowerComponent;
@@ -155,6 +156,9 @@ private:
 	FKzCameraPose EvaluateSlot(const UClass* SlotClass, const FKzCameraContext& Context, const FKzCameraPose& Pose, const TArray<FLayer*>& OrderedLayers, const UKzCameraModule*& OutTop) const;
 
 	void ApplyPose(const FKzCameraPose& Pose, UCameraComponent* CameraComponent);
+
+	/** In the editor, gives a followed stand-in's preview this camera's view while it is the one that would show the stand-in in game. */
+	void UpdateStandInPreview(AKzStandIn* StandIn, UCameraComponent* CameraComponent) const;
 
 	/** In the editor while selected, with Draw Debug, or with the camera debugger. */
 	bool ShouldDrawDebug() const;

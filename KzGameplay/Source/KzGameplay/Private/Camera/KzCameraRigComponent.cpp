@@ -80,7 +80,7 @@ void UKzCameraRigComponent::Wake(bool bTargetJumped)
 	{
 		// The camera only comes into view: the target didn't jump while the rig slept, and the volumes it is in belong to the camera that saw it enter.
 		LastTarget = GetTarget();
-		LastTargetLocation = LastTarget.IsValid() ? LastTarget->GetActorLocation() : LastTargetLocation;
+		LastTargetLocation = LastTarget.IsValid() ? LastTarget->GetTargetLocation() : LastTargetLocation;
 		bWokeClean = true;
 	}
 
@@ -178,7 +178,7 @@ AActor* UKzCameraRigComponent::GetTarget() const
 		float NearestDistance = TNumericLimits<float>::Max();
 		Registry->ForEach<AKzStandIn>([this, &Nearest, &NearestDistance](AKzStandIn* StandIn)
 		{
-			const float Distance = GetDistanceTo(StandIn->GetActorLocation());
+			const float Distance = GetDistanceTo(StandIn->GetTargetLocation());
 			if (Distance < NearestDistance)
 			{
 				NearestDistance = Distance;
@@ -240,7 +240,8 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 	Context.Reference = Context.Anchor;
 	Context.Rest = LastRest;
 	Context.LastView = LastView;
-	Context.TargetLocation = Context.Target ? Context.Target->GetActorLocation() : Context.Anchor.GetLocation();
+	// Where to follow the target: its location, or for a stand-in the middle of the character it stands for.
+	Context.TargetLocation = Context.Target ? Context.Target->GetTargetLocation() : Context.Anchor.GetLocation();
 
 	// A target that changes or jumps too far teleports the camera.
 	const bool bTargetJumped = Context.Target.Get() != LastTarget.Get()
@@ -290,6 +291,7 @@ void UKzCameraRigComponent::UpdateRig(float DeltaTime)
 
 	EvaluateStages(EKzCameraStage::Position, EKzCameraStage::Lens, Context, Pose, OrderedLayers, Debug);
 	ApplyPose(Pose, CameraComponent);
+	UpdateStandInPreview(Cast<AKzStandIn>(Context.Target), CameraComponent);
 
 	LastPose = Pose;
 	LastRest = Context.Rest;
@@ -435,6 +437,29 @@ FKzCameraPose UKzCameraRigComponent::EvaluateSlot(const UClass* SlotClass, const
 	}
 
 	return Out;
+}
+
+void UKzCameraRigComponent::UpdateStandInPreview(AKzStandIn* StandIn, UCameraComponent* CameraComponent) const
+{
+	if (!StandIn || !CameraComponent || GetWorld()->IsGameWorld()) return;
+
+	// The camera that would show the stand-in in game, worked out once a frame by the first rig that follows it.
+	static uint64 ChoiceFrame = 0;
+	static TWeakObjectPtr<const AKzStandIn> ChoiceStandIn;
+	static TWeakObjectPtr<const AActor> ChoiceCamera;
+	if (ChoiceFrame != GFrameCounter || ChoiceStandIn.Get() != StandIn)
+	{
+		ChoiceFrame = GFrameCounter;
+		ChoiceStandIn = StandIn;
+		ChoiceCamera = UKzCameraDirector::FindCameraFor(this, StandIn->GetTargetLocation());
+	}
+
+	if (ChoiceCamera.Get() == GetOwner())
+	{
+		FMinimalViewInfo View;
+		CameraComponent->GetCameraView(0.0f, View);
+		StandIn->SetPreviewView(View);
+	}
 }
 
 void UKzCameraRigComponent::ApplyPose(const FKzCameraPose& Pose, UCameraComponent* CameraComponent)
