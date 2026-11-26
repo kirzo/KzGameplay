@@ -157,6 +157,7 @@ void UKzEncounterComponent::Start(AActor* InTarget)
 	}
 	OverrideEngagement(InTarget);
 	SetLimitsEnabled(true);
+	ReleaseHeld();
 
 	for (const FEnemy& Enemy : Enemies)
 	{
@@ -202,6 +203,7 @@ void UKzEncounterComponent::End()
 		Combat->End();
 	}
 	RestoreEngagements();
+	ReleaseHeld();
 
 	if (bWasActive)
 	{
@@ -517,6 +519,18 @@ void UKzEncounterComponent::SuggestTarget(AActor* Enemy) const
 	}
 }
 
+void UKzEncounterComponent::ReleaseHeld()
+{
+	for (const TWeakObjectPtr<UKzSensorComponent>& Sensor : HeldSensors)
+	{
+		if (Sensor.IsValid())
+		{
+			Sensor->Activate();
+		}
+	}
+	HeldSensors.Reset();
+}
+
 void UKzEncounterComponent::SetLimitsEnabled(bool bEnabled)
 {
 	for (AActor* Limit : Limits)
@@ -616,6 +630,16 @@ void UKzEncounterComponent::HandleInitialSpawned(AActor* Actor)
 	if (State == EKzEncounterState::Active)
 	{
 		SuggestTarget(Actor);
+	}
+	else if (bHoldInitial)
+	{
+		// Its controller turned it on as it possessed the pawn
+		UKzSensorComponent* Sensor = UKzSystemLibrary::FindComponentByGameplayTag<UKzSensorComponent>(Actor, KzTags::Sensor::Perception);
+		if (Sensor && Sensor->IsActive())
+		{
+			Sensor->Deactivate();
+			HeldSensors.Add(Sensor);
+		}
 	}
 }
 

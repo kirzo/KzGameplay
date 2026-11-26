@@ -107,6 +107,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemies", meta = (ClampMin = "0"))
 	int32 MaxAlive = 0;
 
+	/** Its Initial enemies perceive nobody until it starts. Being attacked still wakes them. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemies")
+	bool bHoldInitial = false;
+
 	/** Starts when its owner's Sensor.Encounter sensor senses something, such as the player walking in. That sensor turns off then. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Start")
 	bool bStartOnSensor = false;
@@ -247,6 +251,9 @@ private:
 	TArray<TWeakObjectPtr<UKzSpawnComponent>> InitialPoints;
 	TArray<TWeakObjectPtr<UKzEngagementComponent>> Overridden;
 
+	/** Sensor.Perception sensors of its Initial enemies, turned off while it waits. */
+	TArray<TWeakObjectPtr<UKzSensorComponent>> HeldSensors;
+
 	/** Waves start, queued enemies are asked for, and it ends if it should. */
 	void Update();
 
@@ -263,6 +270,7 @@ private:
 	void Defeat(AActor* Actor);
 	void StopWatching(const FEnemy& Enemy);
 	void SuggestTarget(AActor* Enemy) const;
+	void ReleaseHeld();
 
 	void SetLimitsEnabled(bool bEnabled);
 	void OverrideEngagement(AActor* EngagedTarget);
