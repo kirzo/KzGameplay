@@ -29,7 +29,7 @@ class KZGAMEPLAY_API UKzCameraRigComponent : public USceneComponent
 public:
 	UKzCameraRigComponent();
 
-	/** What the camera follows in the editor, and in game when it doesn't follow the player pawn. */
+	/** What the camera follows in the editor, and in game when it doesn't follow the player pawn. Empty in the editor, the nearest Stand-In. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Rig")
 	TObjectPtr<AActor> Target;
 

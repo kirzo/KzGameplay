@@ -1,6 +1,7 @@
 // Copyright 2026 kirzo
 
 #include "Camera/KzCameraRigComponent.h"
+#include "Actors/KzStandIn.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/KzCameraDirector.h"
 #include "Camera/KzCameraModule.h"
@@ -165,7 +166,27 @@ AActor* UKzCameraRigComponent::GetTarget() const
 		return PlayerController ? PlayerController->GetPawn() : nullptr;
 	}
 
-	return Target;
+	if (Target || !World || World->IsGameWorld())
+	{
+		return Target;
+	}
+
+	// In the editor without a target, the stand-in nearest where the camera hangs, so one stand-in previews every camera.
+	AActor* Nearest = nullptr;
+	if (UKzRegistrySubsystem* Registry = UKzRegistrySubsystem::Get(this))
+	{
+		float NearestDistance = TNumericLimits<float>::Max();
+		Registry->ForEach<AKzStandIn>([this, &Nearest, &NearestDistance](AKzStandIn* StandIn)
+		{
+			const float Distance = GetDistanceTo(StandIn->GetActorLocation());
+			if (Distance < NearestDistance)
+			{
+				NearestDistance = Distance;
+				Nearest = StandIn;
+			}
+		});
+	}
+	return Nearest;
 }
 
 UCameraComponent* UKzCameraRigComponent::FindCamera()
