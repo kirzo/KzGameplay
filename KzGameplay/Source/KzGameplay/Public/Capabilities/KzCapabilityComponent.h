@@ -13,6 +13,19 @@ class UKzCapabilitySet;
 class UKzInputProfile;
 class UKzInputHandlerComponent;
 
+/** A capability granted by name, with the set it is looked up in. */
+USTRUCT()
+struct FKzGrantedCapability
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FGameplayTag Capability;
+
+	UPROPERTY()
+	TObjectPtr<const UKzCapabilitySet> Set;
+};
+
 /**
  * Grants and revokes capabilities, and is the only thing that should ever grant an ability.
  *
@@ -21,7 +34,8 @@ class UKzInputHandlerComponent;
  * granting both from one place is what keeps the tag and the ability from drifting apart.
  *
  * Networking: granting is authority-only. The tag replicates to everyone and ability specs replicate to
- * the owner, so HasCapability answers correctly everywhere without this component replicating anything.
+ * the owner, so HasCapability answers correctly everywhere. What was granted replicates to the owner as well,
+ * which puts on the controls there: its input handler is the one with the keys.
  */
 UCLASS(ClassGroup = (KzGameplay), meta = (BlueprintSpawnableComponent))
 class KZGAMEPLAY_API UKzCapabilityComponent : public UActorComponent
@@ -94,22 +108,26 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
-	/** Capabilities granted by name, with the set each is looked up in. Held are these and the parents their sets define. Authority only. */
-	UPROPERTY(Transient)
-	TMap<FGameplayTag, TObjectPtr<const UKzCapabilitySet>> GrantedCapabilities;
+	/** Capabilities granted by name, each once. Held are these and the parents their sets define. Granted on the authority, replicated to the owner. */
+	UPROPERTY(Transient, ReplicatedUsing = OnRep_GrantedCapabilities)
+	TArray<FKzGrantedCapability> GrantedCapabilities;
 
-	/** Capabilities whose tag, ability and controls are on. Authority only. */
+	UFUNCTION()
+	void OnRep_GrantedCapabilities();
+
+	/** Capabilities that are on: their tag, ability and controls on the authority, their controls alone on the owning client. */
 	TSet<FGameplayTag> AppliedCapabilities;
 
 	/** Puts on what is held and is not on, and takes off what is on and no longer held. */
 	void RefreshCapabilities();
 
-	/** Puts on one capability's tag, and its ability and controls as Set defines them. */
+	/** Puts on one capability's controls as Set defines them, and on the authority its tag and ability too. */
 	void ApplyCapability(FGameplayTag Capability, const UKzCapabilitySet* Set);
 
-	/** Takes off one capability's tag, ability and controls. */
+	/** Takes off one capability's controls, and on the authority its tag and ability too. */
 	void UnapplyCapability(FGameplayTag Capability);
 
 	/** Abilities we granted, so we can take back exactly what we gave. Authority only. */

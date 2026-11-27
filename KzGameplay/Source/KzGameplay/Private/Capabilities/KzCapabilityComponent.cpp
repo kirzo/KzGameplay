@@ -8,10 +8,24 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "GameFramework/Actor.h"
+#include "Net/UnrealNetwork.h"
 
 UKzCapabilityComponent::UKzCapabilityComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	SetIsReplicatedByDefault(true);
+}
+
+void UKzCapabilityComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME_CONDITION(UKzCapabilityComponent, GrantedCapabilities, COND_OwnerOnly);
+}
+
+void UKzCapabilityComponent::OnRep_GrantedCapabilities()
+{
+	RefreshCapabilities();
 }
 
 void UKzCapabilityComponent::BeginPlay()
@@ -65,18 +79,18 @@ void UKzCapabilityComponent::GrantDefaultCapabilities()
 void UKzCapabilityComponent::GrantCapability(FGameplayTag Capability, UKzCapabilitySet* SourceSet)
 {
 	// By name, not by match: a parent answers for a child already granted, but has its own ability to grant
-	if (!Capability.IsValid() || !HasAuthority() || GrantedCapabilities.Contains(Capability))
+	if (!Capability.IsValid() || !HasAuthority() || GrantedCapabilities.ContainsByPredicate([Capability](const FKzGrantedCapability& Granted) { return Granted.Capability == Capability; }))
 	{
 		return;
 	}
 
-	GrantedCapabilities.Add(Capability, SourceSet ? SourceSet : CapabilitySet.Get());
+	GrantedCapabilities.Add({ Capability, SourceSet ? SourceSet : CapabilitySet.Get() });
 	RefreshCapabilities();
 }
 
 void UKzCapabilityComponent::RevokeCapability(FGameplayTag Capability)
 {
-	if (!HasAuthority() || GrantedCapabilities.Remove(Capability) == 0)
+	if (!HasAuthority() || GrantedCapabilities.RemoveAll([Capability](const FKzGrantedCapability& Granted) { return Granted.Capability == Capability; }) == 0)
 	{
 		return;
 	}
@@ -88,17 +102,17 @@ void UKzCapabilityComponent::RefreshCapabilities()
 {
 	// Held: what was granted, and each parent its set defines, as the tag A.B answers for A
 	TMap<FGameplayTag, const UKzCapabilitySet*> Held;
-	for (const TPair<FGameplayTag, TObjectPtr<const UKzCapabilitySet>>& Pair : GrantedCapabilities)
+	for (const FKzGrantedCapability& Granted : GrantedCapabilities)
 	{
-		Held.Add(Pair.Key, Pair.Value);
+		Held.Add(Granted.Capability, Granted.Set);
 	}
-	for (const TPair<FGameplayTag, TObjectPtr<const UKzCapabilitySet>>& Pair : GrantedCapabilities)
+	for (const FKzGrantedCapability& Granted : GrantedCapabilities)
 	{
-		for (FGameplayTag Parent = Pair.Key.RequestDirectParent(); Parent.IsValid(); Parent = Parent.RequestDirectParent())
+		for (FGameplayTag Parent = Granted.Capability.RequestDirectParent(); Parent.IsValid(); Parent = Parent.RequestDirectParent())
 		{
-			if (Pair.Value && Pair.Value->DefinesCapability(Parent) && !Held.Contains(Parent))
+			if (Granted.Set && Granted.Set->DefinesCapability(Parent) && !Held.Contains(Parent))
 			{
-				Held.Add(Parent, Pair.Value);
+				Held.Add(Parent, Granted.Set);
 			}
 		}
 	}
@@ -128,21 +142,25 @@ void UKzCapabilityComponent::ApplyCapability(FGameplayTag Capability, const UKzC
 		return;
 	}
 
-	// The tag goes on regardless: a capability with nothing behind it still means the owner can do the thing
-	ASC->AddLooseGameplayTag(Capability, 1, EGameplayTagReplicationState::TagOnly);
 	AppliedCapabilities.Add(Capability);
-
 	const FKzCapabilityGrant* Grant = Set ? Set->FindGrant(Capability) : nullptr;
+
+	// The tag and the ability replicate from the authority; the controls are put on wherever this runs
+	if (HasAuthority())
+	{
+		// The tag goes on regardless: a capability with nothing behind it still means the owner can do the thing
+		ASC->AddLooseGameplayTag(Capability, 1, EGameplayTagReplicationState::TagOnly);
+
+		if (Grant && Grant->Ability)
+		{
+			FGameplayAbilitySpec Spec(Grant->Ability, Grant->Level, INDEX_NONE, Grant->SourceObject ? Grant->SourceObject.Get() : this);
+			GrantedAbilities.Add(Capability, ASC->GiveAbility(Spec));
+		}
+	}
 
 	if (!Grant)
 	{
 		return;
-	}
-
-	if (Grant->Ability)
-	{
-		FGameplayAbilitySpec Spec(Grant->Ability, Grant->Level, INDEX_NONE, Grant->SourceObject ? Grant->SourceObject.Get() : this);
-		GrantedAbilities.Add(Capability, ASC->GiveAbility(Spec));
 	}
 
 	// The controls come with the capability, so nothing that grants one has to know about inputs.
@@ -167,12 +185,15 @@ void UKzCapabilityComponent::UnapplyCapability(FGameplayTag Capability)
 		return;
 	}
 
-	ASC->RemoveLooseGameplayTag(Capability, 1, EGameplayTagReplicationState::TagOnly);
-
-	FGameplayAbilitySpecHandle Handle;
-	if (GrantedAbilities.RemoveAndCopyValue(Capability, Handle))
+	if (HasAuthority())
 	{
-		ASC->ClearAbility(Handle);
+		ASC->RemoveLooseGameplayTag(Capability, 1, EGameplayTagReplicationState::TagOnly);
+
+		FGameplayAbilitySpecHandle Handle;
+		if (GrantedAbilities.RemoveAndCopyValue(Capability, Handle))
+		{
+			ASC->ClearAbility(Handle);
+		}
 	}
 
 	TArray<TObjectPtr<UKzInputProfile>> Profiles;
