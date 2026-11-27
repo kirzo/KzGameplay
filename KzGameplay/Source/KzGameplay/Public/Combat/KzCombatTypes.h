@@ -12,8 +12,8 @@
 class UKzItemDefinition;
 class USceneComponent;
 
-/** How a target takes a hit, by its defenses in this order. */
-UENUM(BlueprintType)
+/** How a target takes a hit, by its defenses in this order. KzHitOutcome in Python, where KzLib's FKzHitResult is KzHitResult. */
+UENUM(BlueprintType, meta = (ScriptName = "KzHitOutcome"))
 enum class EKzHitResult : uint8
 {
 	/** Invulnerable, against an attack that is not Undodgeable: it does not count. */
