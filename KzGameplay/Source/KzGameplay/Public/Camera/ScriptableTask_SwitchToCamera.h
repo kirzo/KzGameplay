@@ -17,7 +17,8 @@ class KZGAMEPLAY_API UScriptableTask_SwitchToCamera : public UScriptableTask
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Camera", meta = (ScriptableContext))
+	/** The camera to show, such as one placed in the level. */
+	UPROPERTY(EditAnywhere, Category = "Camera")
 	TObjectPtr<AActor> Camera;
 
 	/** How it blends in, and back on reset. */
